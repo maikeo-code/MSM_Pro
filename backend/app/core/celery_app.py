@@ -1,0 +1,71 @@
+"""
+Configuração central do Celery para MSM_Pro.
+Define broker, backend, beat schedule e configurações gerais.
+"""
+from celery import Celery
+from celery.schedules import crontab
+
+from app.core.config import settings
+
+# Instância principal do Celery
+celery_app = Celery(
+    "msm_pro",
+    broker=settings.celery_broker_url,
+    backend=settings.celery_result_backend,
+)
+
+# Configurações gerais
+celery_app.conf.update(
+    task_serializer="json",
+    result_serializer="json",
+    accept_content=["json"],
+    timezone="America/Sao_Paulo",
+    enable_utc=True,
+    task_track_started=True,
+    worker_prefetch_multiplier=1,
+    task_acks_late=True,
+    task_soft_time_limit=300,  # 5 minutos soft limit
+    task_time_limit=600,  # 10 minutos hard limit
+)
+
+# Beat Schedule — tarefas agendadas
+celery_app.conf.beat_schedule = {
+    # Sincroniza snapshots de todos os anúncios ativos diariamente às 06:00 BRT (09:00 UTC)
+    "sync-all-snapshots-daily": {
+        "task": "app.jobs.tasks.sync_all_snapshots",
+        "schedule": crontab(hour=9, minute=0),
+        "options": {
+            "expires": 3600,  # Task expira em 1h se não executar
+            "retry": True,
+            "retry_policy": {
+                "max_retries": 3,
+                "interval_start": 10,
+                "interval_step": 20,
+                "interval_max": 200,
+            },
+        },
+    },
+    # Sincronização horária para anúncios com mudança recente de preço
+    "sync-recent-snapshots-hourly": {
+        "task": "app.jobs.tasks.sync_recent_snapshots",
+        "schedule": crontab(minute=0),  # A cada hora
+        "options": {
+            "expires": 3600,
+        },
+    },
+    # Renova tokens ML que vão expirar nas próximas 2 horas
+    "refresh-expired-tokens": {
+        "task": "app.jobs.tasks.refresh_expired_tokens",
+        "schedule": crontab(minute=0, hour="*/4"),  # A cada 4 horas
+        "options": {
+            "expires": 3600,
+            "retry": True,
+            "retry_policy": {
+                "max_retries": 2,
+                "interval_start": 5,
+                "interval_step": 10,
+                "interval_max": 60,
+            },
+        },
+    },
+}
