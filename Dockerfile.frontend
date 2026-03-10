@@ -12,13 +12,15 @@ COPY frontend/ .
 # Usa vite build direto (pula tsc que falha com path aliases no Docker)
 RUN npx vite build
 
-### Stage 2: Serve com Nginx
-FROM nginx:alpine
+### Stage 2: Serve estático com Node serve
+FROM node:20-alpine
 
-RUN rm /etc/nginx/conf.d/default.conf
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/dist /usr/share/nginx/html
+WORKDIR /app
 
-EXPOSE 80
+RUN npm install -g serve@14
 
-CMD ["nginx", "-g", "daemon off;"]
+COPY --from=builder /app/dist ./dist
+
+EXPOSE 3000
+
+CMD sh -c "serve -s dist -l ${PORT:-3000}"
