@@ -79,6 +79,7 @@ async def _sync_listing_snapshot_async(listing_id: str):
             return {"error": f"Conta ML não encontrada para listing {listing_id}"}
 
         # Chama a API ML
+        client = None
         try:
             client = MLClient(account.access_token)
 
@@ -158,7 +159,8 @@ async def _sync_listing_snapshot_async(listing_id: str):
             await db.rollback()
             return {"error": str(e), "listing_id": listing_id}
         finally:
-            await client.close()
+            if client:
+                await client.close()
 
 
 # --- Task: Sincronizar snapshots de todos os anúncios ---
