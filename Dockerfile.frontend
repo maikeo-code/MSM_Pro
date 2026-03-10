@@ -12,15 +12,15 @@ COPY frontend/ .
 # Usa vite build direto (pula tsc que falha com path aliases no Docker)
 RUN npx vite build
 
-### Stage 2: Serve estático com Node serve
+### Stage 2: Serve estático
 FROM node:20-alpine
 
 WORKDIR /app
 
-RUN npm install -g serve@14
+RUN npm install -g http-server
 
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 
-CMD sh -c "serve -s dist -l ${PORT:-3000}"
+CMD sh -c "http-server dist -p ${PORT:-3000} --gzip -c-1 -a 0.0.0.0"
