@@ -3,6 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 
+# Importa todos os modelos para garantir que o SQLAlchemy resolva os relacionamentos
+import app.auth.models  # noqa: F401
+import app.produtos.models  # noqa: F401
+import app.vendas.models  # noqa: F401
+import app.concorrencia.models  # noqa: F401
+import app.alertas.models  # noqa: F401
+
 # Importa routers
 from app.auth.router import router as auth_router
 from app.produtos.router import router as produtos_router
