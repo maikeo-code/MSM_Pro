@@ -108,14 +108,14 @@ export default function Anuncios() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right font-medium">
-                      {formatCurrency(parseFloat(listing.price))}
+                      {formatCurrency(listing.price)}
                     </td>
                     <td className="px-6 py-4 text-right">
                       {listing.last_snapshot?.visits?.toLocaleString("pt-BR") ?? "-"}
                     </td>
                     <td className="px-6 py-4 text-right">
                       {listing.last_snapshot?.conversion_rate
-                        ? formatPercent(parseFloat(listing.last_snapshot.conversion_rate))
+                        ? formatPercent(listing.last_snapshot.conversion_rate)
                         : "-"}
                     </td>
                     <td className="px-6 py-4 text-right">

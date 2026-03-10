@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, RefreshCw, Settings, User, Lock, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Settings, User, Lock, AlertCircle } from "lucide-react";
 import authService from "@/services/authService";
 import { formatDateTime } from "@/lib/utils";
 
@@ -16,7 +16,7 @@ export default function Configuracoes() {
     queryFn: () => authService.listMLAccounts(),
   });
 
-  const { data: connectURL, refetch: fetchConnectURL } = useQuery({
+  const { refetch: fetchConnectURL } = useQuery({
     queryKey: ["ml-connect-url"],
     queryFn: () => authService.getMLConnectURL(),
     enabled: false,

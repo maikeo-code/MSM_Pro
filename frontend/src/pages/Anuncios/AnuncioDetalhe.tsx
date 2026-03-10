@@ -1,3 +1,4 @@
+import React from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -6,7 +7,6 @@ import {
   TrendingUp,
   Zap,
   Package,
-  Megaphone,
   Target,
   Star,
 } from "lucide-react";
@@ -22,10 +22,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import listingsService, {
-  ListingAnalysis,
-  Alert as AlertType,
-} from "@/services/listingsService";
+import listingsService from "@/services/listingsService";
 import { formatCurrency, formatDate, formatPercent } from "@/lib/utils";
 
 function cn(...classes: string[]) {
@@ -87,10 +84,7 @@ export default function AnuncioDetalhe() {
   }
 
   // Preparar dados do gráfico
-  const chartData: ChartDataPoint[] = analysis.snapshots.map((snap, index) => {
-    const prevSnap = index > 0 ? analysis.snapshots[index - 1] : null;
-    const priceChanged = prevSnap && snap.price !== prevSnap.price;
-
+  const chartData: ChartDataPoint[] = analysis.snapshots.map((snap) => {
     return {
       date: formatDate(snap.captured_at),
       vendas: snap.sales_today,
@@ -370,7 +364,7 @@ export default function AnuncioDetalhe() {
                     key={idx}
                     className={cn(
                       "border-b",
-                      band.is_optimal && "bg-green-50"
+                      band.is_optimal ? "bg-green-50" : ""
                     )}
                   >
                     <td className="px-4 py-3">
@@ -570,5 +564,3 @@ export default function AnuncioDetalhe() {
     </div>
   );
 }
-
-import React from "react";

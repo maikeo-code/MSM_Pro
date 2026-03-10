@@ -102,8 +102,8 @@ export default function Dashboard() {
 
   // MLB com melhor conversão
   const bestConverting = [...displayListings].sort((a, b) => {
-    const convA = parseFloat(a.last_snapshot?.conversion_rate ?? "0");
-    const convB = parseFloat(b.last_snapshot?.conversion_rate ?? "0");
+    const convA = Number(a.last_snapshot?.conversion_rate ?? "0");
+    const convB = Number(b.last_snapshot?.conversion_rate ?? "0");
     return convB - convA;
   })[0];
 
@@ -153,7 +153,7 @@ export default function Dashboard() {
             isLoading
               ? "..."
               : bestConverting?.last_snapshot?.conversion_rate
-              ? formatPercent(parseFloat(bestConverting.last_snapshot.conversion_rate))
+              ? formatPercent(bestConverting.last_snapshot.conversion_rate)
               : "N/A"
           }
           subtitle={bestConverting?.title?.slice(0, 24) + "..."}
@@ -236,7 +236,7 @@ export default function Dashboard() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right font-medium">
-                      {formatCurrency(parseFloat(listing.price))}
+                      {formatCurrency(listing.price)}
                     </td>
                     <td className="px-6 py-4 text-right">
                       {listing.last_snapshot?.visits?.toLocaleString("pt-BR") ?? "-"}
@@ -246,7 +246,7 @@ export default function Dashboard() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       {listing.last_snapshot?.conversion_rate
-                        ? formatPercent(parseFloat(listing.last_snapshot.conversion_rate))
+                        ? formatPercent(listing.last_snapshot.conversion_rate)
                         : "-"}
                     </td>
                     <td className="px-6 py-4 text-right">
