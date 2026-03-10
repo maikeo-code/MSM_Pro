@@ -152,4 +152,4 @@ async def delete_ml_account(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conta não encontrada")
 
     account.is_active = False
-    await db.flush()
+    await db.commit()
