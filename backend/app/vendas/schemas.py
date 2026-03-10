@@ -84,7 +84,7 @@ class PriceBand(BaseModel):
 
 
 class SKUInfo(BaseModel):
-    id: str
+    id: str | None = None
     sku: str
     cost: float
 
