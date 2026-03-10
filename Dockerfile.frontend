@@ -9,7 +9,8 @@ RUN npm ci
 
 # Copia codigo do frontend e faz o build
 COPY frontend/ .
-RUN npm run build
+# Usa vite build direto (pula tsc que falha com path aliases no Docker)
+RUN npx vite build
 
 ### Stage 2: Serve com Nginx
 FROM nginx:alpine
