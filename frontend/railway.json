@@ -4,6 +4,7 @@
     "dockerfilePath": "Dockerfile.frontend"
   },
   "deploy": {
+    "startCommand": "serve -s dist -l ${PORT:-3000}",
     "healthcheckPath": "/",
     "restartPolicyType": "ON_FAILURE"
   }
