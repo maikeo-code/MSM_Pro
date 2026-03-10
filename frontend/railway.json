@@ -4,7 +4,6 @@
     "dockerfilePath": "Dockerfile.frontend"
   },
   "deploy": {
-    "startCommand": "http-server dist -p ${PORT:-3000} --gzip -c-1 -a 0.0.0.0",
     "healthcheckPath": "/",
     "restartPolicyType": "ON_FAILURE"
   }
