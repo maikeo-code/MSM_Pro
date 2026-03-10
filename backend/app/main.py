@@ -61,3 +61,10 @@ async def health_check():
 async def root():
     """Rota raiz — redireciona para docs."""
     return {"message": "MSM_Pro API — acesse /docs para a documentação"}
+
+
+@app.post("/api/v1/notifications", tags=["webhooks"])
+async def ml_notifications(payload: dict):
+    """Recebe notificações webhook do Mercado Livre."""
+    # TODO: processar notificações (pedidos, perguntas, stock changes)
+    return {"status": "received"}
