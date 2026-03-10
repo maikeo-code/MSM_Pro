@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker:*)",
+      "Bash(docker-compose:*)",
+      "Bash(alembic:*)",
+      "Bash(pytest:*)",
+      "Bash(pip:*)",
+      "Bash(python:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(git:*)",
+      "Bash(celery:*)"
+    ],
+    "deny": [
+      "Write(.env)",
+      "Write(dados/tokens/*)",
+      "Bash(rm -rf:*)",
+      "Bash(drop:*)"
+    ]
+  }
+}

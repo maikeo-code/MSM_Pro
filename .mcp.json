@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "msm-database": {
+      "command": "python",
+      "args": ["mcp-msm/server.py"],
+      "env": {
+        "DATABASE_URL": "postgresql://msm:msm@localhost:5432/msm_pro"
+      }
+    }
+  }
+}

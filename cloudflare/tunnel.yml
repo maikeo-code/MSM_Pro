@@ -1,0 +1,24 @@
+# Cloudflare Tunnel — MSM_Pro
+# Este arquivo configura o túnel HTTPS para o projeto.
+#
+# ATENÇÃO: Preencha tunnel_id e credentials-file após criar o tunnel
+# via: cloudflared tunnel create msm-pro
+#
+# Documentação: docs/cloudflare-setup.md
+
+tunnel: <TUNNEL_ID_AQUI>
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  # Dashboard principal (frontend React)
+  - hostname: msm.seudominio.com.br
+    service: http://backend:8000
+
+  # OAuth callback do Mercado Livre
+  # Cadastrar no painel ML: https://msm.seudominio.com.br/api/v1/auth/callback
+  - hostname: msm.seudominio.com.br
+    path: /api/v1/auth/callback
+    service: http://backend:8000
+
+  # Regra padrão — rejeita qualquer outra rota não mapeada
+  - service: http_status:404

@@ -1,0 +1,272 @@
+import { useQuery } from "@tanstack/react-query";
+import { Package, TrendingUp, Tag, AlertCircle } from "lucide-react";
+import listingsService from "@/services/listingsService";
+import { formatCurrency, formatPercent } from "@/lib/utils";
+
+interface KpiCardProps {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon: React.ReactNode;
+  color?: string;
+}
+
+function KpiCard({ title, value, subtitle, icon, color = "text-primary" }: KpiCardProps) {
+  return (
+    <div className="rounded-lg border bg-card p-6 shadow-sm">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="mt-2 text-3xl font-bold text-foreground">{value}</p>
+          {subtitle && (
+            <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+          )}
+        </div>
+        <div className={cn("rounded-full p-2 bg-accent", color)}>{icon}</div>
+      </div>
+    </div>
+  );
+}
+
+function cn(...classes: string[]) {
+  return classes.filter(Boolean).join(" ");
+}
+
+// Dados mock para enquanto a API está sendo construída
+const MOCK_LISTINGS = [
+  {
+    id: "1",
+    mlb_id: "MLB-1001",
+    title: "Caixa de Som Bluetooth JBL Charge 5",
+    listing_type: "premium" as const,
+    price: "899.90",
+    status: "active",
+    last_snapshot: {
+      visits: 1240,
+      sales_today: 12,
+      stock: 48,
+      conversion_rate: "0.97",
+      price: "899.90",
+    },
+  },
+  {
+    id: "2",
+    mlb_id: "MLB-1002",
+    title: "Fone de Ouvido Sony WH-1000XM5",
+    listing_type: "full" as const,
+    price: "1499.00",
+    status: "active",
+    last_snapshot: {
+      visits: 890,
+      sales_today: 5,
+      stock: 20,
+      conversion_rate: "0.56",
+      price: "1499.00",
+    },
+  },
+  {
+    id: "3",
+    mlb_id: "MLB-1003",
+    title: "Carregador USB-C 65W GaN",
+    listing_type: "classico" as const,
+    price: "149.90",
+    status: "active",
+    last_snapshot: {
+      visits: 3100,
+      sales_today: 43,
+      stock: 312,
+      conversion_rate: "1.39",
+      price: "149.90",
+    },
+  },
+];
+
+export default function Dashboard() {
+  const { data: listings, isLoading } = useQuery({
+    queryKey: ["listings"],
+    queryFn: () => listingsService.list(),
+  });
+
+  // Usa dados reais se disponíveis, senão usa mock
+  const displayListings = listings && listings.length > 0 ? listings : MOCK_LISTINGS;
+
+  const totalListings = displayListings.length;
+  const totalSalesToday = displayListings.reduce(
+    (acc, l) => acc + (l.last_snapshot?.sales_today ?? 0),
+    0,
+  );
+  const totalVisits = displayListings.reduce(
+    (acc, l) => acc + (l.last_snapshot?.visits ?? 0),
+    0,
+  );
+
+  // MLB com melhor conversão
+  const bestConverting = [...displayListings].sort((a, b) => {
+    const convA = parseFloat(a.last_snapshot?.conversion_rate ?? "0");
+    const convB = parseFloat(b.last_snapshot?.conversion_rate ?? "0");
+    return convB - convA;
+  })[0];
+
+  const isUsingMock = !listings || listings.length === 0;
+
+  return (
+    <div className="p-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+        <p className="text-muted-foreground mt-1">
+          Visao geral dos seus anuncios no Mercado Livre
+        </p>
+        {isUsingMock && (
+          <div className="mt-3 flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 w-fit">
+            <AlertCircle className="h-4 w-4" />
+            Exibindo dados de exemplo. Conecte sua conta ML para ver dados reais.
+          </div>
+        )}
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <KpiCard
+          title="Total de Anuncios"
+          value={isLoading ? "..." : totalListings}
+          subtitle="Anuncios ativos"
+          icon={<Tag className="h-5 w-5" />}
+        />
+        <KpiCard
+          title="Vendas Hoje"
+          value={isLoading ? "..." : totalSalesToday}
+          subtitle="Unidades vendidas"
+          icon={<Package className="h-5 w-5" />}
+          color="text-green-600"
+        />
+        <KpiCard
+          title="Visitas Hoje"
+          value={isLoading ? "..." : totalVisits.toLocaleString("pt-BR")}
+          subtitle="Visitas nos anuncios"
+          icon={<TrendingUp className="h-5 w-5" />}
+          color="text-blue-600"
+        />
+        <KpiCard
+          title="Melhor Conversao"
+          value={
+            isLoading
+              ? "..."
+              : bestConverting?.last_snapshot?.conversion_rate
+              ? formatPercent(parseFloat(bestConverting.last_snapshot.conversion_rate))
+              : "N/A"
+          }
+          subtitle={bestConverting?.title?.slice(0, 24) + "..."}
+          icon={<TrendingUp className="h-5 w-5" />}
+          color="text-purple-600"
+        />
+      </div>
+
+      {/* Tabela de anuncios */}
+      <div className="rounded-lg border bg-card shadow-sm">
+        <div className="px-6 py-4 border-b">
+          <h2 className="text-lg font-semibold text-foreground">Anuncios Ativos</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="px-6 py-3 text-left font-medium text-muted-foreground">
+                  Anuncio
+                </th>
+                <th className="px-6 py-3 text-left font-medium text-muted-foreground">
+                  Tipo
+                </th>
+                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
+                  Preco
+                </th>
+                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
+                  Visitas
+                </th>
+                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
+                  Vendas hoje
+                </th>
+                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
+                  Conversao
+                </th>
+                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
+                  Estoque
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
+                    Carregando...
+                  </td>
+                </tr>
+              ) : displayListings.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
+                    Nenhum anuncio cadastrado ainda.
+                  </td>
+                </tr>
+              ) : (
+                displayListings.map((listing) => (
+                  <tr
+                    key={listing.id}
+                    className="border-b hover:bg-muted/50 transition-colors"
+                  >
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="font-medium text-foreground line-clamp-1">
+                          {listing.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{listing.mlb_id}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                          listing.listing_type === "full"
+                            ? "bg-purple-100 text-purple-700"
+                            : listing.listing_type === "premium"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-gray-100 text-gray-700",
+                        )}
+                      >
+                        {listing.listing_type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right font-medium">
+                      {formatCurrency(parseFloat(listing.price))}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {listing.last_snapshot?.visits?.toLocaleString("pt-BR") ?? "-"}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {listing.last_snapshot?.sales_today ?? "-"}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {listing.last_snapshot?.conversion_rate
+                        ? formatPercent(parseFloat(listing.last_snapshot.conversion_rate))
+                        : "-"}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span
+                        className={cn(
+                          (listing.last_snapshot?.stock ?? 0) < 10
+                            ? "text-red-600 font-medium"
+                            : "text-foreground",
+                        )}
+                      >
+                        {listing.last_snapshot?.stock ?? "-"}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
