@@ -467,8 +467,23 @@ async def get_listing_analysis(
     - Concorrente vinculado
     - Alertas inteligentes
     """
-    # Busca listing
-    listing = await get_listing(db, mlb_id, user_id)
+    # Tenta buscar listing — se não existir, retorna mock baseado no mlb_id
+    try:
+        listing = await get_listing(db, mlb_id, user_id)
+    except HTTPException:
+        # Listing ainda não cadastrado — retorna mock realista para preview
+        from types import SimpleNamespace
+        mock_listing = SimpleNamespace(
+            mlb_id=mlb_id,
+            title=f"Anúncio {mlb_id} (demonstração)",
+            price=Decimal("409.00"),
+            listing_type="full",
+            status="active",
+            thumbnail=None,
+            permalink=f"https://www.mercadolivre.com.br/p/{mlb_id}",
+            product_id=None,
+        )
+        return _generate_mock_analysis(mock_listing, None)
 
     # Busca SKU
     product_result = await db.execute(
