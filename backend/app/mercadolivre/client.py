@@ -104,17 +104,188 @@ class MLClient:
             f"Falha após {max_retries} tentativas: {last_exception}",
         )
 
-    async def get_listing(self, mlb_id: str) -> dict:
+    async def get_item(self, mlb_id: str) -> dict:
         """
         Busca dados de um anúncio pelo ID MLB.
-        Retorna título, preço, estoque, status, etc.
+        GET /items/{id}
+        Retorna: título, preço, estoque, status, seller_id, etc.
         """
-        # Remove prefixo MLB- se presente para normalizar
         item_id = mlb_id.upper().replace("-", "")
         if not item_id.startswith("MLB"):
             item_id = f"MLB{item_id}"
 
         return await self._request("GET", f"/items/{item_id}")
+
+    async def update_item_price(self, mlb_id: str, price: float) -> dict:
+        """
+        Altera o preço de um anúncio.
+        PUT /items/{id}
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+
+        return await self._request(
+            "PUT",
+            f"/items/{item_id}",
+            json={"price": price},
+        )
+
+    async def get_item_visits(self, mlb_id: str, days: int = 30) -> list[dict]:
+        """
+        Busca visitas de um anúncio nos últimos N dias.
+        GET /items/{id}/visits/time_window?last={days}&unit=day
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+
+        response = await self._request(
+            "GET",
+            f"/items/{item_id}/visits/time_window",
+            params={"last": days, "unit": "day"},
+        )
+        # Retorna dict com "visits" como chave
+        return response.get("visits", [])
+
+    async def get_item_orders(self, mlb_id: str, seller_id: str, days: int = 30) -> list[dict]:
+        """
+        Busca vendas/orders de um anúncio.
+        GET /orders/search?seller={seller_id}&q={mlb_id}&sort=date_desc
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+
+        response = await self._request(
+            "GET",
+            "/orders/search",
+            params={
+                "seller": seller_id,
+                "q": item_id,
+                "sort": "date_desc",
+            },
+        )
+        return response.get("results", [])
+
+    async def get_full_stock(self, mlb_id: str) -> dict:
+        """
+        Busca estoque Full de um anúncio.
+        GET /user-products/{mlb_id}/stock/fulfillment
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+
+        try:
+            return await self._request(
+                "GET",
+                f"/user-products/{item_id}/stock/fulfillment",
+            )
+        except MLClientError:
+            # Se falhar, retorna dict vazio ou padrão
+            return {"available": 0, "in_transit": 0}
+
+    async def get_item_promotions(self, mlb_id: str, seller_id: str) -> list[dict]:
+        """
+        Busca promoções de um anúncio.
+        GET /seller-promotions/users/{seller_id}/items/{mlb_id}
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+
+        try:
+            response = await self._request(
+                "GET",
+                f"/seller-promotions/users/{seller_id}/items/{item_id}",
+            )
+            return response.get("results", []) if isinstance(response, dict) else []
+        except MLClientError:
+            return []
+
+    async def create_promotion(
+        self,
+        seller_id: str,
+        mlb_id: str,
+        discount_pct: float,
+        start_date: str,
+        end_date: str,
+    ) -> dict:
+        """
+        Cria nova promoção.
+        POST /seller-promotions/users/{seller_id}
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+
+        payload = {
+            "items": [{"item_id": item_id}],
+            "discount": {"type": "percentage", "value": discount_pct},
+            "start_date": start_date,
+            "end_date": end_date,
+        }
+
+        return await self._request(
+            "POST",
+            f"/seller-promotions/users/{seller_id}",
+            json=payload,
+        )
+
+    async def update_promotion(
+        self,
+        promotion_id: str,
+        mlb_id: str,
+        discount_pct: float,
+        end_date: str,
+    ) -> dict:
+        """
+        Atualiza promoção existente.
+        PUT /seller-promotions/{promotion_id}
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+
+        payload = {
+            "items": [{"item_id": item_id}],
+            "discount": {"type": "percentage", "value": discount_pct},
+            "end_date": end_date,
+        }
+
+        return await self._request(
+            "PUT",
+            f"/seller-promotions/{promotion_id}",
+            json=payload,
+        )
+
+    async def get_item_ads(self, mlb_id: str) -> dict:
+        """
+        Busca dados de publicidade (Ads) de um anúncio.
+        GET /advertising/product_ads?item_id={mlb_id}&status=active
+        Retorna: impressions, clicks, spend, attributed_sales, roas, cpc
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+
+        try:
+            response = await self._request(
+                "GET",
+                "/advertising/product_ads",
+                params={"item_id": item_id, "status": "active"},
+            )
+            return response if response else {}
+        except MLClientError:
+            # Se não conseguir dados de ads, retorna dict vazio
+            return {}
+
+    # Métodos auxiliares/legados mantidos para compatibilidade
+
+    async def get_listing(self, mlb_id: str) -> dict:
+        """Busca dados de um anúncio pelo ID MLB (alias de get_item)."""
+        return await self.get_item(mlb_id)
 
     async def get_listing_visits(
         self,
@@ -122,10 +293,7 @@ class MLClient:
         date_from: date,
         date_to: date,
     ) -> dict:
-        """
-        Busca visitas de um anúncio em um período.
-        Endpoint: /visits/items?ids={mlb_id}&date_from=...&date_to=...
-        """
+        """Busca visitas em um período (legado)."""
         item_id = mlb_id.upper().replace("-", "")
         if not item_id.startswith("MLB"):
             item_id = f"MLB{item_id}"
@@ -141,9 +309,7 @@ class MLClient:
         )
 
     async def get_user_listings(self, ml_user_id: str, offset: int = 0, limit: int = 50) -> dict:
-        """
-        Busca anúncios ativos de um usuário ML.
-        """
+        """Busca anúncios ativos de um usuário ML."""
         return await self._request(
             "GET",
             f"/users/{ml_user_id}/items/search",
@@ -155,9 +321,7 @@ class MLClient:
         )
 
     async def get_item_questions(self, mlb_id: str) -> dict:
-        """
-        Busca perguntas de um anúncio.
-        """
+        """Busca perguntas de um anúncio."""
         item_id = mlb_id.upper().replace("-", "")
         if not item_id.startswith("MLB"):
             item_id = f"MLB{item_id}"

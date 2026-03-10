@@ -68,3 +68,99 @@ class MargemResult(BaseModel):
     margem_pct: Decimal
     lucro: Decimal
     listing_type: str
+
+
+# ============== Schemas para Análise de Preço ==============
+
+
+class PriceBand(BaseModel):
+    price_range_label: str
+    avg_sales_per_day: float
+    avg_conversion: float
+    total_revenue: float
+    avg_margin: float
+    days_count: int
+    is_optimal: bool
+
+
+class SKUInfo(BaseModel):
+    id: str
+    sku: str
+    cost: float
+
+
+class FullStock(BaseModel):
+    available: int
+    in_transit: int
+    days_until_stockout_7d: float | None
+    days_until_stockout_30d: float | None
+    velocity_7d: float
+    velocity_30d: float
+    status: str  # "critical" | "warning" | "excess" | "ok"
+
+
+class Promotion(BaseModel):
+    id: str
+    type: str
+    discount_pct: float
+    original_price: float
+    final_price: float
+    start_date: str
+    end_date: str
+    status: str
+
+
+class Ads(BaseModel):
+    roas: float | None = None
+    impressions: int | None = None
+    clicks: int | None = None
+    cpc: float | None = None
+    ctr: float | None = None
+    spend: float | None = None
+    attributed_sales: float | None = None
+
+
+class CompetitorPrice(BaseModel):
+    mlb_id: str
+    price: float
+    last_updated: str
+
+
+class Alert(BaseModel):
+    type: str
+    message: str
+    severity: str  # "critical" | "warning" | "info"
+
+
+class ListingInfo(BaseModel):
+    mlb_id: str
+    title: str
+    price: float
+    listing_type: str
+    status: str
+    thumbnail: str | None
+    permalink: str | None
+
+
+class ListingAnalysisOut(BaseModel):
+    is_mock: bool
+    listing: ListingInfo
+    sku: SKUInfo
+    snapshots: list[dict]  # SnapshotOut serializado
+    price_bands: list[PriceBand]
+    full_stock: FullStock
+    promotions: list[Promotion]
+    ads: dict
+    competitor: CompetitorPrice | None
+    alerts: list[Alert]
+
+
+class UpdatePriceIn(BaseModel):
+    price: float = Field(gt=0)
+
+
+class CreatePromotionIn(BaseModel):
+    discount_pct: float = Field(ge=5, le=60)
+    start_date: str
+    end_date: str
+    promotion_id: str | None = None

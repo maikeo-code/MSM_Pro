@@ -12,6 +12,7 @@ import app.alertas.models  # noqa: F401
 
 # Importa routers
 from app.auth.router import router as auth_router
+from app.concorrencia.router import router as concorrencia_router
 from app.produtos.router import router as produtos_router
 from app.vendas.router import router as vendas_router
 
@@ -42,6 +43,7 @@ API_PREFIX = "/api/v1"
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(produtos_router, prefix=API_PREFIX)
 app.include_router(vendas_router, prefix=API_PREFIX)
+app.include_router(concorrencia_router, prefix=API_PREFIX)
 
 
 # --- Health Check ---

@@ -9,7 +9,15 @@ from app.auth.models import User
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.vendas import service
-from app.vendas.schemas import ListingCreate, ListingOut, MargemResult, SnapshotOut
+from app.vendas.schemas import (
+    CreatePromotionIn,
+    ListingAnalysisOut,
+    ListingCreate,
+    ListingOut,
+    MargemResult,
+    SnapshotOut,
+    UpdatePriceIn,
+)
 
 router = APIRouter(prefix="/listings", tags=["listings"])
 
@@ -49,6 +57,17 @@ async def create_listing(
     }
 
 
+@router.get("/{mlb_id}", response_model=ListingOut)
+async def get_listing(
+    mlb_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Busca um anúncio específico."""
+    listing = await service.get_listing(db, mlb_id, current_user.id)
+    return listing
+
+
 @router.get("/{mlb_id}/snapshots", response_model=list[SnapshotOut])
 async def get_snapshots(
     mlb_id: str,
@@ -60,6 +79,27 @@ async def get_snapshots(
     return await service.get_listing_snapshots(db, mlb_id, current_user.id, dias)
 
 
+@router.get("/{mlb_id}/analysis", response_model=ListingAnalysisOut)
+async def get_analysis(
+    mlb_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    days: int = Query(default=30, ge=1, le=365, description="Número de dias de histórico"),
+):
+    """
+    Retorna análise completa de um anúncio:
+    - Dados do listing e SKU
+    - Snapshots históricos
+    - Faixas de preço e margem ótima
+    - Projeção de estoque
+    - Promoções ativas
+    - Dados de publicidade
+    - Concorrente vinculado
+    - Alertas inteligentes
+    """
+    return await service.get_listing_analysis(db, mlb_id, current_user.id, days)
+
+
 @router.get("/{mlb_id}/margem", response_model=MargemResult)
 async def get_margem(
     mlb_id: str,
@@ -69,3 +109,35 @@ async def get_margem(
 ):
     """Calcula margem para um anúncio com preço informado."""
     return await service.get_margem(db, mlb_id, current_user.id, preco)
+
+
+@router.patch("/{mlb_id}/price")
+async def update_price(
+    mlb_id: str,
+    payload: UpdatePriceIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Altera o preço de um anúncio."""
+    return await service.update_listing_price(
+        db, mlb_id, current_user.id, Decimal(str(payload.price))
+    )
+
+
+@router.post("/{mlb_id}/promotions")
+async def create_promotion(
+    mlb_id: str,
+    payload: CreatePromotionIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Cria ou renova promoção para um anúncio."""
+    return await service.create_or_update_promotion(
+        db,
+        mlb_id,
+        current_user.id,
+        payload.discount_pct,
+        payload.start_date,
+        payload.end_date,
+        payload.promotion_id,
+    )

@@ -3,12 +3,12 @@ import api from "./api";
 export interface SnapshotOut {
   id: string;
   listing_id: string;
-  price: string;
+  price: number;
   visits: number;
   sales_today: number;
   questions: number;
   stock: number;
-  conversion_rate: string | null;
+  conversion_rate: number | null;
   captured_at: string;
 }
 
@@ -20,7 +20,7 @@ export interface ListingOut {
   mlb_id: string;
   title: string;
   listing_type: "classico" | "premium" | "full";
-  price: string;
+  price: number;
   status: string;
   permalink: string | null;
   thumbnail: string | null;
@@ -41,15 +41,106 @@ export interface ListingCreate {
 }
 
 export interface MargemResult {
-  preco: string;
-  custo_sku: string;
-  taxa_ml_pct: string;
-  taxa_ml_valor: string;
-  frete: string;
-  margem_bruta: string;
-  margem_pct: string;
-  lucro: string;
+  preco: number;
+  custo_sku: number;
+  taxa_ml_pct: number;
+  taxa_ml_valor: number;
+  frete: number;
+  margem_bruta: number;
+  margem_pct: number;
+  lucro: number;
   listing_type: string;
+}
+
+export interface PriceBand {
+  price_range_label: string;
+  avg_sales_per_day: number;
+  avg_conversion: number;
+  total_revenue: number;
+  avg_margin: number;
+  days_count: number;
+  is_optimal: boolean;
+}
+
+export interface SKUInfo {
+  id: string;
+  sku: string;
+  cost: number;
+}
+
+export interface FullStock {
+  available: number;
+  in_transit: number;
+  days_until_stockout_7d: number | null;
+  days_until_stockout_30d: number | null;
+  velocity_7d: number;
+  velocity_30d: number;
+  status: "critical" | "warning" | "excess" | "ok";
+}
+
+export interface Promotion {
+  id: string;
+  type: string;
+  discount_pct: number;
+  original_price: number;
+  final_price: number;
+  start_date: string;
+  end_date: string;
+  status: string;
+}
+
+export interface Ads {
+  roas: number;
+  impressions: number;
+  clicks: number;
+  cpc: number;
+  ctr: number;
+  spend: number;
+  attributed_sales: number;
+}
+
+export interface CompetitorPrice {
+  mlb_id: string;
+  price: number;
+  last_updated: string;
+}
+
+export interface Alert {
+  type: string;
+  message: string;
+  severity: "critical" | "warning" | "info";
+}
+
+export interface ListingAnalysis {
+  is_mock: boolean;
+  listing: {
+    mlb_id: string;
+    title: string;
+    price: number;
+    listing_type: string;
+    status: string;
+    thumbnail: string | null;
+    permalink: string | null;
+  };
+  sku: SKUInfo;
+  snapshots: SnapshotOut[];
+  price_bands: PriceBand[];
+  full_stock: FullStock;
+  promotions: Promotion[];
+  ads: Partial<Ads>;
+  competitor: CompetitorPrice | null;
+  alerts: Alert[];
+}
+
+export interface UpdatePricePayload {
+  price: number;
+}
+
+export interface CreatePromotionPayload {
+  discount_pct: number;
+  start_date: string;
+  end_date: string;
+  promotion_id?: string;
 }
 
 const listingsService = {
@@ -70,10 +161,36 @@ const listingsService = {
     return data;
   },
 
+  async getAnalysis(mlbId: string, days = 30): Promise<ListingAnalysis> {
+    const { data } = await api.get<ListingAnalysis>(`/listings/${mlbId}/analysis`, {
+      params: { days },
+    });
+    return data;
+  },
+
   async getMargem(mlbId: string, preco: number): Promise<MargemResult> {
     const { data } = await api.get<MargemResult>(`/listings/${mlbId}/margem`, {
       params: { preco },
     });
+    return data;
+  },
+
+  async updatePrice(
+    mlbId: string,
+    payload: UpdatePricePayload
+  ): Promise<{ mlb_id: string; new_price: number; updated_at: string }> {
+    const { data } = await api.patch(`/listings/${mlbId}/price`, payload);
+    return data;
+  },
+
+  async createPromotion(
+    mlbId: string,
+    payload: CreatePromotionPayload
+  ): Promise<Promotion> {
+    const { data } = await api.post<Promotion>(
+      `/listings/${mlbId}/promotions`,
+      payload
+    );
     return data;
   },
 };
