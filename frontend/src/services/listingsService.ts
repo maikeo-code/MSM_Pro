@@ -111,6 +111,23 @@ export interface Alert {
   severity: "critical" | "warning" | "info";
 }
 
+export interface HealthCheck {
+  item: string;
+  ok: boolean;
+  points: number;
+  max: number;
+  action?: string;
+  detail?: string;
+}
+
+export interface ListingHealth {
+  score: number;
+  status: "excellent" | "good" | "warning" | "critical";
+  label: string;
+  color: string;
+  checks: HealthCheck[];
+}
+
 export interface ListingAnalysis {
   is_mock: boolean;
   listing: {
@@ -191,6 +208,11 @@ const listingsService = {
       `/listings/${mlbId}/promotions`,
       payload
     );
+    return data;
+  },
+
+  async getListingHealth(mlbId: string): Promise<ListingHealth> {
+    const { data } = await api.get<ListingHealth>(`/listings/${mlbId}/health`);
     return data;
   },
 };

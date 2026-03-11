@@ -1,11 +1,39 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ExternalLink, TrendingUp } from "lucide-react";
-import listingsService from "@/services/listingsService";
-import { formatCurrency, formatPercent } from "@/lib/utils";
+import listingsService, { ListingOut } from "@/services/listingsService";
+import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 
-function cn(...classes: string[]) {
-  return classes.filter(Boolean).join(" ");
+function HealthBadge({ score }: { score: number | null }) {
+  if (score === null) return null;
+  const color =
+    score >= 80 ? "bg-green-100 text-green-700" :
+    score >= 60 ? "bg-yellow-100 text-yellow-700" :
+    score >= 40 ? "bg-orange-100 text-orange-700" :
+    "bg-red-100 text-red-700";
+  const label =
+    score >= 80 ? "Ótimo" :
+    score >= 60 ? "Bom" :
+    score >= 40 ? "Atenção" : "Crítico";
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>
+      {label}
+    </span>
+  );
+}
+
+function quickHealthScore(listing: ListingOut): number {
+  const snap = listing.last_snapshot;
+  let score = 50; // base
+  if (listing.thumbnail) score += 10;
+  if (listing.status === "active") score += 10;
+  if (snap) {
+    const conversion = Number(snap.conversion_rate) || 0;
+    if (conversion >= 3) score += 20;
+    else if (conversion >= 1) score += 10;
+    if (snap.stock > 30) score += 10;
+  }
+  return Math.min(100, score);
 }
 
 export default function Anuncios() {
@@ -84,12 +112,15 @@ export default function Anuncios() {
                   >
                     <td className="px-6 py-4">
                       <div>
-                        <Link
-                          to={`/anuncios/${listing.mlb_id}`}
-                          className="font-medium text-primary hover:underline line-clamp-1"
-                        >
-                          {listing.title}
-                        </Link>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Link
+                            to={`/anuncios/${listing.mlb_id}`}
+                            className="font-medium text-primary hover:underline line-clamp-1"
+                          >
+                            {listing.title}
+                          </Link>
+                          <HealthBadge score={quickHealthScore(listing)} />
+                        </div>
                         <p className="text-xs text-muted-foreground">{listing.mlb_id}</p>
                       </div>
                     </td>

@@ -22,12 +22,8 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import listingsService from "@/services/listingsService";
-import { formatCurrency, formatDate, formatPercent } from "@/lib/utils";
-
-function cn(...classes: string[]) {
-  return classes.filter(Boolean).join(" ");
-}
+import listingsService, { ListingHealth } from "@/services/listingsService";
+import { formatCurrency, formatDate, formatPercent, cn } from "@/lib/utils";
 
 const AlertSeverityColors = {
   critical: "bg-red-50 border-red-200 text-red-900",
@@ -56,6 +52,12 @@ export default function AnuncioDetalhe() {
   const { data: analysis, isLoading, error } = useQuery({
     queryKey: ["listing-analysis", mlbId, days],
     queryFn: () => listingsService.getAnalysis(mlbId!, days),
+    enabled: !!mlbId,
+  });
+
+  const { data: health } = useQuery({
+    queryKey: ["listing-health", mlbId],
+    queryFn: () => listingsService.getListingHealth(mlbId!),
     enabled: !!mlbId,
   });
 
@@ -105,7 +107,7 @@ export default function AnuncioDetalhe() {
   // Cálculos de KPI
   const totalSales = analysis.snapshots.reduce((sum, s) => sum + s.sales_today, 0);
   const avgConversion = analysis.snapshots.length
-    ? analysis.snapshots.reduce((sum, s) => sum + (s.conversion_rate || 0), 0) /
+    ? analysis.snapshots.reduce((sum, s) => sum + (Number(s.conversion_rate) || 0), 0) /
       analysis.snapshots.length
     : 0;
   const currentPrice = analysis.listing.price;
@@ -239,6 +241,58 @@ export default function AnuncioDetalhe() {
           </div>
         </div>
       </div>
+
+      {/* Health Card */}
+      {health && (
+        <div className="rounded-lg border bg-card">
+          <div className="px-6 py-4 border-b flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Saúde do Anúncio</h2>
+              <p className="text-sm text-muted-foreground">Score baseado em estoque, conversão e dados do anúncio</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className={`text-3xl font-bold ${
+                health.color === "green" ? "text-green-600" :
+                health.color === "yellow" ? "text-yellow-600" :
+                health.color === "orange" ? "text-orange-600" :
+                "text-red-600"
+              }`}>
+                {health.score}
+              </div>
+              <div className="text-sm text-muted-foreground">/100</div>
+              <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
+                health.color === "green" ? "bg-green-100 text-green-700" :
+                health.color === "yellow" ? "bg-yellow-100 text-yellow-700" :
+                health.color === "orange" ? "bg-orange-100 text-orange-700" :
+                "bg-red-100 text-red-700"
+              }`}>
+                {health.label}
+              </span>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="space-y-3">
+              {health.checks.map((check, i) => (
+                <div key={i} className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className={check.ok ? "text-green-500" : "text-red-400"}>
+                      {check.ok ? "✓" : "✗"}
+                    </span>
+                    <div>
+                      <span className="text-sm font-medium">{check.item}</span>
+                      {check.detail && <span className="ml-2 text-xs text-muted-foreground">{check.detail}</span>}
+                      {!check.ok && check.action && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{check.action}</p>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">{check.points}/{check.max} pts</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Chart */}
       <div className="rounded-lg border bg-card p-6">
