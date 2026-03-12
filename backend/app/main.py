@@ -20,6 +20,7 @@ import app.jobs.tasks  # noqa: F401
 from app.alertas.router import router as alertas_router
 from app.auth.router import router as auth_router
 from app.concorrencia.router import router as concorrencia_router
+from app.consultor.router import router as consultor_router
 from app.produtos.router import router as produtos_router
 from app.vendas.router import router as vendas_router
 
@@ -57,6 +58,7 @@ app.include_router(produtos_router, prefix=API_PREFIX)
 app.include_router(vendas_router, prefix=API_PREFIX)
 app.include_router(concorrencia_router, prefix=API_PREFIX)
 app.include_router(alertas_router, prefix=API_PREFIX)
+app.include_router(consultor_router, prefix=API_PREFIX)
 
 
 # --- Health Check ---

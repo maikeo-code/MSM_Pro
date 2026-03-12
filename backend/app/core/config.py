@@ -44,5 +44,8 @@ class Settings(BaseSettings):
     ml_auth_url: str = "https://auth.mercadolivre.com.br/authorization"
     ml_token_url: str = "https://api.mercadolibre.com/oauth/token"
 
+    # --- Anthropic (Consultor IA) ---
+    anthropic_api_key: str = ""
+
 
 settings = Settings()

@@ -94,14 +94,16 @@ def _formatar_kpi(kpi: dict) -> str:
         if not periodo:
             continue
 
-        vendas = periodo.get("total_sales", 0)
-        receita = periodo.get("total_revenue", 0)
-        visitas = periodo.get("total_visits", 0)
-        anuncios = periodo.get("listings_with_sales", 0)
+        vendas = periodo.get("vendas", 0)
+        receita = periodo.get("receita_total", 0)
+        visitas = periodo.get("visitas", 0)
+        pedidos = periodo.get("pedidos", 0)
+        conversao = periodo.get("conversao", 0)
+        anuncios = periodo.get("anuncios", 0)
 
         linhas.append(
-            f"{label}: {vendas} vendas | R$ {float(receita):.2f} receita | "
-            f"{visitas} visitas | {anuncios} anúncios com venda"
+            f"{label}: {vendas} vendas | {pedidos} pedidos | R$ {float(receita):.2f} receita | "
+            f"{visitas} visitas | {float(conversao):.2f}% conversão | {anuncios} anúncios ativos"
         )
 
     return "\n".join(linhas)
