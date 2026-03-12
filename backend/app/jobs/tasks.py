@@ -159,17 +159,35 @@ async def _sync_listing_snapshot_async(listing_id: str):
             if visits > 0 and sales_today > 0:
                 conversion_rate = Decimal(str(round((sales_today / visits) * 100, 4)))
 
-            # Salva snapshot
-            snapshot = ListingSnapshot(
-                listing_id=listing.id,
-                price=price,
-                visits=visits,
-                sales_today=sales_today,
-                questions=questions_count,
-                stock=stock,
-                conversion_rate=conversion_rate,
+            # Upsert snapshot: atualiza se já existe do mesmo dia, senão insere
+            from sqlalchemy import cast, Date
+            from datetime import date as date_type
+            existing_snap_result = await db.execute(
+                select(ListingSnapshot).where(
+                    ListingSnapshot.listing_id == listing.id,
+                    cast(ListingSnapshot.captured_at, Date) == date_type.today(),
+                ).order_by(ListingSnapshot.captured_at.desc()).limit(1)
             )
-            db.add(snapshot)
+            existing_snap = existing_snap_result.scalar_one_or_none()
+            if existing_snap:
+                existing_snap.price = price
+                existing_snap.visits = visits
+                existing_snap.sales_today = sales_today
+                existing_snap.questions = questions_count
+                existing_snap.stock = stock
+                existing_snap.conversion_rate = conversion_rate
+                existing_snap.captured_at = datetime.now(timezone.utc)
+            else:
+                snapshot = ListingSnapshot(
+                    listing_id=listing.id,
+                    price=price,
+                    visits=visits,
+                    sales_today=sales_today,
+                    questions=questions_count,
+                    stock=stock,
+                    conversion_rate=conversion_rate,
+                )
+                db.add(snapshot)
 
             # Atualiza preço, status e campos de desconto do listing
             listing.price = price

@@ -1096,11 +1096,13 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                             pass
 
                         # BUG 1 FIX: verificar se já existe snapshot do mesmo dia antes de inserir
+                        # Usa .first() em vez de scalar_one_or_none() porque pode haver
+                        # múltiplos snapshots do mesmo dia (duplicatas antigas)
                         existing_snap_result = await db.execute(
                             select(ListingSnapshot).where(
                                 ListingSnapshot.listing_id == listing.id,
                                 cast(ListingSnapshot.captured_at, Date) == date.today(),
-                            )
+                            ).order_by(ListingSnapshot.captured_at.desc()).limit(1)
                         )
                         existing_snap = existing_snap_result.scalar_one_or_none()
                         if existing_snap:
