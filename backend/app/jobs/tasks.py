@@ -89,7 +89,7 @@ async def _sync_listing_snapshot_async(listing_id: str):
             stock = item_data.get("available_quantity", 0)
             status = item_data.get("status", listing.status)
 
-            # Extrai original_price e sale_price
+            # Extrai original_price e sale_price do item
             original_price_raw = item_data.get("original_price")
             original_price = Decimal(str(original_price_raw)) if original_price_raw else None
 
@@ -103,6 +103,22 @@ async def _sync_listing_snapshot_async(listing_id: str):
             # Se sale_price existe e é menor que price, price é o preço original
             if sale_price_val is not None and original_price is None and price > sale_price_val:
                 original_price = price
+
+            # Se ainda não tem original_price, buscar via seller-promotions
+            # Endpoint: GET /seller-promotions/items/{ITEM_ID}?app_version=v2
+            if original_price is None:
+                try:
+                    promotions = await client.get_item_promotions(listing.mlb_id)
+                    for promo in promotions:
+                        if promo.get("status") == "started" and promo.get("original_price"):
+                            original_price = Decimal(str(promo["original_price"]))
+                            # Se a promoção também tem price, pode ser mais preciso que o item price
+                            promo_price = promo.get("price")
+                            if promo_price is not None:
+                                price = Decimal(str(promo_price))
+                            break
+                except Exception:
+                    logger.debug(f"Não conseguiu buscar promoções para {listing.mlb_id}")
 
             # Busca visitas do dia
             visits = 0

@@ -1028,6 +1028,20 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         if sale_price_val is not None and original_price is None and price > sale_price_val:
                             original_price = price
 
+                        # Se ainda não tem original_price, buscar via seller-promotions
+                        if original_price is None:
+                            try:
+                                promotions = await client.get_item_promotions(mlb_id)
+                                for promo in promotions:
+                                    if promo.get("status") == "started" and promo.get("original_price"):
+                                        original_price = Decimal(str(promo["original_price"]))
+                                        promo_price = promo.get("price")
+                                        if promo_price is not None:
+                                            price = Decimal(str(promo_price))
+                                        break
+                            except Exception:
+                                pass
+
                         # Verifica se listing já existe
                         existing = await db.execute(
                             select(Listing).where(Listing.mlb_id == mlb_id)

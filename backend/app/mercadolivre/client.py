@@ -198,10 +198,17 @@ class MLClient:
             # Se falhar, retorna dict vazio ou padrão
             return {"available": 0, "in_transit": 0}
 
-    async def get_item_promotions(self, mlb_id: str, seller_id: str) -> list[dict]:
+    async def get_item_promotions(self, mlb_id: str, seller_id: str = "") -> list[dict]:
         """
-        Busca promoções de um anúncio.
-        GET /seller-promotions/users/{seller_id}/items/{mlb_id}
+        Busca TODAS as promoções associadas a um anúncio.
+        GET /seller-promotions/items/{ITEM_ID}?app_version=v2
+
+        Retorna lista de promoções, cada uma com:
+          - type: DEAL, PRICE_DISCOUNT, MARKETPLACE_CAMPAIGN, etc.
+          - price: preço com desconto
+          - original_price: preço sem desconto (riscado)
+          - status: started, pending, finished
+          - start_date, finish_date
         """
         item_id = mlb_id.upper().replace("-", "")
         if not item_id.startswith("MLB"):
@@ -210,9 +217,15 @@ class MLClient:
         try:
             response = await self._request(
                 "GET",
-                f"/seller-promotions/users/{seller_id}/items/{item_id}",
+                f"/seller-promotions/items/{item_id}",
+                params={"app_version": "v2"},
             )
-            return response.get("results", []) if isinstance(response, dict) else []
+            # Resposta pode ser lista direta ou dict com "results"
+            if isinstance(response, list):
+                return response
+            if isinstance(response, dict):
+                return response.get("results", [response] if "type" in response else [])
+            return []
         except MLClientError:
             return []
 
