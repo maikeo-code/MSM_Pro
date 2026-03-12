@@ -94,6 +94,17 @@ async def _sync_listing_snapshot_async(listing_id: str, visits_override: int | N
             stock = item_data.get("available_quantity", 0)
             status = item_data.get("status", listing.status)
 
+            # Extrai category_id e seller_sku do item
+            category_id = item_data.get("category_id")
+            seller_sku = item_data.get("seller_custom_field")
+
+            # Se seller_custom_field não existe, tenta buscar em attributes com id SELLER_SKU
+            if not seller_sku and item_data.get("attributes"):
+                for attr in item_data["attributes"]:
+                    if attr.get("id") == "SELLER_SKU":
+                        seller_sku = attr.get("value_name") or attr.get("value_id")
+                        break
+
             # Extrai original_price e sale_price do item
             original_price_raw = item_data.get("original_price")
             original_price = Decimal(str(original_price_raw)) if original_price_raw else None
@@ -270,6 +281,8 @@ async def _sync_listing_snapshot_async(listing_id: str, visits_override: int | N
             listing.original_price = original_price
             listing.sale_price = sale_price_val
             listing.status = status
+            listing.category_id = category_id
+            listing.seller_sku = seller_sku
             listing.updated_at = datetime.now(timezone.utc)
 
             await db.commit()

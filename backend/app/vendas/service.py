@@ -446,6 +446,19 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
             returns_rev = float(last_snap.returns_revenue or 0)
             vendas_concluidas = round(float(last_snap.revenue) - cancelled_rev - returns_rev, 2)
 
+        # ITEM 6: voce_recebe = preço - taxa ML - frete estimado
+        voce_recebe: float | None = None
+        if last_snap:
+            preco = float(listing.price or 0)
+            # Taxa estimada por tipo de anúncio (fallback se não tiver categoria real)
+            taxa_map = {"classico": 0.115, "premium": 0.17, "full": 0.17}
+            taxa_pct = taxa_map.get(listing.listing_type, 0.16)
+            taxa_valor = preco * taxa_pct
+            # Frete estimado: para Full, o ML cobre; para os outros, estimamos ~5% do preço
+            # Por enquanto usar 0 (será atualizado quando tivermos dimensões)
+            frete_est = 0.0
+            voce_recebe = round(preco - taxa_valor - frete_est, 2)
+
         listing_dict = {
             "id": listing.id,
             "user_id": listing.user_id,
@@ -458,6 +471,8 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
             "original_price": listing.original_price,
             "sale_price": listing.sale_price,
             "status": listing.status,
+            "category_id": listing.category_id,
+            "seller_sku": listing.seller_sku,
             "permalink": listing.permalink,
             "thumbnail": listing.thumbnail,
             "created_at": listing.created_at,
@@ -467,7 +482,9 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
             "rpv": rpv,
             "taxa_cancelamento": taxa_cancelamento,
             "avg_price_per_sale": avg_price_per_sale,
+            "participacao_pct": None,
             "vendas_concluidas": vendas_concluidas,
+            "voce_recebe": voce_recebe,
         }
         output.append(listing_dict)
 

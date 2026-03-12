@@ -42,6 +42,8 @@ class Listing(Base):
     original_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     sale_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    category_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    seller_sku: Mapped[str | None] = mapped_column(String(100), nullable=True)
     permalink: Mapped[str | None] = mapped_column(Text, nullable=True)
     thumbnail: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

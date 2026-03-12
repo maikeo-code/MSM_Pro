@@ -14,6 +14,8 @@ class ListingCreate(BaseModel):
     price: Decimal = Field(ge=0, decimal_places=2)
     original_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     sale_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    category_id: str | None = None
+    seller_sku: str | None = None
     permalink: str | None = None
     thumbnail: str | None = None
 
@@ -25,6 +27,8 @@ class ListingUpdate(BaseModel):
     original_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     sale_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     status: str | None = None
+    category_id: str | None = None
+    seller_sku: str | None = None
     permalink: str | None = None
     thumbnail: str | None = None
 
@@ -62,6 +66,8 @@ class ListingOut(BaseModel):
     original_price: Decimal | None = None
     sale_price: Decimal | None = None
     status: str
+    category_id: str | None = None
+    seller_sku: str | None = None
     permalink: str | None
     thumbnail: str | None
     created_at: datetime
@@ -74,6 +80,7 @@ class ListingOut(BaseModel):
     avg_price_per_sale: float | None = None  # revenue / orders_count
     participacao_pct: float | None = None  # % do total de receita
     vendas_concluidas: float | None = None  # revenue - cancelled_revenue - returns_revenue
+    voce_recebe: float | None = None  # preço - taxa ML - frete estimado
 
     model_config = {"from_attributes": True}
 

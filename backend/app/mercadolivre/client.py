@@ -358,6 +358,51 @@ class MLClient:
             # Se não conseguir dados de ads, retorna dict vazio
             return {}
 
+    async def get_listing_fees(
+        self, price: float, category_id: str, listing_type_id: str
+    ) -> dict:
+        """
+        Busca taxa real do ML por categoria e tipo de anúncio.
+        GET /sites/MLB/listing_prices?price={price}&category_id={cat}&listing_type_id={type}
+        Retorna: {percentage_fee: float, fixed_fee: float, sale_fee_amount: float}
+
+        Args:
+            price: Preço do anúncio em R$
+            category_id: ID da categoria do anúncio (ex: "MLB1000")
+            listing_type_id: Tipo de anúncio (ex: "bronze", "silver", "gold")
+
+        Returns:
+            Dict com percentual_fee, fixed_fee e sale_fee_amount
+        """
+        try:
+            params = {
+                "price": price,
+                "category_id": category_id,
+                "listing_type_id": listing_type_id,
+            }
+            data = await self._request("GET", "/sites/MLB/listing_prices", params=params)
+
+            # data pode ser uma lista — filtrar pelo listing_type_id correto
+            if isinstance(data, list):
+                for item in data:
+                    if item.get("listing_type_id") == listing_type_id:
+                        return {
+                            "percentage_fee": item.get("sale_fee_details", {}).get("percentage_fee", 0),
+                            "fixed_fee": item.get("sale_fee_details", {}).get("fixed_fee", 0),
+                            "sale_fee_amount": item.get("sale_fee_amount", 0),
+                        }
+            elif isinstance(data, dict):
+                return {
+                    "percentage_fee": data.get("sale_fee_details", {}).get("percentage_fee", 0),
+                    "fixed_fee": data.get("sale_fee_details", {}).get("fixed_fee", 0),
+                    "sale_fee_amount": data.get("sale_fee_amount", 0),
+                }
+
+            return {"percentage_fee": 0, "fixed_fee": 0, "sale_fee_amount": 0}
+        except MLClientError:
+            # Se falhar, retorna dict vazio (fallback para taxa padrão)
+            return {"percentage_fee": 0, "fixed_fee": 0, "sale_fee_amount": 0}
+
     # Métodos auxiliares/legados mantidos para compatibilidade
 
     async def get_listing(self, mlb_id: str) -> dict:
