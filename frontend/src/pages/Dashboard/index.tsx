@@ -89,6 +89,13 @@ export default function Dashboard() {
 
   const displayListings = listings ?? [];
 
+  // Ordenar por vendas do dia (unidades vendidas) — maior primeiro
+  const sortedListings = [...displayListings].sort((a, b) => {
+    const salesA = a.last_snapshot?.sales_today ?? 0;
+    const salesB = b.last_snapshot?.sales_today ?? 0;
+    return salesB - salesA;
+  });
+
   // Totais calculados da tabela
   const totalPedidos = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.orders_count ?? l.last_snapshot?.sales_today ?? 0), 0);
   const totalUnidades = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.sales_today ?? 0), 0);
@@ -100,7 +107,7 @@ export default function Dashboard() {
     return sum + preco * estoque;
   }, 0);
 
-  const totalVisitas = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.visits ?? 0), 0);
+  const totalVisitas = sortedListings.reduce((sum, l) => sum + (l.last_snapshot?.visits ?? 0), 0);
   const avgConversao = totalVisitas > 0 ? (totalUnidades / totalVisitas) * 100 : 0;
   const avgPrecoMedio = totalUnidades > 0 ? totalReceita / totalUnidades : 0;
   // Preço médio por venda (receita / pedidos — diferente de receita / unidades)
@@ -298,7 +305,7 @@ export default function Dashboard() {
                 </tr>
               ) : (
                 <>
-                  {displayListings.map((listing) => {
+                  {sortedListings.map((listing) => {
                     const effectivePrice = listing.sale_price ?? listing.price;
                     const snap = listing.last_snapshot;
                     const pedidos = snap?.orders_count ?? snap?.sales_today ?? 0;

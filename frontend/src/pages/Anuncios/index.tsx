@@ -65,6 +65,13 @@ export default function Anuncios() {
 
   const displayListings = listings ?? [];
 
+  // Ordenar por vendas do dia (unidades vendidas) — maior primeiro
+  const sortedListings = [...displayListings].sort((a, b) => {
+    const salesA = a.last_snapshot?.sales_today ?? 0;
+    const salesB = b.last_snapshot?.sales_today ?? 0;
+    return salesB - salesA;
+  });
+
   // Totais calculados
   const totalPedidos = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.orders_count ?? l.last_snapshot?.sales_today ?? 0), 0);
   const totalUnidades = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.sales_today ?? 0), 0);
@@ -74,11 +81,11 @@ export default function Anuncios() {
     return sum + (snap?.revenue ?? ((snap?.sales_today ?? 0) * effectivePrice));
   }, 0);
   const totalEstoque = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.stock ?? 0), 0);
-  const totalVisitas = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.visits ?? 0), 0);
+  const totalVisitas = sortedListings.reduce((sum, l) => sum + (l.last_snapshot?.visits ?? 0), 0);
   const avgConversao = totalVisitas > 0 ? (totalUnidades / totalVisitas) * 100 : 0;
   const avgPrecoMedio = totalUnidades > 0 ? totalReceita / totalUnidades : 0;
   const avgPrecoMedioPorVenda = totalPedidos > 0 ? totalReceita / totalPedidos : 0;
-  const totalEstoqueValor = displayListings.reduce((sum, l) => {
+  const totalEstoqueValor = sortedListings.reduce((sum, l) => {
     const preco = l.sale_price ?? l.price;
     const estoque = l.last_snapshot?.stock ?? 0;
     return sum + preco * estoque;
@@ -201,7 +208,7 @@ export default function Anuncios() {
                 </tr>
               ) : (
                 <>
-                  {displayListings.map((listing) => {
+                  {sortedListings.map((listing) => {
                     const effectivePrice = listing.sale_price ?? listing.price;
                     const origPrice = listing.original_price ?? (listing.sale_price != null && listing.sale_price < listing.price ? listing.price : null);
                     const hasDiscount = origPrice != null && Number(origPrice) > Number(effectivePrice);
