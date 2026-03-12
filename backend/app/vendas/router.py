@@ -11,6 +11,7 @@ from app.core.deps import get_current_user
 from app.vendas import service
 from app.vendas.schemas import (
     CreatePromotionIn,
+    LinkSkuIn,
     ListingAnalysisOut,
     ListingCreate,
     ListingOut,
@@ -198,6 +199,17 @@ async def create_promotion(
         payload.end_date,
         payload.promotion_id,
     )
+
+
+@router.patch("/{mlb_id}/sku", response_model=ListingOut)
+async def link_sku(
+    mlb_id: str,
+    payload: LinkSkuIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Vincula ou desvincula um SKU/produto a um anúncio. Enviar product_id=null para desvincular."""
+    return await service.link_sku_to_listing(db, mlb_id, current_user.id, payload.product_id)
 
 
 @router.get("/kpi/summary")

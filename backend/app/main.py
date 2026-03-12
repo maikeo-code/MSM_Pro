@@ -17,6 +17,7 @@ import app.alertas.models  # noqa: F401
 import app.jobs.tasks  # noqa: F401
 
 # Importa routers
+from app.alertas.router import router as alertas_router
 from app.auth.router import router as auth_router
 from app.concorrencia.router import router as concorrencia_router
 from app.produtos.router import router as produtos_router
@@ -55,6 +56,7 @@ app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(produtos_router, prefix=API_PREFIX)
 app.include_router(vendas_router, prefix=API_PREFIX)
 app.include_router(concorrencia_router, prefix=API_PREFIX)
+app.include_router(alertas_router, prefix=API_PREFIX)
 
 
 # --- Health Check ---

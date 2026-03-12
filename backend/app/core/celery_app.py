@@ -68,4 +68,20 @@ celery_app.conf.beat_schedule = {
             },
         },
     },
+    # Sincroniza preços dos concorrentes às 07:00 BRT (10:00 UTC) — depois do sync principal
+    "sync-competitor-snapshots-daily": {
+        "task": "app.jobs.tasks.sync_competitor_snapshots",
+        "schedule": crontab(hour=10, minute=0),
+        "options": {
+            "expires": 3600,
+        },
+    },
+    # Avalia condições de alerta a cada 2 horas
+    "evaluate-alerts-bihourly": {
+        "task": "app.jobs.tasks.evaluate_alerts",
+        "schedule": crontab(minute=0, hour="*/2"),
+        "options": {
+            "expires": 7200,
+        },
+    },
 }

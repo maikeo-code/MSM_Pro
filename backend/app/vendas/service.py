@@ -487,6 +487,50 @@ async def get_margem(
     )
 
 
+async def link_sku_to_listing(
+    db: AsyncSession, mlb_id: str, user_id: UUID, product_id: UUID | None
+) -> dict:
+    """Vincula ou desvincula um produto/SKU a um anúncio."""
+    listing = await get_listing(db, mlb_id, user_id)
+
+    # Verifica se o produto existe e pertence ao usuário
+    if product_id is not None:
+        prod_result = await db.execute(
+            select(Product).where(
+                Product.id == product_id,
+                Product.user_id == user_id,
+            )
+        )
+        if not prod_result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Produto não encontrado ou não pertence ao usuário",
+            )
+
+    listing.product_id = product_id
+    await db.flush()
+    await db.refresh(listing)
+
+    return {
+        "id": listing.id,
+        "user_id": listing.user_id,
+        "product_id": listing.product_id,
+        "ml_account_id": listing.ml_account_id,
+        "mlb_id": listing.mlb_id,
+        "title": listing.title,
+        "listing_type": listing.listing_type,
+        "price": listing.price,
+        "original_price": listing.original_price,
+        "sale_price": listing.sale_price,
+        "status": listing.status,
+        "permalink": listing.permalink,
+        "thumbnail": listing.thumbnail,
+        "created_at": listing.created_at,
+        "updated_at": listing.updated_at,
+        "last_snapshot": None,
+    }
+
+
 async def get_listing_analysis(
     db: AsyncSession,
     mlb_id: str,

@@ -1,6 +1,6 @@
 import React from "react";
 import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   AlertCircle,
@@ -9,6 +9,9 @@ import {
   Package,
   Target,
   Star,
+  Link2,
+  Link2Off,
+  Calculator,
 } from "lucide-react";
 import {
   ComposedChart,
@@ -22,7 +25,8 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import listingsService, { ListingHealth } from "@/services/listingsService";
+import listingsService from "@/services/listingsService";
+import productsService from "@/services/productsService";
 import { formatCurrency, formatDate, formatPercent, cn } from "@/lib/utils";
 
 const AlertSeverityColors = {
@@ -47,7 +51,10 @@ interface ChartDataPoint {
 
 export default function AnuncioDetalhe() {
   const { mlbId } = useParams<{ mlbId: string }>();
+  const queryClient = useQueryClient();
   const [days, setDays] = React.useState(30);
+  const [simPreco, setSimPreco] = React.useState<string>("");
+  const [selectedProductId, setSelectedProductId] = React.useState<string>("");
 
   const { data: analysis, isLoading, error } = useQuery({
     queryKey: ["listing-analysis", mlbId, days],
@@ -59,6 +66,28 @@ export default function AnuncioDetalhe() {
     queryKey: ["listing-health", mlbId],
     queryFn: () => listingsService.getListingHealth(mlbId!),
     enabled: !!mlbId,
+  });
+
+  const { data: products = [] } = useQuery({
+    queryKey: ["products"],
+    queryFn: () => productsService.list(),
+  });
+
+  const precoSim = parseFloat(simPreco) || (analysis?.listing.price ?? 0);
+
+  const { data: margem, isLoading: margemLoading } = useQuery({
+    queryKey: ["margem", mlbId, precoSim],
+    queryFn: () => listingsService.getMargem(mlbId!, precoSim),
+    enabled: !!mlbId && precoSim > 0,
+  });
+
+  const linkSkuMutation = useMutation({
+    mutationFn: ({ productId }: { productId: string | null }) =>
+      listingsService.linkSku(mlbId!, productId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["listing-analysis", mlbId] });
+      queryClient.invalidateQueries({ queryKey: ["listings"] });
+    },
   });
 
   if (error) {
@@ -238,6 +267,187 @@ export default function AnuncioDetalhe() {
               </p>
             </div>
             <Package className="h-8 w-8 text-primary/50" />
+          </div>
+        </div>
+      </div>
+
+      {/* SKU Vinculado */}
+      <div className="rounded-lg border bg-card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Link2 className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">SKU Vinculado</h2>
+          </div>
+          {analysis.sku?.id && (
+            <button
+              onClick={() => {
+                setSelectedProductId("");
+                linkSkuMutation.mutate({ productId: null });
+              }}
+              disabled={linkSkuMutation.isPending}
+              className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+            >
+              <Link2Off className="h-3.5 w-3.5" />
+              Desvincular
+            </button>
+          )}
+        </div>
+
+        {analysis.sku?.id ? (
+          <div className="flex items-center gap-6">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Codigo SKU</p>
+              <span className="inline-flex items-center rounded-md bg-primary/10 px-3 py-1 text-sm font-mono font-semibold text-primary">
+                {analysis.sku.sku}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Custo de Aquisicao</p>
+              <p className="text-xl font-bold text-foreground">
+                {formatCurrency(analysis.sku.cost)}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Nenhum SKU vinculado. Vincule um produto para calcular margens reais.
+            </p>
+            <div className="flex items-end gap-3">
+              <div className="flex flex-col gap-1 flex-1 max-w-xs">
+                <label className="text-xs font-medium text-muted-foreground">Selecionar SKU</label>
+                <select
+                  value={selectedProductId}
+                  onChange={(e) => setSelectedProductId(e.target.value)}
+                  className="h-9 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">-- Escolha um produto --</option>
+                  {products
+                    .filter((p) => p.is_active)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.sku} — {p.name} ({formatCurrency(parseFloat(p.cost))})
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <button
+                onClick={() => {
+                  if (selectedProductId) {
+                    linkSkuMutation.mutate({ productId: selectedProductId });
+                  }
+                }}
+                disabled={!selectedProductId || linkSkuMutation.isPending}
+                className="inline-flex items-center gap-1.5 h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                <Link2 className="h-4 w-4" />
+                Vincular
+              </button>
+            </div>
+            {linkSkuMutation.isError && (
+              <p className="text-sm text-destructive">Erro ao vincular SKU. Tente novamente.</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Calculadora de Margem */}
+      <div className="rounded-lg border bg-card p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Calculator className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold">Calculadora de Margem</h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Input de simulacao */}
+          <div className="space-y-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Simular com preco (R$)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={simPreco}
+                  onChange={(e) => setSimPreco(e.target.value)}
+                  placeholder={String(analysis.listing.price)}
+                  className="h-10 w-44 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                {simPreco && (
+                  <button
+                    onClick={() => setSimPreco("")}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Deixe vazio para usar o preco atual ({formatCurrency(analysis.listing.price)})
+              </p>
+            </div>
+          </div>
+
+          {/* Resultado da margem */}
+          <div>
+            {margemLoading ? (
+              <p className="text-sm text-muted-foreground">Calculando...</p>
+            ) : margem ? (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Preco de venda</span>
+                  <span className="font-medium">{formatCurrency(Number(margem.preco))}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Custo SKU</span>
+                  <span className="font-medium text-red-600">- {formatCurrency(Number(margem.custo_sku))}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    Taxa ML ({margem.listing_type}) — {formatPercent(Number(margem.taxa_ml_pct))}
+                  </span>
+                  <span className="font-medium text-red-600">- {formatCurrency(Number(margem.taxa_ml_valor))}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Frete estimado</span>
+                  <span className="font-medium text-red-600">- {formatCurrency(Number(margem.frete))}</span>
+                </div>
+                <div className="border-t pt-2 mt-2 flex justify-between">
+                  <span className="font-semibold">Margem Bruta</span>
+                  <span
+                    className={cn(
+                      "font-bold text-lg",
+                      Number(margem.margem_bruta) >= 0 ? "text-green-600" : "text-red-600"
+                    )}
+                  >
+                    {formatCurrency(Number(margem.margem_bruta))}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Margem %</span>
+                  <span
+                    className={cn(
+                      "text-sm font-semibold rounded-full px-2 py-0.5",
+                      Number(margem.margem_pct) >= 20
+                        ? "bg-green-100 text-green-700"
+                        : Number(margem.margem_pct) >= 10
+                        ? "bg-yellow-100 text-yellow-700"
+                        : "bg-red-100 text-red-700"
+                    )}
+                  >
+                    {formatPercent(Number(margem.margem_pct))}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {!analysis.sku?.id
+                  ? "Vincule um SKU para calcular a margem real."
+                  : "Informe um preco para simular."}
+              </p>
+            )}
           </div>
         </div>
       </div>

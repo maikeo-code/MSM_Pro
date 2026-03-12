@@ -165,6 +165,10 @@ class UpdatePriceIn(BaseModel):
     price: float = Field(gt=0)
 
 
+class LinkSkuIn(BaseModel):
+    product_id: UUID | None = None
+
+
 class CreatePromotionIn(BaseModel):
     discount_pct: float = Field(ge=5, le=60)
     start_date: str

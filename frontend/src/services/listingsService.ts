@@ -244,6 +244,13 @@ const listingsService = {
     const { data } = await api.get<KpiSummary>("/listings/kpi/summary");
     return data;
   },
+
+  async linkSku(mlbId: string, productId: string | null): Promise<ListingOut> {
+    const { data } = await api.patch<ListingOut>(`/listings/${mlbId}/sku`, {
+      product_id: productId,
+    });
+    return data;
+  },
 };
 
 export default listingsService;

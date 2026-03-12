@@ -2,6 +2,7 @@ import { Outlet, NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   Tag,
+  Package,
   Users,
   Bell,
   Settings,
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/anuncios", label: "Anuncios", icon: Tag },
+  { to: "/produtos", label: "Produtos", icon: Package },
   { to: "/concorrencia", label: "Concorrencia", icon: Users },
   { to: "/alertas", label: "Alertas", icon: Bell },
   { to: "/configuracoes", label: "Configuracoes", icon: Settings },

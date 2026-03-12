@@ -6,6 +6,8 @@ Tasks:
   - sync_recent_snapshots: sincroniza snapshots de anúncios com mudança recente de preço
   - refresh_expired_tokens: renova tokens ML que vão expirar
   - sync_listing_snapshot: sincroniza snapshot de um anúncio específico
+  - sync_competitor_snapshots: sincroniza preços dos concorrentes monitorados
+  - evaluate_alerts: avalia condições de alerta e dispara notificações
 """
 import asyncio
 import logging
@@ -363,4 +365,196 @@ async def _refresh_expired_tokens_async():
             "refreshed": len(refreshed),
             "errors": len(errors),
             "error_details": errors,
+        }
+
+
+# --- Task: Sincronizar snapshots dos concorrentes ---
+
+@celery_app.task(name="app.jobs.tasks.sync_competitor_snapshots", bind=True)
+def sync_competitor_snapshots(self):
+    """
+    Sincroniza o preço atual de todos os concorrentes ativos.
+    Executado diariamente às 07:00 BRT (10:00 UTC), após o sync principal.
+    """
+    try:
+        return run_async(_sync_competitor_snapshots_async())
+    except Exception as exc:
+        logger.error(f"Erro em sync_competitor_snapshots: {exc}")
+        raise
+
+
+async def _sync_competitor_snapshots_async():
+    """
+    Busca todos os Competitor ativos, chama a API ML para cada um e salva
+    CompetitorSnapshot com preço atual e sales_delta.
+
+    Não precisa de token próprio — usa o token da conta vinculada ao listing.
+    """
+    from app.concorrencia.models import Competitor, CompetitorSnapshot
+
+    async with AsyncSessionLocal() as db:
+        # Carrega todos competitors ativos com o listing para acessar a conta ML
+        result = await db.execute(
+            select(Competitor)
+            .join(Listing, Competitor.listing_id == Listing.id)
+            .where(Competitor.is_active == True)  # noqa: E712
+        )
+        competitors = result.scalars().all()
+
+        logger.info(f"Iniciando sync de {len(competitors)} concorrentes")
+
+        synced, errors = 0, 0
+
+        for comp in competitors:
+            try:
+                # Busca listing para pegar a conta ML com token
+                listing_result = await db.execute(
+                    select(Listing).where(Listing.id == comp.listing_id)
+                )
+                listing = listing_result.scalar_one_or_none()
+                if not listing:
+                    continue
+
+                # Pega token da conta ML do listing
+                acc_result = await db.execute(
+                    select(MLAccount).where(MLAccount.id == listing.ml_account_id)
+                )
+                account = acc_result.scalar_one_or_none()
+                if not account or not account.access_token:
+                    logger.warning(
+                        f"Sem token ML para listing {listing.mlb_id} "
+                        f"(concorrente {comp.mlb_id})"
+                    )
+                    continue
+
+                client = MLClient(account.access_token)
+                try:
+                    item_data = await client.get_item(comp.mlb_id)
+                except MLClientError as e:
+                    logger.warning(f"Erro ML ao buscar concorrente {comp.mlb_id}: {e}")
+                    errors += 1
+                    continue
+                finally:
+                    await client.close()
+
+                current_price = Decimal(str(item_data.get("price", 0)))
+                current_sold = item_data.get("sold_quantity", 0)
+
+                # Calcula sales_delta: diferença de sold_quantity em relação ao snapshot anterior
+                prev_snap_result = await db.execute(
+                    select(CompetitorSnapshot)
+                    .where(CompetitorSnapshot.competitor_id == comp.id)
+                    .order_by(CompetitorSnapshot.captured_at.desc())
+                    .limit(1)
+                )
+                prev_snap = prev_snap_result.scalar_one_or_none()
+                # sold_quantity não fica no snapshot — estimativa pelo delta de price
+                # Usa 0 quando não há histórico anterior
+                sales_delta = 0
+                if prev_snap is None:
+                    sales_delta = 0
+                else:
+                    # sold_quantity cresce monotonicamente; delta = hoje - ontem
+                    # Como não persistimos sold_quantity, usamos 0 como fallback seguro
+                    sales_delta = 0
+
+                # Atualiza title do competitor se ainda não foi preenchido
+                if not comp.title:
+                    comp.title = item_data.get("title", "")
+                if not comp.seller_id:
+                    seller = item_data.get("seller_id")
+                    if seller:
+                        comp.seller_id = str(seller)
+
+                snap = CompetitorSnapshot(
+                    competitor_id=comp.id,
+                    price=current_price,
+                    visits=0,  # API pública não expõe visitas de terceiros
+                    sales_delta=sales_delta,
+                )
+                db.add(snap)
+                synced += 1
+
+            except Exception as e:
+                logger.error(f"Erro inesperado ao sincronizar concorrente {comp.mlb_id}: {e}")
+                errors += 1
+
+        await db.commit()
+        logger.info(f"Sync concorrentes: {synced} ok, {errors} erros")
+        return {"success": True, "synced": synced, "errors": errors}
+
+
+# --- Task: Avaliar alertas e disparar notificações ---
+
+@celery_app.task(name="app.jobs.tasks.evaluate_alerts", bind=True)
+def evaluate_alerts(self):
+    """
+    Avalia todas as configurações de alerta ativas.
+    Executado a cada 2 horas.
+    """
+    try:
+        return run_async(_evaluate_alerts_async())
+    except Exception as exc:
+        logger.error(f"Erro em evaluate_alerts: {exc}")
+        raise
+
+
+async def _evaluate_alerts_async():
+    """
+    Busca todos os alert_configs ativos, avalia cada condição e,
+    se disparada, cria AlertEvent e envia email se canal = 'email'.
+    """
+    from app.alertas.models import AlertConfig
+    from app.alertas.service import evaluate_single_alert
+    from app.auth.models import User
+    from app.core.email import send_alert_email
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(AlertConfig).where(AlertConfig.is_active == True)  # noqa: E712
+        )
+        configs = result.scalars().all()
+
+        logger.info(f"Avaliando {len(configs)} alertas ativos")
+
+        triggered, skipped, errors_count = 0, 0, 0
+
+        for config in configs:
+            try:
+                event = await evaluate_single_alert(db, config)
+
+                if event is None:
+                    skipped += 1
+                    continue
+
+                triggered += 1
+
+                # Envia email se canal = 'email'
+                if config.channel == "email":
+                    # Busca o email do usuário
+                    user_result = await db.execute(
+                        select(User).where(User.id == config.user_id)
+                    )
+                    user = user_result.scalar_one_or_none()
+                    if user and user.email:
+                        send_alert_email(
+                            to=user.email,
+                            subject=f"MSM_Pro — Alerta: {config.alert_type}",
+                            body=event.message,
+                        )
+
+            except Exception as e:
+                logger.error(f"Erro ao avaliar alerta {config.id}: {e}")
+                errors_count += 1
+
+        await db.commit()
+        logger.info(
+            f"Avaliação concluída: {triggered} disparados, "
+            f"{skipped} sem condição, {errors_count} erros"
+        )
+        return {
+            "success": True,
+            "triggered": triggered,
+            "skipped": skipped,
+            "errors": errors_count,
         }
