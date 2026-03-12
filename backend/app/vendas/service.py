@@ -1261,10 +1261,12 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         item = await client.get_item(mlb_id)
 
                         listing_type_raw = item.get("listing_type_id", "gold_special")
-                        if "gold_pro" in listing_type_raw or "gold_premium" in listing_type_raw:
-                            listing_type = "premium"
-                        elif "gold_special" in listing_type_raw:
+                        shipping = item.get("shipping", {})
+                        is_fulfillment = shipping.get("logistic_type") == "fulfillment"
+                        if "gold_pro" in listing_type_raw and is_fulfillment:
                             listing_type = "full"
+                        elif "gold_pro" in listing_type_raw:
+                            listing_type = "premium"
                         else:
                             listing_type = "classico"
 
@@ -1306,14 +1308,27 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         )
                         listing = existing.scalar_one_or_none()
 
+                        # Extrai category_id e seller_sku
+                        category_id = item.get("category_id")
+                        seller_sku = item.get("seller_custom_field")
+                        if not seller_sku and item.get("attributes"):
+                            for attr in item["attributes"]:
+                                if attr.get("id") == "SELLER_SKU":
+                                    seller_sku = attr.get("value_name") or attr.get("value_id")
+                                    break
+                        # Usar secure_thumbnail (HTTPS) quando disponível
+                        thumbnail = item.get("secure_thumbnail") or item.get("thumbnail")
+
                         if listing:
                             listing.title = item.get("title", listing.title)
                             listing.price = price
                             listing.original_price = original_price
                             listing.sale_price = sale_price_val
                             listing.status = item.get("status", "active")
-                            listing.thumbnail = item.get("thumbnail")
+                            listing.thumbnail = thumbnail
                             listing.permalink = item.get("permalink")
+                            listing.category_id = category_id
+                            listing.seller_sku = seller_sku
                             await db.flush()
                             updated += 1
                         else:
@@ -1327,8 +1342,10 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                                 original_price=original_price,
                                 sale_price=sale_price_val,
                                 status=item.get("status", "active"),
-                                thumbnail=item.get("thumbnail"),
+                                thumbnail=thumbnail,
                                 permalink=item.get("permalink"),
+                                category_id=category_id,
+                                seller_sku=seller_sku,
                             )
                             db.add(listing)
                             await db.flush()
