@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Settings, User, Lock, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Settings, User, Lock, AlertCircle, Loader2 } from "lucide-react";
 import authService from "@/services/authService";
 import { formatDateTime } from "@/lib/utils";
 
 export default function Configuracoes() {
   const queryClient = useQueryClient();
+  const [connectLoading, setConnectLoading] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   const { data: currentUser, isLoading: userLoading } = useQuery({
     queryKey: ["current-user"],
@@ -16,12 +19,6 @@ export default function Configuracoes() {
     queryFn: () => authService.listMLAccounts(),
   });
 
-  const { refetch: fetchConnectURL } = useQuery({
-    queryKey: ["ml-connect-url"],
-    queryFn: () => authService.getMLConnectURL(),
-    enabled: false,
-  });
-
   const deleteMutation = useMutation({
     mutationFn: (accountId: string) => authService.deleteMLAccount(accountId),
     onSuccess: () => {
@@ -30,9 +27,21 @@ export default function Configuracoes() {
   });
 
   const handleConnect = async () => {
-    const result = await fetchConnectURL();
-    if (result.data?.auth_url) {
-      window.open(result.data.auth_url, "_blank");
+    setConnectLoading(true);
+    setConnectError(null);
+    try {
+      const result = await authService.getMLConnectURL();
+      if (result.auth_url) {
+        // Redireciona no mesmo tab — padrão OAuth (não é bloqueado como popup)
+        window.location.href = result.auth_url;
+      } else {
+        setConnectError("URL de autorização não retornada pela API.");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao conectar conta ML.";
+      setConnectError(msg);
+    } finally {
+      setConnectLoading(false);
     }
   };
 
@@ -99,12 +108,23 @@ export default function Configuracoes() {
           </div>
           <button
             onClick={handleConnect}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            disabled={connectLoading}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
           >
-            <Plus className="h-4 w-4" />
-            Conectar conta
+            {connectLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            {connectLoading ? "Aguarde..." : "Conectar conta"}
           </button>
         </div>
+        {connectError && (
+          <div className="mx-6 mt-4 flex items-center gap-2 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {connectError}
+          </div>
+        )}
 
         <div className="p-6">
           {isLoading ? (

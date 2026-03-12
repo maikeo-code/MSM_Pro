@@ -3,24 +3,23 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copia package files da pasta frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
 
-# Copia codigo do frontend e faz o build
 COPY frontend/ .
-# Usa vite build direto (pula tsc que falha com path aliases no Docker)
 RUN npx vite build
 
-### Stage 2: Serve estático
+### Stage 2: Serve com Express (SPA routing)
 FROM node:20-alpine
 
 WORKDIR /app
 
-RUN npm install -g http-server
+COPY server-package.json ./package.json
+RUN npm install --production
 
 COPY --from=builder /app/dist ./dist
+COPY server.js ./server.js
 
 EXPOSE 3000
 
-CMD sh -c "http-server dist -p ${PORT:-3000} --gzip -c-1 -a 0.0.0.0"
+CMD ["node", "server.js"]

@@ -6,7 +6,7 @@ import httpx
 
 from app.core.config import settings
 
-ML_API_BASE = "https://api.mercadolivre.com"
+ML_API_BASE = "https://api.mercadolibre.com"
 
 # Rate limit: 1 req/seg
 _last_request_time: float = 0.0

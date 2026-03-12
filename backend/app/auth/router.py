@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import service
 from app.auth.models import MLAccount, User
 from app.auth.schemas import MLAccountOut, MLConnectURL, Token, UserCreate, UserLogin, UserOut
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 
@@ -111,12 +112,13 @@ async def ml_callback(
 
     # Salva/atualiza conta ML
     account = await service.save_ml_account(db, user_id, token_data)
+    await db.commit()
 
-    return {
-        "message": "Conta ML conectada com sucesso",
-        "account_id": str(account.id),
-        "nickname": account.nickname,
-    }
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(
+        url=f"{settings.frontend_url}/configuracoes?ml_connected=1",
+        status_code=302,
+    )
 
 
 @router.get("/ml/accounts", response_model=list[MLAccountOut])

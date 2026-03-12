@@ -21,10 +21,10 @@ class Listing(Base):
         nullable=False,
         index=True,
     )
-    product_id: Mapped[uuid.UUID] = mapped_column(
+    product_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("products.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     ml_account_id: Mapped[uuid.UUID] = mapped_column(

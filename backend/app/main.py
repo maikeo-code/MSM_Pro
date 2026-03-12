@@ -31,13 +31,18 @@ app = FastAPI(
 )
 
 # --- CORS ---
+# Monta lista de origens permitidas (separa por vírgula no env se necessário)
+_cors_origins: list[str] = [
+    settings.frontend_url,
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://msmprofrontend-production.up.railway.app",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.frontend_url,
-        "http://localhost:5173",
-        "http://localhost:3000",
-    ],
+    allow_origins=_cors_origins,
+    allow_origin_regex=r"https://.*\.up\.railway\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

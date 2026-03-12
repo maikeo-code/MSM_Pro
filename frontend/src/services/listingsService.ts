@@ -215,6 +215,11 @@ const listingsService = {
     const { data } = await api.get<ListingHealth>(`/listings/${mlbId}/health`);
     return data;
   },
+
+  async sync(): Promise<{ message: string; created: number; updated: number; total: number }> {
+    const { data } = await api.post("/listings/sync");
+    return data;
+  },
 };
 
 export default listingsService;

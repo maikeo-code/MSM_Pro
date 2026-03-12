@@ -40,9 +40,9 @@ class Settings(BaseSettings):
     ml_client_id: Optional[str] = None
     ml_client_secret: Optional[str] = None
     ml_redirect_uri: str = "http://localhost:8000/api/v1/auth/ml/callback"
-    ml_api_base: str = "https://api.mercadolivre.com"
+    ml_api_base: str = "https://api.mercadolibre.com"
     ml_auth_url: str = "https://auth.mercadolivre.com.br/authorization"
-    ml_token_url: str = "https://api.mercadolivre.com/oauth/token"
+    ml_token_url: str = "https://api.mercadolibre.com/oauth/token"
 
 
 settings = Settings()

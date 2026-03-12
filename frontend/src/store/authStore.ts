@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { UserOut } from "@/services/authService";
+import { setStoredToken, removeStoredToken } from "@/services/api";
 
 interface AuthState {
   user: UserOut | null;
@@ -16,10 +17,14 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
-      setAuth: (user, token) =>
-        set({ user, token, isAuthenticated: true }),
-      clearAuth: () =>
-        set({ user: null, token: null, isAuthenticated: false }),
+      setAuth: (user, token) => {
+        setStoredToken(token);
+        set({ user, token, isAuthenticated: true });
+      },
+      clearAuth: () => {
+        removeStoredToken();
+        set({ user: null, token: null, isAuthenticated: false });
+      },
     }),
     {
       name: "msm-auth-storage",

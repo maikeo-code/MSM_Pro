@@ -42,7 +42,7 @@ class SnapshotOut(BaseModel):
 class ListingOut(BaseModel):
     id: UUID
     user_id: UUID
-    product_id: UUID
+    product_id: UUID | None
     ml_account_id: UUID
     mlb_id: str
     title: str

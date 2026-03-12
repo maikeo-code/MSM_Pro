@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
 from uuid import UUID
 
 import bcrypt
@@ -79,8 +80,7 @@ def get_ml_auth_url(state: str | None = None) -> str:
     if state:
         params["state"] = state
 
-    query = "&".join(f"{k}={v}" for k, v in params.items())
-    return f"{settings.ml_auth_url}?{query}"
+    return f"{settings.ml_auth_url}?{urlencode(params)}"
 
 
 async def exchange_code_for_token(code: str) -> dict:

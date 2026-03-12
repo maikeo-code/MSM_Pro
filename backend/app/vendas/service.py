@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload  # noqa: F401 (available for future use)
 
 from app.financeiro.service import calcular_margem, calcular_taxa_ml
 from app.produtos.models import Product
@@ -38,8 +38,8 @@ def _generate_mock_snapshots(days: int = 30) -> list[dict]:
     for i in range(days):
         date = now - timedelta(days=days - i - 1)
         price = Decimal(str(price_trend[i % len(price_trend)]))
-        visits = 500 + (i % 300)
-        sales = max(0, int((500 - visits) / 100) + (i % 20))
+        visits = 400 + (i % 400)  # 400-799 visitas
+        sales = max(1, int(visits * (0.01 + (i % 8) * 0.01)))  # 1-8% conversão
         conversion = Decimal(str(round((sales / max(1, visits)) * 100, 2)))
 
         snapshots.append({
@@ -216,7 +216,7 @@ def _calculate_price_bands(
 
         result.append(band_entry)
 
-    return sorted(result, key=lambda x: x["days_count"], reverse=True)
+    return sorted(result, key=lambda x: float(x["price_range_label"].split("R$ ")[1].split("-")[0]))
 
 
 def _calculate_stock_projection(stock_qty: int, snapshots: list[dict]) -> dict:
@@ -334,7 +334,19 @@ def _generate_alerts(
 
 
 async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
-    """Lista anúncios com o último snapshot de cada um."""
+    """Lista anúncios com o último snapshot de cada um (single query via subquery)."""
+    from sqlalchemy import func
+
+    # Subquery: max captured_at por listing_id
+    latest_snap_subq = (
+        select(
+            ListingSnapshot.listing_id,
+            func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+        )
+        .group_by(ListingSnapshot.listing_id)
+        .subquery()
+    )
+
     result = await db.execute(
         select(Listing)
         .where(Listing.user_id == user_id)
@@ -342,17 +354,27 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
     )
     listings = result.scalars().all()
 
+    if not listings:
+        return []
+
+    listing_ids = [l.id for l in listings]
+
+    # Busca todos os últimos snapshots de uma vez
+    snaps_result = await db.execute(
+        select(ListingSnapshot)
+        .join(
+            latest_snap_subq,
+            (ListingSnapshot.listing_id == latest_snap_subq.c.listing_id)
+            & (ListingSnapshot.captured_at == latest_snap_subq.c.max_captured_at),
+        )
+        .where(ListingSnapshot.listing_id.in_(listing_ids))
+    )
+    snaps_by_listing = {
+        snap.listing_id: snap for snap in snaps_result.scalars().all()
+    }
+
     output = []
     for listing in listings:
-        # Busca último snapshot
-        snap_result = await db.execute(
-            select(ListingSnapshot)
-            .where(ListingSnapshot.listing_id == listing.id)
-            .order_by(desc(ListingSnapshot.captured_at))
-            .limit(1)
-        )
-        last_snapshot = snap_result.scalar_one_or_none()
-
         listing_dict = {
             "id": listing.id,
             "user_id": listing.user_id,
@@ -367,7 +389,7 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
             "thumbnail": listing.thumbnail,
             "created_at": listing.created_at,
             "updated_at": listing.updated_at,
-            "last_snapshot": last_snapshot,
+            "last_snapshot": snaps_by_listing.get(listing.id),
         }
         output.append(listing_dict)
 
@@ -415,6 +437,21 @@ async def create_listing(db: AsyncSession, user_id: UUID, data: ListingCreate) -
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Anúncio '{data.mlb_id}' já cadastrado",
         )
+
+    # FIX 5: Verifica ownership da conta ML (IDOR protection)
+    if data.ml_account_id:
+        from app.auth.models import MLAccount
+        acct_result = await db.execute(
+            select(MLAccount).where(
+                MLAccount.id == data.ml_account_id,
+                MLAccount.user_id == user_id,
+            )
+        )
+        if not acct_result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Conta ML não pertence ao usuário",
+            )
 
     listing = Listing(user_id=user_id, **data.model_dump())
     db.add(listing)
@@ -583,7 +620,7 @@ async def get_listing_analysis(
         "competitor": {
             "mlb_id": competitor.mlb_id,
             "price": float(competitor_price),
-            "last_updated": comp_snapshot.captured_at.isoformat(),
+            "last_updated": comp_snapshot.captured_at.isoformat() if comp_snapshot else None,
         } if competitor and competitor_price else None,
         "alerts": alerts,
     }
@@ -634,4 +671,249 @@ async def create_or_update_promotion(
         "start_date": start_date,
         "end_date": end_date,
         "status": "active" if promotion_id else "pending",
+    }
+
+
+# ============== HEALTH SCORE ==============
+
+
+def _calculate_health_score(
+    listing,
+    snapshots: list[dict],
+    product=None,
+) -> dict:
+    """
+    Calcula score de saúde do anúncio (0-100).
+    Cada critério tem peso diferente.
+    """
+    score = 0
+    checks = []
+
+    # Critério 1: Tem thumbnail/foto (10 pts)
+    has_thumb = bool(listing.thumbnail) if hasattr(listing, 'thumbnail') else bool(getattr(listing, 'thumbnail', None))
+    if has_thumb:
+        score += 10
+        checks.append({"item": "Imagem principal", "ok": True, "points": 10, "max": 10})
+    else:
+        checks.append({"item": "Imagem principal", "ok": False, "points": 0, "max": 10, "action": "Adicione uma foto de qualidade ao anúncio"})
+
+    # Critério 2: Tem link de permalink (5 pts)
+    has_link = bool(listing.permalink) if hasattr(listing, 'permalink') else False
+    if has_link:
+        score += 5
+        checks.append({"item": "Link do anúncio", "ok": True, "points": 5, "max": 5})
+    else:
+        checks.append({"item": "Link do anúncio", "ok": False, "points": 0, "max": 5, "action": "Preencha o permalink do anúncio"})
+
+    # Critério 3: Custo do SKU cadastrado (15 pts)
+    has_cost = product is not None and product.cost and float(product.cost) > 0
+    if has_cost:
+        score += 15
+        checks.append({"item": "Custo do SKU", "ok": True, "points": 15, "max": 15})
+    else:
+        checks.append({"item": "Custo do SKU", "ok": False, "points": 0, "max": 15, "action": "Cadastre o custo do produto para calcular margens reais"})
+
+    # Critério 4: Estoque cobrindo pelo menos 14 dias (20 pts)
+    if snapshots:
+        last_snap = snapshots[-1]
+        stock = last_snap.get("stock", 0)
+        recent_sales = [s.get("sales_today", 0) for s in snapshots[-7:]]
+        velocity = sum(recent_sales) / max(1, len(recent_sales))
+        days_coverage = stock / max(0.1, velocity)
+        if days_coverage >= 30:
+            score += 20
+            checks.append({"item": "Cobertura de estoque", "ok": True, "points": 20, "max": 20, "detail": f"{days_coverage:.0f} dias"})
+        elif days_coverage >= 14:
+            score += 10
+            checks.append({"item": "Cobertura de estoque", "ok": True, "points": 10, "max": 20, "detail": f"{days_coverage:.0f} dias (ideal: 30+)"})
+        else:
+            checks.append({"item": "Cobertura de estoque", "ok": False, "points": 0, "max": 20, "action": f"Estoque para {days_coverage:.0f} dias. Reabasteça logo!", "detail": f"{days_coverage:.0f} dias"})
+    else:
+        checks.append({"item": "Cobertura de estoque", "ok": False, "points": 0, "max": 20, "action": "Sem dados de estoque ainda"})
+
+    # Critério 5: Conversão acima de 1% nos últimos 7 dias (25 pts)
+    if snapshots and len(snapshots) >= 3:
+        recent = snapshots[-7:] if len(snapshots) >= 7 else snapshots
+        total_visits = sum(s.get("visits", 0) for s in recent)
+        total_sales = sum(s.get("sales_today", 0) for s in recent)
+        conversion = (total_sales / max(1, total_visits)) * 100
+        if conversion >= 3:
+            score += 25
+            checks.append({"item": "Taxa de conversão", "ok": True, "points": 25, "max": 25, "detail": f"{conversion:.1f}%"})
+        elif conversion >= 1:
+            score += 15
+            checks.append({"item": "Taxa de conversão", "ok": True, "points": 15, "max": 25, "detail": f"{conversion:.1f}% (ideal: 3%+)"})
+        else:
+            checks.append({"item": "Taxa de conversão", "ok": False, "points": 0, "max": 25, "action": f"Conversão de {conversion:.1f}%. Revise título, fotos e preço.", "detail": f"{conversion:.1f}%"})
+    else:
+        checks.append({"item": "Taxa de conversão", "ok": False, "points": 0, "max": 25, "action": "Sem dados suficientes de vendas"})
+
+    # Critério 6: Sem zero vendas nos últimos 3 dias (15 pts)
+    if snapshots and len(snapshots) >= 3:
+        last_3 = snapshots[-3:]
+        total_recent = sum(s.get("sales_today", 0) for s in last_3)
+        if total_recent > 0:
+            score += 15
+            checks.append({"item": "Vendas recentes", "ok": True, "points": 15, "max": 15, "detail": f"{total_recent} vendas nos últimos 3 dias"})
+        else:
+            checks.append({"item": "Vendas recentes", "ok": False, "points": 0, "max": 15, "action": "0 vendas nos últimos 3 dias. Verifique preço e visibilidade."})
+    else:
+        checks.append({"item": "Vendas recentes", "ok": False, "points": 0, "max": 15, "action": "Sem dados de vendas ainda"})
+
+    # Critério 7: Anúncio ativo (10 pts)
+    is_active = getattr(listing, 'status', 'active') == 'active'
+    if is_active:
+        score += 10
+        checks.append({"item": "Status do anúncio", "ok": True, "points": 10, "max": 10})
+    else:
+        checks.append({"item": "Status do anúncio", "ok": False, "points": 0, "max": 10, "action": "Anúncio pausado ou inativo"})
+
+    # Classifica o score
+    if score >= 80:
+        status = "excellent"
+        label = "Excelente"
+        color = "green"
+    elif score >= 60:
+        status = "good"
+        label = "Bom"
+        color = "yellow"
+    elif score >= 40:
+        status = "warning"
+        label = "Atenção"
+        color = "orange"
+    else:
+        status = "critical"
+        label = "Crítico"
+        color = "red"
+
+    return {
+        "score": score,
+        "max_score": 100,
+        "status": status,
+        "label": label,
+        "color": color,
+        "checks": checks,
+    }
+
+
+async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
+    """
+    Busca todos os anúncios ativos das contas ML do usuário e salva no banco.
+    Retorna contagem de novos e atualizados.
+    """
+    from app.auth.models import MLAccount
+    from app.mercadolivre.client import MLClient, MLClientError
+
+    # Busca todas as contas ML ativas do usuário
+    result = await db.execute(
+        select(MLAccount).where(
+            MLAccount.user_id == user_id,
+            MLAccount.is_active == True,  # noqa: E712
+        )
+    )
+    accounts = result.scalars().all()
+
+    if not accounts:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nenhuma conta ML conectada. Conecte uma conta primeiro.",
+        )
+
+    created = 0
+    updated = 0
+    errors = []
+
+    for account in accounts:
+        if not account.access_token:
+            continue
+
+        try:
+            async with MLClient(account.access_token) as client:
+                # Busca IDs dos anúncios ativos
+                offset = 0
+                all_item_ids = []
+                while True:
+                    resp = await client.get_user_listings(
+                        account.ml_user_id, offset=offset, limit=50
+                    )
+                    item_ids = resp.get("results", [])
+                    all_item_ids.extend(item_ids)
+                    if len(item_ids) < 50:
+                        break
+                    offset += 50
+
+                # Busca detalhes de cada anúncio
+                for mlb_id in all_item_ids:
+                    try:
+                        item = await client.get_item(mlb_id)
+
+                        listing_type_raw = item.get("listing_type_id", "gold_special")
+                        if "gold_pro" in listing_type_raw or "gold_premium" in listing_type_raw:
+                            listing_type = "premium"
+                        elif "gold_special" in listing_type_raw:
+                            listing_type = "full"
+                        else:
+                            listing_type = "classico"
+
+                        price = Decimal(str(item.get("price", 0)))
+                        stock = item.get("available_quantity", 0)
+
+                        # Verifica se listing já existe
+                        existing = await db.execute(
+                            select(Listing).where(Listing.mlb_id == mlb_id)
+                        )
+                        listing = existing.scalar_one_or_none()
+
+                        if listing:
+                            listing.title = item.get("title", listing.title)
+                            listing.price = price
+                            listing.status = item.get("status", "active")
+                            listing.thumbnail = item.get("thumbnail")
+                            listing.permalink = item.get("permalink")
+                            await db.flush()
+                            updated += 1
+                        else:
+                            listing = Listing(
+                                user_id=user_id,
+                                ml_account_id=account.id,
+                                mlb_id=mlb_id,
+                                title=item.get("title", mlb_id),
+                                listing_type=listing_type,
+                                price=price,
+                                status=item.get("status", "active"),
+                                thumbnail=item.get("thumbnail"),
+                                permalink=item.get("permalink"),
+                            )
+                            db.add(listing)
+                            await db.flush()
+                            created += 1
+
+                        # Snapshot inicial com dados atuais
+                        snapshot = ListingSnapshot(
+                            listing_id=listing.id,
+                            price=price,
+                            visits=0,
+                            sales_today=0,
+                            questions=0,
+                            stock=stock,
+                            conversion_rate=None,
+                        )
+                        db.add(snapshot)
+
+                    except MLClientError as e:
+                        errors.append(f"{mlb_id}: {e}")
+                        continue
+
+        except MLClientError as e:
+            errors.append(f"Conta {account.nickname}: {e}")
+            continue
+
+    await db.commit()
+
+    return {
+        "created": created,
+        "updated": updated,
+        "total": created + updated,
+        "errors": errors,
+        "message": f"Sync concluído: {created} novos, {updated} atualizados.",
     }

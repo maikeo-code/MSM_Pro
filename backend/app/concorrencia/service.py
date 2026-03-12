@@ -61,6 +61,23 @@ async def add_competitor(
     return competitor
 
 
+async def get_all_competitors(
+    db: AsyncSession,
+    user_id: UUID,
+) -> list[Competitor]:
+    """Lista todos os concorrentes ativos do usuário."""
+    result = await db.execute(
+        select(Competitor)
+        .join(Listing, Competitor.listing_id == Listing.id)
+        .where(
+            Listing.user_id == user_id,
+            Competitor.is_active == True,  # noqa: E712
+        )
+        .order_by(Competitor.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
 async def get_competitors_by_listing(
     db: AsyncSession,
     user_id: UUID,

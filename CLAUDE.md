@@ -217,9 +217,34 @@ CELERY_RESULT_BACKEND=redis://localhost:6379/2
 - `/qa` — verifica e testa o código
 - `/insights` — sugere melhorias com base em ferramentas similares
 
+## Regra de uso de subagentes (OBRIGATÓRIO)
+Sempre que a tarefa for longa ou envolver múltiplas partes do sistema, usar subagentes em paralelo:
+
+| Situação | Agentes a usar |
+|---|---|
+| 1 tarefa isolada (ex: corrigir 1 bug) | Só o agente principal |
+| Backend + frontend ao mesmo tempo | 1 agente `dev` no backend + 1 `dev` no frontend em paralelo |
+| Implementar feature + verificar bugs | 1 `dev` implementando + 1 `qa` verificando em paralelo |
+| Sessão longa com muitas tarefas | 2x `dev` (dividir por módulo) + 1 `qa` no final |
+
+**Limite prático: máximo 3 agentes simultâneos** — mais do que isso causa conflito de arquivos.
+
+**Modelo padrão: Sonnet 4.6** para todos os agentes (melhor custo-benefício para código).
+
+O usuário autoriza todas as ações sem confirmação — não perguntar antes de executar.
+
+## Regras de validação QA antes de deploy (OBRIGATÓRIO)
+Antes de qualquer deploy, o agente QA deve validar:
+
+1. **Endpoint crítico funciona via curl com token real** — não assumir que funciona sem testar
+2. **Fluxo completo testado em sequência** — não testar partes isoladas; testar o caminho completo (login → ação → resultado no frontend)
+3. **Uma mudança por vez** — não acumular múltiplas mudanças antes de verificar; deploy → testar → próxima mudança
+4. **Schema Pydantic compatível com dados reais** — verificar `Optional` onde o campo pode ser `None` no banco
+5. **API base URL correta**: `https://api.mercadolibre.com` (sem acento — o domínio com acento não existe)
+
 ## Observações importantes
 - NUNCA iniciar código sem confirmação explícita do usuário
-- Mercado Livre API base: `https://api.mercadolivre.com`
+- Mercado Livre API base: `https://api.mercadolibre.com` (sem acento no "e")
 - Auth ML: `https://auth.mercadolivre.com.br/authorization`
 - Token ML expira em ~6h, usar refresh_token para renovar
 - Rate limit ML: 1 req/seg por padrão, implementar retry com backoff

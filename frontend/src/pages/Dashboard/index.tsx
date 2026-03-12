@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { Package, TrendingUp, Tag, AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Package, TrendingUp, Tag, AlertCircle, RefreshCw } from "lucide-react";
 import listingsService from "@/services/listingsService";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 
@@ -82,10 +83,28 @@ const MOCK_LISTINGS = [
 ];
 
 export default function Dashboard() {
+  const queryClient = useQueryClient();
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
   const { data: listings, isLoading } = useQuery({
     queryKey: ["listings"],
     queryFn: () => listingsService.list(),
   });
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const result = await listingsService.sync();
+      setSyncMsg(result.message);
+      queryClient.invalidateQueries({ queryKey: ["listings"] });
+    } catch {
+      setSyncMsg("Erro ao sincronizar. Verifique se a conta ML está conectada.");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // Usa dados reais se disponíveis, senão usa mock
   const displayListings = listings && listings.length > 0 ? listings : MOCK_LISTINGS;
@@ -117,12 +136,25 @@ export default function Dashboard() {
         <p className="text-muted-foreground mt-1">
           Visao geral dos seus anuncios no Mercado Livre
         </p>
-        {isUsingMock && (
-          <div className="mt-3 flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 w-fit">
-            <AlertCircle className="h-4 w-4" />
-            Exibindo dados de exemplo. Conecte sua conta ML para ver dados reais.
-          </div>
-        )}
+        <div className="mt-3 flex items-center gap-3 flex-wrap">
+          {isUsingMock && (
+            <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              <AlertCircle className="h-4 w-4" />
+              Exibindo dados de exemplo. Sincronize para ver dados reais.
+            </div>
+          )}
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
+          >
+            <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Sincronizando..." : "Sincronizar ML"}
+          </button>
+          {syncMsg && (
+            <span className="text-sm text-muted-foreground">{syncMsg}</span>
+          )}
+        </div>
       </div>
 
       {/* KPI Cards */}

@@ -13,6 +13,15 @@ from app.core.deps import get_current_user
 router = APIRouter(prefix="/competitors", tags=["competitors"])
 
 
+@router.get("/", response_model=list[CompetitorOut])
+async def list_all_competitors(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Lista todos os concorrentes ativos do usuário."""
+    return await service.get_all_competitors(db, current_user.id)
+
+
 @router.post("/", response_model=CompetitorOut, status_code=status.HTTP_201_CREATED)
 async def add_competitor(
     payload: CompetitorCreate,

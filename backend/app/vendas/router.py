@@ -22,6 +22,15 @@ from app.vendas.schemas import (
 router = APIRouter(prefix="/listings", tags=["listings"])
 
 
+@router.post("/sync")
+async def sync_listings(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Importa todos os anúncios ativos das contas ML conectadas."""
+    return await service.sync_listings_from_ml(db, current_user.id)
+
+
 @router.get("/", response_model=list[ListingOut])
 async def list_listings(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -109,6 +118,54 @@ async def get_margem(
 ):
     """Calcula margem para um anúncio com preço informado."""
     return await service.get_margem(db, mlb_id, current_user.id, preco)
+
+
+@router.get("/{mlb_id}/health")
+async def get_listing_health(
+    mlb_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    days: int = Query(default=30, ge=7, le=90),
+):
+    """Retorna score de saúde do anúncio com checklist acionável."""
+    from sqlalchemy import select
+
+    from app.produtos.models import Product
+
+    try:
+        listing = await service.get_listing(db, mlb_id, current_user.id)
+    except Exception:
+        # Listing não encontrado — retorna score zerado
+        return {
+            "mlb_id": mlb_id,
+            "score": 0,
+            "max_score": 100,
+            "status": "critical",
+            "label": "Crítico",
+            "color": "red",
+            "checks": [{"item": "Anúncio não encontrado", "ok": False, "points": 0, "max": 100}],
+        }
+
+    product = None
+    if listing.product_id:
+        prod_result = await db.execute(select(Product).where(Product.id == listing.product_id))
+        product = prod_result.scalar_one_or_none()
+
+    snapshots_db = await service.get_listing_snapshots(db, mlb_id, current_user.id, days)
+    snapshots = [
+        {
+            "visits": s.visits,
+            "sales_today": s.sales_today,
+            "stock": s.stock,
+            "conversion_rate": float(s.conversion_rate) if s.conversion_rate else 0,
+        }
+        for s in snapshots_db
+    ]
+
+    health = service._calculate_health_score(listing, snapshots, product)
+    health["mlb_id"] = mlb_id
+    health["listing_title"] = listing.title
+    return health
 
 
 @router.patch("/{mlb_id}/price")
