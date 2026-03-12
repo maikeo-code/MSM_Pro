@@ -1,5 +1,18 @@
 import api from "./api";
 
+export interface KpiPeriod {
+  vendas: number;
+  visitas: number;
+  conversao: number;
+  anuncios: number;
+}
+
+export interface KpiSummary {
+  hoje: KpiPeriod;
+  ontem: KpiPeriod;
+  anteontem: KpiPeriod;
+}
+
 export interface SnapshotOut {
   id: string;
   listing_id: string;
@@ -220,6 +233,11 @@ const listingsService = {
 
   async sync(): Promise<{ message: string; created: number; updated: number; total: number }> {
     const { data } = await api.post("/listings/sync");
+    return data;
+  },
+
+  async getKpiSummary(): Promise<KpiSummary> {
+    const { data } = await api.get<KpiSummary>("/listings/kpi/summary");
     return data;
   },
 };

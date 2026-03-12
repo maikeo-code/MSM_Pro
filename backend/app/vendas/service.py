@@ -676,6 +676,59 @@ async def create_or_update_promotion(
     }
 
 
+# ============== KPI POR PERÍODO ==============
+
+
+async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
+    """Retorna KPIs agregados para hoje, ontem e anteontem."""
+    from datetime import date as date_type
+    from sqlalchemy import func, cast, Date
+
+    today = date_type.today()
+    yesterday = today - timedelta(days=1)
+    anteontem = today - timedelta(days=2)
+
+    # Busca todos os listings do usuário
+    listings_result = await db.execute(
+        select(Listing.id).where(Listing.user_id == user_id)
+    )
+    listing_ids = [row[0] for row in listings_result.fetchall()]
+
+    if not listing_ids:
+        empty = {"vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0}
+        return {"hoje": empty, "ontem": empty, "anteontem": empty}
+
+    from sqlalchemy import func
+
+    periods = {}
+    for label, dt in [("hoje", today), ("ontem", yesterday), ("anteontem", anteontem)]:
+        result = await db.execute(
+            select(
+                func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label(
+                    "vendas"
+                ),
+                func.coalesce(func.sum(ListingSnapshot.visits), 0).label("visitas"),
+                func.count(ListingSnapshot.id).label("anuncios"),
+            ).where(
+                ListingSnapshot.listing_id.in_(listing_ids),
+                cast(ListingSnapshot.captured_at, Date) == dt,
+            )
+        )
+        row = result.fetchone()
+        vendas = int(row.vendas) if row else 0
+        visitas = int(row.visitas) if row else 0
+        conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
+
+        periods[label] = {
+            "vendas": vendas,
+            "visitas": visitas,
+            "conversao": conversao,
+            "anuncios": int(row.anuncios) if row else 0,
+        }
+
+    return periods
+
+
 # ============== HEALTH SCORE ==============
 
 
@@ -920,6 +973,57 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                     except MLClientError as e:
                         errors.append(f"{mlb_id}: {e}")
                         continue
+
+                # Busca visitas em bulk para todos os itens sincronizados nesta conta
+                from datetime import date as date_type
+
+                today = date_type.today()
+                try:
+                    all_ids = [mid.upper().replace("-", "") for mid in all_item_ids]
+                    if not all_ids:
+                        continue
+
+                    if not all([mid.startswith("MLB") for mid in all_ids]):
+                        all_ids = [
+                            f"MLB{mid}" if not mid.startswith("MLB") else mid
+                            for mid in all_ids
+                        ]
+
+                    visits_data = await client.get_items_visits_bulk(
+                        all_ids,
+                        date_from=today.isoformat(),
+                        date_to=today.isoformat(),
+                    )
+
+                    # Atualiza os snapshots criados neste sync com visitas reais
+                    for mlb_id_raw in all_item_ids:
+                        item_id = mlb_id_raw.upper().replace("-", "")
+                        if not item_id.startswith("MLB"):
+                            item_id = f"MLB{item_id}"
+
+                        visits = visits_data.get(item_id, 0)
+
+                        # Busca o listing para encontrar o snapshot
+                        listing_result = await db.execute(
+                            select(Listing).where(Listing.mlb_id == mlb_id_raw)
+                        )
+                        lst = listing_result.scalar_one_or_none()
+
+                        if lst and visits > 0:
+                            # Busca o snapshot mais recente deste listing
+                            snap_result = await db.execute(
+                                select(ListingSnapshot)
+                                .where(ListingSnapshot.listing_id == lst.id)
+                                .order_by(ListingSnapshot.captured_at.desc())
+                                .limit(1)
+                            )
+                            snap = snap_result.scalar_one_or_none()
+                            if snap:
+                                snap.visits = visits
+                                await db.flush()
+                except Exception:
+                    # Não bloquear sync se visitas falharem
+                    pass
 
         except MLClientError as e:
             errors.append(f"Conta {account.nickname}: {e}")

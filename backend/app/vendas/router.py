@@ -198,3 +198,12 @@ async def create_promotion(
         payload.end_date,
         payload.promotion_id,
     )
+
+
+@router.get("/kpi/summary")
+async def get_kpi_summary(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Retorna KPIs agregados para hoje, ontem e anteontem."""
+    return await service.get_kpi_by_period(db, current_user.id)

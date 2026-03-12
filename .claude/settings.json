@@ -10,7 +10,8 @@
       "Bash(npm:*)",
       "Bash(npx:*)",
       "Bash(git:*)",
-      "Bash(celery:*)"
+      "Bash(celery:*)",
+      "Bash(xargs grep:*)"
     ],
     "deny": [
       "Write(.env)",

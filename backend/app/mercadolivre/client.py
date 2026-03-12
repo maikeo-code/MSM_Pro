@@ -332,6 +332,46 @@ class MLClient:
             params={"item": item_id, "status": "unanswered"},
         )
 
+    async def get_items_visits_bulk(
+        self, item_ids: list[str], date_from: str, date_to: str
+    ) -> dict:
+        """
+        Busca visitas de múltiplos itens.
+        GET /visits/items?ids=MLB1,MLB2,...&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD
+        Retorna dict com item_id -> total_visits
+        """
+        result = {}
+
+        # Process in chunks of 50
+        for i in range(0, len(item_ids), 50):
+            chunk = item_ids[i : i + 50]
+            ids_str = ",".join(chunk)
+            try:
+                response = await self._request(
+                    "GET",
+                    "/visits/items",
+                    params={
+                        "ids": ids_str,
+                        "date_from": date_from,
+                        "date_to": date_to,
+                    },
+                )
+                # Response é uma lista de dicts com "item_id" e "total_visits"
+                if isinstance(response, list):
+                    for entry in response:
+                        result[entry.get("item_id", "")] = entry.get("total_visits", 0)
+                elif isinstance(response, dict):
+                    # Às vezes retorna um dict direto
+                    for item_id_key, visits_val in response.items():
+                        result[item_id_key] = (
+                            visits_val if isinstance(visits_val, int) else 0
+                        )
+            except MLClientError:
+                # Falha silenciosa — continua com próximo chunk
+                pass
+
+        return result
+
     async def close(self):
         """Fecha o cliente HTTP."""
         await self._client.aclose()

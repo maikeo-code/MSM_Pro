@@ -1,33 +1,8 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, TrendingUp, Tag, AlertCircle, RefreshCw, WifiOff } from "lucide-react";
+import { AlertCircle, RefreshCw, WifiOff } from "lucide-react";
 import listingsService from "@/services/listingsService";
 import { formatCurrency, formatPercent } from "@/lib/utils";
-
-interface KpiCardProps {
-  title: string;
-  value: string | number;
-  subtitle?: string;
-  icon: React.ReactNode;
-  color?: string;
-}
-
-function KpiCard({ title, value, subtitle, icon, color = "text-primary" }: KpiCardProps) {
-  return (
-    <div className="rounded-lg border bg-card p-6 shadow-sm">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="mt-2 text-3xl font-bold text-foreground">{value}</p>
-          {subtitle && (
-            <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
-          )}
-        </div>
-        <div className={cn("rounded-full p-2 bg-accent", color)}>{icon}</div>
-      </div>
-    </div>
-  );
-}
 
 function cn(...classes: string[]) {
   return classes.filter(Boolean).join(" ");
@@ -44,6 +19,12 @@ export default function Dashboard() {
     retry: 2,
   });
 
+  const { data: kpi } = useQuery({
+    queryKey: ["kpi-summary"],
+    queryFn: () => listingsService.getKpiSummary(),
+    retry: 2,
+  });
+
   const handleSync = async () => {
     setSyncing(true);
     setSyncMsg(null);
@@ -51,6 +32,7 @@ export default function Dashboard() {
       const result = await listingsService.sync();
       setSyncMsg(result.message);
       queryClient.invalidateQueries({ queryKey: ["listings"] });
+      queryClient.invalidateQueries({ queryKey: ["kpi-summary"] });
     } catch {
       setSyncMsg("Erro ao sincronizar. Verifique se a conta ML está conectada.");
     } finally {
@@ -59,23 +41,6 @@ export default function Dashboard() {
   };
 
   const displayListings = listings ?? [];
-
-  const totalListings = displayListings.length;
-  const totalSalesToday = displayListings.reduce(
-    (acc, l) => acc + (l.last_snapshot?.sales_today ?? 0),
-    0,
-  );
-  const totalVisits = displayListings.reduce(
-    (acc, l) => acc + (l.last_snapshot?.visits ?? 0),
-    0,
-  );
-
-  // MLB com melhor conversão
-  const bestConverting = [...displayListings].sort((a, b) => {
-    const convA = Number(a.last_snapshot?.conversion_rate ?? "0");
-    const convB = Number(b.last_snapshot?.conversion_rate ?? "0");
-    return convB - convA;
-  })[0];
 
   return (
     <div className="p-8">
@@ -136,41 +101,41 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-        <KpiCard
-          title="Total de Anuncios"
-          value={isLoading ? "..." : totalListings}
-          subtitle="Anuncios ativos"
-          icon={<Tag className="h-5 w-5" />}
-        />
-        <KpiCard
-          title="Vendas Hoje"
-          value={isLoading ? "..." : totalSalesToday}
-          subtitle="Unidades vendidas"
-          icon={<Package className="h-5 w-5" />}
-          color="text-green-600"
-        />
-        <KpiCard
-          title="Visitas Hoje"
-          value={isLoading ? "..." : totalVisits.toLocaleString("pt-BR")}
-          subtitle="Visitas nos anuncios"
-          icon={<TrendingUp className="h-5 w-5" />}
-          color="text-blue-600"
-        />
-        <KpiCard
-          title="Melhor Conversao"
-          value={
-            isLoading
-              ? "..."
-              : bestConverting?.last_snapshot?.conversion_rate
-              ? formatPercent(bestConverting.last_snapshot.conversion_rate)
-              : "N/A"
-          }
-          subtitle={bestConverting?.title?.slice(0, 24) ? bestConverting.title.slice(0, 24) + "..." : "—"}
-          icon={<TrendingUp className="h-5 w-5" />}
-          color="text-purple-600"
-        />
+      {/* KPI Comparison Table */}
+      <div className="rounded-lg border bg-card shadow-sm mb-6">
+        <div className="px-4 py-2 border-b">
+          <h2 className="text-sm font-semibold text-foreground">Resumo por Periodo</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Periodo</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Anuncios</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Vendas</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Visitas</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Conversao</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { label: "Hoje", data: kpi?.hoje },
+                { label: "Ontem", data: kpi?.ontem },
+                { label: "Anteontem", data: kpi?.anteontem },
+              ].map(({ label, data }) => (
+                <tr key={label} className="border-b hover:bg-muted/50">
+                  <td className="px-4 py-2 font-medium text-foreground">{label}</td>
+                  <td className="px-4 py-2 text-right text-foreground">{data?.anuncios ?? "-"}</td>
+                  <td className="px-4 py-2 text-right font-medium text-foreground">{data?.vendas ?? "-"}</td>
+                  <td className="px-4 py-2 text-right text-foreground">{data?.visitas?.toLocaleString("pt-BR") ?? "-"}</td>
+                  <td className="px-4 py-2 text-right text-foreground">
+                    {data?.conversao != null ? `${data.conversao.toFixed(2)}%` : "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Tabela de anuncios */}
