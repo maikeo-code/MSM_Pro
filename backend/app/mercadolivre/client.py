@@ -145,17 +145,21 @@ class MLClient:
             f"/items/{item_id}/visits/time_window",
             params={"last": days, "unit": "day"},
         )
-        # Retorna dict com "visits" como chave
-        return response.get("visits", [])
+        return response.get("results", [])
 
-    async def get_item_orders(self, mlb_id: str, seller_id: str, days: int = 30) -> list[dict]:
+    async def get_item_orders(self, mlb_id: str, seller_id: str, days: int = 1) -> list[dict]:
         """
-        Busca vendas/orders de um anúncio.
-        GET /orders/search?seller={seller_id}&q={mlb_id}&sort=date_desc
+        Busca vendas/orders de um anúncio filtrado por data.
+        GET /orders/search?seller={seller_id}&q={mlb_id}&order.date_created.from={date}&sort=date_desc
         """
+        from datetime import date as date_type, timedelta as td
+
         item_id = mlb_id.upper().replace("-", "")
         if not item_id.startswith("MLB"):
             item_id = f"MLB{item_id}"
+
+        date_from = date_type.today() - td(days=days - 1)
+        date_from_str = f"{date_from.isoformat()}T00:00:00.000-03:00"
 
         response = await self._request(
             "GET",
@@ -163,7 +167,9 @@ class MLClient:
             params={
                 "seller": seller_id,
                 "q": item_id,
+                "order.date_created.from": date_from_str,
                 "sort": "date_desc",
+                "limit": 50,
             },
         )
         return response.get("results", [])

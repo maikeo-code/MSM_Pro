@@ -108,17 +108,22 @@ async def _sync_listing_snapshot_async(listing_id: str):
             visits = 0
             try:
                 visits_data = await client.get_item_visits(listing.mlb_id, days=1)
-                if visits_data and isinstance(visits_data, list):
-                    visits = visits_data[0].get("total_visits", 0) if visits_data[0] else 0
+                if visits_data and isinstance(visits_data, list) and visits_data:
+                    visits = visits_data[0].get("total", 0)
             except MLClientError:
                 logger.debug(f"Não conseguiu buscar visitas para {listing.mlb_id}")
 
             # Busca vendas do dia
             sales_today = 0
             try:
+                mlb_normalized = listing.mlb_id.upper().replace("-", "")
                 orders_data = await client.get_item_orders(listing.mlb_id, account.ml_user_id, days=1)
                 if orders_data and isinstance(orders_data, list):
-                    sales_today = len([o for o in orders_data if o.get("status") == "paid"])
+                    for order in orders_data:
+                        for oi in order.get("order_items", []):
+                            item_id = oi.get("item", {}).get("id", "")
+                            if item_id == mlb_normalized:
+                                sales_today += oi.get("quantity", 1)
             except MLClientError:
                 logger.debug(f"Não conseguiu buscar pedidos para {listing.mlb_id}")
 
