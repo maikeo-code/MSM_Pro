@@ -446,18 +446,19 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
             returns_rev = float(last_snap.returns_revenue or 0)
             vendas_concluidas = round(float(last_snap.revenue) - cancelled_rev - returns_rev, 2)
 
-        # ITEM 6: voce_recebe = preço - taxa ML - frete estimado
+        # ITEM 6: voce_recebe = preço efetivo - taxa ML
         voce_recebe: float | None = None
-        if last_snap:
-            preco = float(listing.price or 0)
-            # Taxa estimada por tipo de anúncio (fallback se não tiver categoria real)
+        if listing.price and float(listing.price) > 0:
+            # Usar preço efetivo de venda (com desconto se houver)
+            preco = float(listing.sale_price or listing.price)
+            # Taxa real varia por categoria (10-19%). Valores confirmados via prints reais:
+            # Clássico ~11.5%, Premium ~17% (inclui parcelamento)
             taxa_map = {"classico": 0.115, "premium": 0.17, "full": 0.17}
             taxa_pct = taxa_map.get(listing.listing_type, 0.16)
             taxa_valor = preco * taxa_pct
-            # Frete estimado: para Full, o ML cobre; para os outros, estimamos ~5% do preço
-            # Por enquanto usar 0 (será atualizado quando tivermos dimensões)
-            frete_est = 0.0
-            voce_recebe = round(preco - taxa_valor - frete_est, 2)
+            # TODO: buscar taxa real via API listing_prices quando tivermos cache por categoria
+            # TODO: frete real via API shipping_options quando tivermos dimensões
+            voce_recebe = round(preco - taxa_valor, 2)
 
         listing_dict = {
             "id": listing.id,

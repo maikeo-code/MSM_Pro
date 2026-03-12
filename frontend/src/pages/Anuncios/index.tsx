@@ -185,13 +185,13 @@ export default function Anuncios() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={13} className="px-6 py-8 text-center text-muted-foreground">
                     Carregando...
                   </td>
                 </tr>
               ) : displayListings.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12 text-center">
+                  <td colSpan={13} className="px-6 py-12 text-center">
                     <TrendingUp className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
                     <p className="font-medium text-foreground">Nenhum anuncio encontrado</p>
                     <p className="text-sm text-muted-foreground mt-1">
