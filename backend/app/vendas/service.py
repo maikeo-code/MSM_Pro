@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from decimal import Decimal
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import desc, select
+from sqlalchemy import desc, select, cast, Date, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload  # noqa: F401 (available for future use)
 
@@ -335,8 +335,6 @@ def _generate_alerts(
 
 async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
     """Lista anúncios com o último snapshot de cada um (single query via subquery)."""
-    from sqlalchemy import func
-
     # Subquery: max captured_at por listing_id
     latest_snap_subq = (
         select(
@@ -530,15 +528,15 @@ async def get_listing_analysis(
     )
     product = product_result.scalar_one_or_none()
 
-    # Se não houver dados reais da ML, retorna mock
-    if not product or not product.cost:
-        return _generate_mock_analysis(listing, product)
+    # Determina se temos custo real — margem será estimada se não tiver
+    sku_cost = Decimal(str(product.cost)) if product and product.cost else Decimal("0")
+    is_mock = not product or not product.cost
 
-    # Busca snapshots
+    # Busca snapshots reais do banco
     snapshots_db = await get_listing_snapshots(db, mlb_id, user_id, days)
 
     if not snapshots_db:
-        # Sem dados ainda, retorna mock
+        # Sem dados de snapshot ainda — retorna mock completo
         return _generate_mock_analysis(listing, product)
 
     # Converte para dicts
@@ -557,7 +555,7 @@ async def get_listing_analysis(
         for s in snapshots_db
     ]
 
-    cost = Decimal(str(product.cost))
+    cost = sku_cost
 
     # Calcula faixas de preço
     price_bands = _calculate_price_bands(snapshots, cost, listing.listing_type)
@@ -578,6 +576,7 @@ async def get_listing_analysis(
     competitor = competitor_result.scalar_one_or_none()
 
     competitor_price = None
+    comp_snapshot = None  # BUG 3 FIX: garantir que comp_snapshot existe antes do return
     if competitor:
         comp_snap_result = await db.execute(
             select(CompetitorSnapshot)
@@ -597,9 +596,9 @@ async def get_listing_analysis(
         Decimal(str(snapshots[-1]["price"])) if snapshots else listing.price,
     )
 
-    # Retorna análise completa
+    # Retorna análise completa (is_mock=True indica apenas que margem é estimada, dados são reais)
     return {
-        "is_mock": False,
+        "is_mock": is_mock,
         "listing": {
             "mlb_id": listing.mlb_id,
             "title": listing.title,
@@ -610,8 +609,8 @@ async def get_listing_analysis(
             "permalink": listing.permalink,
         },
         "sku": {
-            "id": str(product.id),
-            "sku": product.sku,
+            "id": str(product.id) if product else None,
+            "sku": product.sku if product else None,
             "cost": float(cost),
         },
         "snapshots": snapshots,
@@ -679,7 +678,7 @@ async def create_or_update_promotion(
 # ============== KPI POR PERÍODO ==============
 
 
-async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt, func, cast, Date) -> dict:
+async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
     """KPI para um único dia (último snapshot por listing)."""
     latest_snap_subq = (
         select(
@@ -727,7 +726,7 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt, func, cast, D
     }
 
 
-async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_to, func, cast, Date) -> dict:
+async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_to) -> dict:
     """KPI para um intervalo de dias (último snapshot por listing por dia, somados)."""
     # Subquery: último snapshot de cada listing em cada dia do intervalo
     latest_per_day = (
@@ -766,25 +765,36 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
     visitas = int(row.visitas) if row else 0
     conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
 
-    # Valor estoque = último snapshot mais recente (ponto no tempo, não acumulado)
-    today_kpi = await _kpi_single_day(db, listing_ids, date_to, func, cast, Date)
+    # Valor estoque = snapshot mais recente disponível no intervalo (ponto no tempo, não acumulado)
+    # BUG 4 FIX: usar a data mais recente com snapshot, não date_to que pode estar sem dados
+    latest_date_result = await db.execute(
+        select(func.max(cast(ListingSnapshot.captured_at, Date)))
+        .where(
+            ListingSnapshot.listing_id.in_(listing_ids),
+            cast(ListingSnapshot.captured_at, Date) >= date_from,
+            cast(ListingSnapshot.captured_at, Date) <= date_to,
+        )
+    )
+    latest_date = latest_date_result.scalar()
+    if latest_date:
+        today_kpi = await _kpi_single_day(db, listing_ids, latest_date)
+        valor_estoque = today_kpi["valor_estoque"]
+    else:
+        valor_estoque = 0.0
 
     return {
         "vendas": vendas,
         "visitas": visitas,
         "conversao": conversao,
         "anuncios": int(row.anuncios) if row else 0,
-        "valor_estoque": today_kpi["valor_estoque"],
+        "valor_estoque": valor_estoque,
         "receita": float(row.receita) if row else 0.0,
     }
 
 
 async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
     """Retorna KPIs agregados para hoje, ontem, anteontem, 7 dias e 30 dias."""
-    from datetime import date as date_type
-    from sqlalchemy import func, cast, Date
-
-    today = date_type.today()
+    today = date.today()
     yesterday = today - timedelta(days=1)
     anteontem = today - timedelta(days=2)
 
@@ -802,14 +812,14 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
 
     # Períodos de dia único
     for label, dt in [("hoje", today), ("ontem", yesterday), ("anteontem", anteontem)]:
-        periods[label] = await _kpi_single_day(db, listing_ids, dt, func, cast, Date)
+        periods[label] = await _kpi_single_day(db, listing_ids, dt)
 
     # Períodos de intervalo (dados acumulados do histórico de snapshots)
     periods["7dias"] = await _kpi_date_range(
-        db, listing_ids, today - timedelta(days=6), today, func, cast, Date
+        db, listing_ids, today - timedelta(days=6), today
     )
     periods["30dias"] = await _kpi_date_range(
-        db, listing_ids, today - timedelta(days=29), today, func, cast, Date
+        db, listing_ids, today - timedelta(days=29), today
     )
 
     return periods
@@ -1051,8 +1061,7 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         # Busca visitas de hoje via time_window (endpoint que funciona por dia)
                         visits_today = 0
                         try:
-                            from datetime import date as date_type
-                            today_str = date_type.today().isoformat()
+                            today_str = date.today().isoformat()
                             visits_resp = await client._request(
                                 "GET",
                                 f"/items/{mlb_id}/visits/time_window",
@@ -1068,17 +1077,31 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         except Exception:
                             pass
 
-                        # Snapshot com dados reais de visitas
-                        snapshot = ListingSnapshot(
-                            listing_id=listing.id,
-                            price=price,
-                            visits=visits_today,
-                            sales_today=0,  # será preenchido abaixo via orders
-                            questions=0,
-                            stock=stock,
-                            conversion_rate=None,
+                        # BUG 1 FIX: verificar se já existe snapshot do mesmo dia antes de inserir
+                        existing_snap_result = await db.execute(
+                            select(ListingSnapshot).where(
+                                ListingSnapshot.listing_id == listing.id,
+                                cast(ListingSnapshot.captured_at, Date) == date.today(),
+                            )
                         )
-                        db.add(snapshot)
+                        existing_snap = existing_snap_result.scalar_one_or_none()
+                        if existing_snap:
+                            existing_snap.price = price
+                            existing_snap.visits = visits_today
+                            existing_snap.stock = stock
+                            existing_snap.captured_at = datetime.utcnow()
+                            await db.flush()
+                        else:
+                            snapshot = ListingSnapshot(
+                                listing_id=listing.id,
+                                price=price,
+                                visits=visits_today,
+                                sales_today=0,  # será preenchido abaixo via orders
+                                questions=0,
+                                stock=stock,
+                                conversion_rate=None,
+                            )
+                            db.add(snapshot)
 
                     except MLClientError as e:
                         errors.append(f"{mlb_id}: {e}")
@@ -1086,8 +1109,7 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
 
                 # Busca vendas de hoje via orders API e atualiza snapshots
                 try:
-                    from datetime import date as date_type
-                    today = date_type.today()
+                    today = date.today()
                     today_start = f"{today.isoformat()}T00:00:00.000-03:00"
 
                     orders_resp = await client._request(

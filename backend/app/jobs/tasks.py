@@ -121,7 +121,9 @@ async def _sync_listing_snapshot_async(listing_id: str):
                 if orders_data and isinstance(orders_data, list):
                     for order in orders_data:
                         for oi in order.get("order_items", []):
-                            item_id = oi.get("item", {}).get("id", "")
+                            # Normaliza ambos os lados para comparação exata —
+                            # a API pode retornar o item_id com ou sem hífen
+                            item_id = oi.get("item", {}).get("id", "").upper().replace("-", "")
                             if item_id == mlb_normalized:
                                 sales_today += oi.get("quantity", 1)
             except MLClientError:

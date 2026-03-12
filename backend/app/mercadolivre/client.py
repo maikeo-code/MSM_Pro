@@ -151,6 +151,12 @@ class MLClient:
         """
         Busca vendas/orders de um anúncio filtrado por data.
         GET /orders/search?seller={seller_id}&q={mlb_id}&order.date_created.from={date}&sort=date_desc
+
+        NOTA: o parâmetro "q" é uma busca textual — a API do ML não oferece filtro exato
+        por item_id em /orders/search. A validação exata (garantir que o item no pedido
+        realmente corresponde ao mlb_id desejado) é responsabilidade do código chamador,
+        que deve comparar order_items[].item.id após normalizar ambos os lados
+        (upper + remover hífens).
         """
         from datetime import date as date_type, timedelta as td
 
@@ -166,7 +172,7 @@ class MLClient:
             "/orders/search",
             params={
                 "seller": seller_id,
-                "q": item_id,
+                "q": item_id,  # busca textual; validação exata feita no caller
                 "order.date_created.from": date_from_str,
                 "sort": "date_desc",
                 "limit": 50,

@@ -296,9 +296,23 @@ export default function AnuncioDetalhe() {
 
       {/* Main Chart */}
       <div className="rounded-lg border bg-card p-6">
-        <h2 className="text-lg font-semibold mb-4">
-          Preço vs Conversão vs Visitas vs Vendas
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Preco x Conversao x Vendas</h2>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-4 h-0.5 bg-blue-500" style={{ borderTop: "2px dashed #3b82f6" }} />
+              Preco
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-4 h-0.5 bg-green-500" />
+              Conversao
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-4 h-3 rounded-sm bg-orange-400 opacity-70" />
+              Vendas/dia
+            </span>
+          </div>
+        </div>
         <ResponsiveContainer width="100%" height={400}>
           <ComposedChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -308,22 +322,33 @@ export default function AnuncioDetalhe() {
               angle={-45}
               height={80}
             />
+            {/* Eixo esquerdo: Preço (R$) */}
             <YAxis
               yAxisId="left"
               orientation="left"
               tickFormatter={(v) => `R$${v.toFixed(0)}`}
+              label={{ value: "Preço (R$)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11 } }}
             />
+            {/* Eixo direito: Conversão (%) e Visitas */}
             <YAxis
               yAxisId="right"
               orientation="right"
               tickFormatter={(v) => `${v.toFixed(0)}`}
+              label={{ value: "Conversão % / Visitas", angle: 90, position: "insideRight", offset: 10, style: { fontSize: 11 } }}
+            />
+            {/* Eixo oculto exclusivo para barras de Vendas — evita escala R$ em unidades */}
+            <YAxis
+              yAxisId="vendas"
+              orientation="left"
+              hide={true}
+              domain={[0, (dataMax: number) => Math.ceil(dataMax * 2)]}
             />
             <Tooltip
               formatter={(value, name) => {
-                if (name === "preco") return [formatCurrency(Number(value)), "Preço"];
-                if (name === "conversao") return [formatPercent(Number(value)), "Conversão"];
-                if (name === "visitas") return [value, "Visitas"];
-                if (name === "vendas") return [value, "Vendas"];
+                if (name === "Preço Base") return [formatCurrency(Number(value)), "Preço"];
+                if (name === "Conversão %") return [formatPercent(Number(value)), "Conversão"];
+                if (name === "Visitas") return [value, "Visitas"];
+                if (name === "Vendas/dia") return [`${value} und`, "Vendas/dia"];
                 return [value, name];
               }}
               labelFormatter={(label) => `Data: ${label}`}
@@ -341,18 +366,19 @@ export default function AnuncioDetalhe() {
               />
             ))}
 
+            {/* Barras de vendas usam eixo oculto para não distorcer a escala de R$ */}
             <Bar
-              yAxisId="left"
+              yAxisId="vendas"
               dataKey="vendas"
-              fill="#3b82f6"
-              opacity={0.6}
+              fill="#f97316"
+              opacity={0.7}
               name="Vendas/dia"
             />
             <Line
               yAxisId="right"
               type="monotone"
               dataKey="conversao"
-              stroke="#8b5cf6"
+              stroke="#22c55e"
               strokeWidth={2}
               dot={false}
               name="Conversão %"
@@ -370,7 +396,7 @@ export default function AnuncioDetalhe() {
               yAxisId="left"
               type="stepAfter"
               dataKey="preco"
-              stroke="#ef4444"
+              stroke="#3b82f6"
               strokeWidth={2}
               dot={false}
               strokeDasharray="5 5"
@@ -417,29 +443,41 @@ export default function AnuncioDetalhe() {
                   <tr
                     key={idx}
                     className={cn(
-                      "border-b",
-                      band.is_optimal ? "bg-green-50" : ""
+                      "border-b transition-colors",
+                      band.is_optimal
+                        ? "bg-green-50 dark:bg-green-950/30"
+                        : "hover:bg-muted/50"
                     )}
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {band.is_optimal && (
-                          <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                          <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 shrink-0" />
                         )}
-                        <span>{band.price_range_label}</span>
+                        <span className={band.is_optimal ? "font-semibold" : ""}>
+                          {band.price_range_label}
+                        </span>
+                        {band.is_optimal && (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                            Otimo
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">{band.days_count}</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right font-medium">
                       {band.avg_sales_per_day.toFixed(1)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {formatPercent(band.avg_conversion)}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right font-medium text-green-600">
                       {formatCurrency(band.total_revenue)}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className={cn(
+                      "px-4 py-3 text-right font-medium",
+                      band.avg_margin > 0 ? "text-green-600" : band.avg_margin < 0 ? "text-red-600" : "text-muted-foreground"
+                    )}>
                       {formatCurrency(band.avg_margin)}
                     </td>
                   </tr>
