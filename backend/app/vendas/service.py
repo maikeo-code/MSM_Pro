@@ -679,8 +679,108 @@ async def create_or_update_promotion(
 # ============== KPI POR PERÍODO ==============
 
 
+async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt, func, cast, Date) -> dict:
+    """KPI para um único dia (último snapshot por listing)."""
+    latest_snap_subq = (
+        select(
+            ListingSnapshot.listing_id,
+            func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+        )
+        .where(
+            ListingSnapshot.listing_id.in_(listing_ids),
+            cast(ListingSnapshot.captured_at, Date) == dt,
+        )
+        .group_by(ListingSnapshot.listing_id)
+        .subquery()
+    )
+
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label("vendas"),
+            func.coalesce(func.sum(ListingSnapshot.visits), 0).label("visitas"),
+            func.count(func.distinct(ListingSnapshot.listing_id)).label("anuncios"),
+            func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.stock), 0).label("valor_estoque"),
+            func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.sales_today), 0).label("receita"),
+        )
+        .join(
+            latest_snap_subq,
+            (ListingSnapshot.listing_id == latest_snap_subq.c.listing_id)
+            & (ListingSnapshot.captured_at == latest_snap_subq.c.max_captured_at),
+        )
+        .where(
+            ListingSnapshot.listing_id.in_(listing_ids),
+            cast(ListingSnapshot.captured_at, Date) == dt,
+        )
+    )
+    row = result.fetchone()
+    vendas = int(row.vendas) if row else 0
+    visitas = int(row.visitas) if row else 0
+    conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
+
+    return {
+        "vendas": vendas,
+        "visitas": visitas,
+        "conversao": conversao,
+        "anuncios": int(row.anuncios) if row else 0,
+        "valor_estoque": float(row.valor_estoque) if row else 0.0,
+        "receita": float(row.receita) if row else 0.0,
+    }
+
+
+async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_to, func, cast, Date) -> dict:
+    """KPI para um intervalo de dias (último snapshot por listing por dia, somados)."""
+    # Subquery: último snapshot de cada listing em cada dia do intervalo
+    latest_per_day = (
+        select(
+            ListingSnapshot.listing_id,
+            cast(ListingSnapshot.captured_at, Date).label("snap_date"),
+            func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+        )
+        .where(
+            ListingSnapshot.listing_id.in_(listing_ids),
+            cast(ListingSnapshot.captured_at, Date) >= date_from,
+            cast(ListingSnapshot.captured_at, Date) <= date_to,
+        )
+        .group_by(ListingSnapshot.listing_id, cast(ListingSnapshot.captured_at, Date))
+        .subquery()
+    )
+
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label("vendas"),
+            func.coalesce(func.sum(ListingSnapshot.visits), 0).label("visitas"),
+            func.count(func.distinct(ListingSnapshot.listing_id)).label("anuncios"),
+            func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.sales_today), 0).label("receita"),
+        )
+        .join(
+            latest_per_day,
+            (ListingSnapshot.listing_id == latest_per_day.c.listing_id)
+            & (ListingSnapshot.captured_at == latest_per_day.c.max_captured_at),
+        )
+        .where(
+            ListingSnapshot.listing_id.in_(listing_ids),
+        )
+    )
+    row = result.fetchone()
+    vendas = int(row.vendas) if row else 0
+    visitas = int(row.visitas) if row else 0
+    conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
+
+    # Valor estoque = último snapshot mais recente (ponto no tempo, não acumulado)
+    today_kpi = await _kpi_single_day(db, listing_ids, date_to, func, cast, Date)
+
+    return {
+        "vendas": vendas,
+        "visitas": visitas,
+        "conversao": conversao,
+        "anuncios": int(row.anuncios) if row else 0,
+        "valor_estoque": today_kpi["valor_estoque"],
+        "receita": float(row.receita) if row else 0.0,
+    }
+
+
 async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
-    """Retorna KPIs agregados para hoje, ontem e anteontem."""
+    """Retorna KPIs agregados para hoje, ontem, anteontem, 7 dias e 30 dias."""
     from datetime import date as date_type
     from sqlalchemy import func, cast, Date
 
@@ -694,57 +794,23 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
     )
     listing_ids = [row[0] for row in listings_result.fetchall()]
 
+    empty = {"vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0, "valor_estoque": 0.0, "receita": 0.0}
     if not listing_ids:
-        empty = {"vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0, "valor_estoque": 0.0, "receita": 0.0}
-        return {"hoje": empty, "ontem": empty, "anteontem": empty}
+        return {"hoje": empty, "ontem": empty, "anteontem": empty, "7dias": empty, "30dias": empty}
 
     periods = {}
+
+    # Períodos de dia único
     for label, dt in [("hoje", today), ("ontem", yesterday), ("anteontem", anteontem)]:
-        # Subquery: último snapshot de cada listing no dia
-        latest_snap_subq = (
-            select(
-                ListingSnapshot.listing_id,
-                func.max(ListingSnapshot.captured_at).label("max_captured_at"),
-            )
-            .where(
-                ListingSnapshot.listing_id.in_(listing_ids),
-                cast(ListingSnapshot.captured_at, Date) == dt,
-            )
-            .group_by(ListingSnapshot.listing_id)
-            .subquery()
-        )
+        periods[label] = await _kpi_single_day(db, listing_ids, dt, func, cast, Date)
 
-        result = await db.execute(
-            select(
-                func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label("vendas"),
-                func.coalesce(func.sum(ListingSnapshot.visits), 0).label("visitas"),
-                func.count(func.distinct(ListingSnapshot.listing_id)).label("anuncios"),
-                func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.stock), 0).label("valor_estoque"),
-                func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.sales_today), 0).label("receita"),
-            )
-            .join(
-                latest_snap_subq,
-                (ListingSnapshot.listing_id == latest_snap_subq.c.listing_id)
-                & (ListingSnapshot.captured_at == latest_snap_subq.c.max_captured_at),
-            )
-            .where(
-                ListingSnapshot.listing_id.in_(listing_ids),
-                cast(ListingSnapshot.captured_at, Date) == dt,
-            )
-        )
-        row = result.fetchone()
-        vendas = int(row.vendas) if row else 0
-        visitas = int(row.visitas) if row else 0
-        conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
-
-        periods[label] = {
-            "vendas": vendas,
-            "visitas": visitas,
-            "conversao": conversao,
-            "anuncios": int(row.anuncios) if row else 0,
-            "valor_estoque": float(row.valor_estoque) if row else 0.0,
-            "receita": float(row.receita) if row else 0.0,
-        }
+    # Períodos de intervalo (dados acumulados do histórico de snapshots)
+    periods["7dias"] = await _kpi_date_range(
+        db, listing_ids, today - timedelta(days=6), today, func, cast, Date
+    )
+    periods["30dias"] = await _kpi_date_range(
+        db, listing_ids, today - timedelta(days=29), today, func, cast, Date
+    )
 
     return periods
 

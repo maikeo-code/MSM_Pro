@@ -13,6 +13,8 @@ export interface KpiSummary {
   hoje: KpiPeriod;
   ontem: KpiPeriod;
   anteontem: KpiPeriod;
+  "7dias": KpiPeriod;
+  "30dias": KpiPeriod;
 }
 
 export interface SnapshotOut {

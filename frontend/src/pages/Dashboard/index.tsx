@@ -130,6 +130,8 @@ export default function Dashboard() {
                 { label: "Hoje", data: kpi?.hoje },
                 { label: "Ontem", data: kpi?.ontem },
                 { label: "Anteontem", data: kpi?.anteontem },
+                { label: "7 dias", data: kpi?.["7dias"] },
+                { label: "30 dias", data: kpi?.["30dias"] },
               ].map(({ label, data }) => (
                 <tr key={label} className="border-b hover:bg-muted/50">
                   <td className="px-4 py-2 font-medium text-foreground">{label}</td>
