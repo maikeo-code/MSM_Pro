@@ -12,7 +12,8 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia o código da aplicação
+# Cache-bust: force re-copy of application code
+ARG CACHEBUST=1
 COPY . .
 
 # Expõe a porta da API
