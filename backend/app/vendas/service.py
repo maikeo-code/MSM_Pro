@@ -552,7 +552,7 @@ async def get_listing_analysis(
             "questions": s.questions,
             "stock": s.stock,
             "conversion_rate": float(s.conversion_rate) if s.conversion_rate else 0,
-            "captured_at": s.captured_at,
+            "captured_at": s.captured_at.isoformat() if s.captured_at else None,
         }
         for s in snapshots_db
     ]
