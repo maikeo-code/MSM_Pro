@@ -18,5 +18,6 @@ COPY . .
 # Expõe a porta da API
 EXPOSE 8000
 
-# Comando padrão (sobrescrito pelo docker-compose para cada serviço)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Railway sets $PORT dynamically; default to 8000 for local dev
+# Shell form allows $PORT expansion
+CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
