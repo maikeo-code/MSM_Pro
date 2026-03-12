@@ -288,7 +288,6 @@ async def _get_listing_ids_for_alert(db: AsyncSession, alert: AlertConfig) -> li
 async def _check_conversion_below(db: AsyncSession, alert: AlertConfig) -> str | None:
     """Verifica se a conversão média dos últimos 7 dias está abaixo do threshold."""
     from app.vendas.models import Listing, ListingSnapshot
-    from sqlalchemy import cast, Date
 
     threshold = Decimal(str(alert.threshold or 0))
     listing_ids = await _get_listing_ids_for_alert(db, alert)
@@ -311,9 +310,12 @@ async def _check_conversion_below(db: AsyncSession, alert: AlertConfig) -> str |
         if not snaps:
             continue
 
+        snaps_with_conv = [s for s in snaps if s.conversion_rate]
+        if not snaps_with_conv:
+            continue
         avg_conversion = sum(
-            float(s.conversion_rate) for s in snaps if s.conversion_rate
-        ) / len(snaps)
+            float(s.conversion_rate) for s in snaps_with_conv
+        ) / len(snaps_with_conv)
 
         if Decimal(str(avg_conversion)) < threshold:
             # Busca título do listing

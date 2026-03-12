@@ -124,17 +124,18 @@ function AlertForm({
           </select>
         </div>
 
-        {/* Anuncio (opcional) */}
+        {/* Anuncio (obrigatorio) */}
         <div className="flex flex-col gap-1 flex-1 min-w-[240px]">
           <label className="text-xs font-medium text-muted-foreground">
-            Anuncio (opcional)
+            Anuncio <span className="text-destructive">*</span>
           </label>
           <select
+            required
             value={form.listing_id}
             onChange={(e) => set("listing_id", e.target.value)}
             className="h-9 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option value="">Todos os anuncios</option>
+            <option value="">Selecione um anuncio...</option>
             {listings.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.title} ({l.mlb_id})
@@ -266,10 +267,9 @@ export default function Alertas() {
       return;
     }
 
-    // Backend exige listing_id OU product_id — se nenhum for selecionado,
-    // usamos o primeiro listing disponivel como fallback para nao deixar vazio
-    if (!form.listing_id && listings.length === 0) {
-      setFormError("Voce precisa ter ao menos um anuncio cadastrado para criar um alerta.");
+    // Backend exige listing_id OU product_id obrigatoriamente
+    if (!form.listing_id) {
+      setFormError("Selecione um anuncio para criar o alerta.");
       return;
     }
 

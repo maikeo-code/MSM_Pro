@@ -209,7 +209,9 @@ async def link_sku(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Vincula ou desvincula um SKU/produto a um anúncio. Enviar product_id=null para desvincular."""
-    return await service.link_sku_to_listing(db, mlb_id, current_user.id, payload.product_id)
+    result = await service.link_sku_to_listing(db, mlb_id, current_user.id, payload.product_id)
+    await db.commit()
+    return result
 
 
 @router.get("/kpi/summary")

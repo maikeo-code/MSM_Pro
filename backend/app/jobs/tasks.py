@@ -537,11 +537,13 @@ async def _evaluate_alerts_async():
                     )
                     user = user_result.scalar_one_or_none()
                     if user and user.email:
-                        send_alert_email(
+                        sent = send_alert_email(
                             to=user.email,
                             subject=f"MSM_Pro — Alerta: {config.alert_type}",
                             body=event.message,
                         )
+                        if sent:
+                            event.sent_at = datetime.now(timezone.utc)
 
             except Exception as e:
                 logger.error(f"Erro ao avaliar alerta {config.id}: {e}")

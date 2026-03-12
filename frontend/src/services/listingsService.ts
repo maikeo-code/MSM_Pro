@@ -82,8 +82,8 @@ export interface PriceBand {
 }
 
 export interface SKUInfo {
-  id: string;
-  sku: string;
+  id: string | null;
+  sku: string | null;
   cost: number;
 }
 

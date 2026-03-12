@@ -73,7 +73,7 @@ export default function AnuncioDetalhe() {
     queryFn: () => productsService.list(),
   });
 
-  const precoSim = parseFloat(simPreco) || (analysis?.listing.price ?? 0);
+  const precoSim = simPreco !== "" ? parseFloat(simPreco) : (analysis?.listing.price ?? 0);
 
   const { data: margem, isLoading: margemLoading } = useQuery({
     queryKey: ["margem", mlbId, precoSim],

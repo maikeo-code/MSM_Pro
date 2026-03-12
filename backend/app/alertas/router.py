@@ -74,6 +74,17 @@ async def list_events(
     return await service.list_alert_events(db, current_user.id, days=days)
 
 
+@router.get("/events/{alert_id}", response_model=list[AlertEventOut])
+async def list_events_by_alert(
+    alert_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    days: int = Query(default=30, ge=1, le=90, description="Janela de dias"),
+):
+    """Lista eventos disparados por um alerta específico."""
+    return await service.list_events_by_alert(db, current_user.id, alert_id, days=days)
+
+
 @router.get("/{alert_id}", response_model=AlertConfigOut)
 async def get_alert(
     alert_id: UUID,
@@ -106,14 +117,3 @@ async def delete_alert(
     """Desativa (soft-delete) uma configuração de alerta."""
     await service.deactivate_alert_config(db, current_user.id, alert_id)
     await db.commit()
-
-
-@router.get("/events/{alert_id}", response_model=list[AlertEventOut])
-async def list_events_by_alert(
-    alert_id: UUID,
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-    days: int = Query(default=30, ge=1, le=90, description="Janela de dias"),
-):
-    """Lista eventos disparados por um alerta específico."""
-    return await service.list_events_by_alert(db, current_user.id, alert_id, days=days)
