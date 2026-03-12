@@ -706,7 +706,7 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
                     "vendas"
                 ),
                 func.coalesce(func.sum(ListingSnapshot.visits), 0).label("visitas"),
-                func.count(ListingSnapshot.id).label("anuncios"),
+                func.count(func.distinct(ListingSnapshot.listing_id)).label("anuncios"),
             ).where(
                 ListingSnapshot.listing_id.in_(listing_ids),
                 cast(ListingSnapshot.captured_at, Date) == dt,
@@ -956,12 +956,32 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                             await db.flush()
                             created += 1
 
-                        # Snapshot inicial com dados atuais
+                        # Busca visitas de hoje via time_window (endpoint que funciona por dia)
+                        visits_today = 0
+                        try:
+                            from datetime import date as date_type
+                            today_str = date_type.today().isoformat()
+                            visits_resp = await client._request(
+                                "GET",
+                                f"/items/{mlb_id}/visits/time_window",
+                                params={"last": 1, "unit": "day"},
+                            )
+                            for day_data in visits_resp.get("results", []):
+                                if day_data.get("date", "").startswith(today_str):
+                                    visits_today = day_data.get("total", 0)
+                                    break
+                            # Se não achou hoje especificamente, pega o mais recente
+                            if visits_today == 0 and visits_resp.get("results"):
+                                visits_today = visits_resp["results"][0].get("total", 0)
+                        except Exception:
+                            pass
+
+                        # Snapshot com dados reais de visitas
                         snapshot = ListingSnapshot(
                             listing_id=listing.id,
                             price=price,
-                            visits=0,
-                            sales_today=0,
+                            visits=visits_today,
+                            sales_today=0,  # será preenchido abaixo via orders
                             questions=0,
                             stock=stock,
                             conversion_rate=None,
@@ -972,55 +992,55 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         errors.append(f"{mlb_id}: {e}")
                         continue
 
-                # Busca visitas em bulk para todos os itens sincronizados nesta conta
-                from datetime import date as date_type
-
-                today = date_type.today()
+                # Busca vendas de hoje via orders API e atualiza snapshots
                 try:
-                    all_ids = [mid.upper().replace("-", "") for mid in all_item_ids]
-                    if not all_ids:
-                        continue
+                    from datetime import date as date_type
+                    today = date_type.today()
+                    today_start = f"{today.isoformat()}T00:00:00.000-03:00"
 
-                    if not all([mid.startswith("MLB") for mid in all_ids]):
-                        all_ids = [
-                            f"MLB{mid}" if not mid.startswith("MLB") else mid
-                            for mid in all_ids
-                        ]
-
-                    visits_data = await client.get_items_visits_bulk(
-                        all_ids,
-                        date_from=today.isoformat(),
-                        date_to=today.isoformat(),
+                    orders_resp = await client._request(
+                        "GET",
+                        "/orders/search",
+                        params={
+                            "seller": account.ml_user_id,
+                            "order.date_created.from": today_start,
+                            "sort": "date_desc",
+                            "limit": 50,
+                        },
                     )
 
-                    # Atualiza os snapshots criados neste sync com visitas reais
-                    for mlb_id_raw in all_item_ids:
-                        item_id = mlb_id_raw.upper().replace("-", "")
-                        if not item_id.startswith("MLB"):
-                            item_id = f"MLB{item_id}"
+                    # Conta vendas por MLB ID
+                    sales_by_mlb: dict[str, int] = {}
+                    for order in orders_resp.get("results", []):
+                        for oi in order.get("order_items", []):
+                            oi_mlb = oi.get("item", {}).get("id", "")
+                            qty = oi.get("quantity", 1)
+                            sales_by_mlb[oi_mlb] = sales_by_mlb.get(oi_mlb, 0) + qty
 
-                        visits = visits_data.get(item_id, 0)
-
-                        # Busca o listing para encontrar o snapshot
-                        listing_result = await db.execute(
-                            select(Listing).where(Listing.mlb_id == mlb_id_raw)
-                        )
-                        lst = listing_result.scalar_one_or_none()
-
-                        if lst and visits > 0:
-                            # Busca o snapshot mais recente deste listing
-                            snap_result = await db.execute(
-                                select(ListingSnapshot)
-                                .where(ListingSnapshot.listing_id == lst.id)
-                                .order_by(ListingSnapshot.captured_at.desc())
-                                .limit(1)
+                    # Atualiza snapshots com vendas reais
+                    for mlb_id_raw, sales_count in sales_by_mlb.items():
+                        if sales_count > 0:
+                            lst_result = await db.execute(
+                                select(Listing).where(Listing.mlb_id == mlb_id_raw)
                             )
-                            snap = snap_result.scalar_one_or_none()
-                            if snap:
-                                snap.visits = visits
-                                await db.flush()
+                            lst = lst_result.scalar_one_or_none()
+                            if lst:
+                                snap_result = await db.execute(
+                                    select(ListingSnapshot)
+                                    .where(ListingSnapshot.listing_id == lst.id)
+                                    .order_by(ListingSnapshot.captured_at.desc())
+                                    .limit(1)
+                                )
+                                snap = snap_result.scalar_one_or_none()
+                                if snap:
+                                    snap.sales_today = sales_count
+                                    if snap.visits > 0:
+                                        snap.conversion_rate = Decimal(
+                                            str(round((sales_count / snap.visits) * 100, 2))
+                                        )
+                                    await db.flush()
                 except Exception:
-                    # Não bloquear sync se visitas falharem
+                    # Não bloquear sync se orders falharem
                     pass
 
         except MLClientError as e:

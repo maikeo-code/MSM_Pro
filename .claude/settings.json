@@ -11,13 +11,20 @@
       "Bash(npx:*)",
       "Bash(git:*)",
       "Bash(celery:*)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Read(//c/Users/Maikeo/.claude/**)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmYzg3NTg2ZS04Y2JlLTRjY2MtOWU0ZC04ZWY4ODAyZDA2N2QiLCJleHAiOjE3NzMzODc1MzQsImlhdCI6MTc3MzMwMTEzNH0.GluYFPX_xJL9yWCh161a_TiL9HDjsNu4YsK3-gAswbY\" __NEW_LINE_756d28258aace567__ curl -s \"https://msmpro-production.up.railway.app/api/v1/listings/debug/ml-test\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(python3 -c \":*)"
     ],
     "deny": [
       "Write(.env)",
       "Write(dados/tokens/*)",
       "Bash(rm -rf:*)",
       "Bash(drop:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Maikeo\\.claude"
     ]
   }
 }
