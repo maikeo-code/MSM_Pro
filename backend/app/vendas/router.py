@@ -200,6 +200,43 @@ async def create_promotion(
     )
 
 
+@router.get("/debug/ml-item/{mlb_id}")
+async def debug_ml_item(
+    mlb_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """DEBUG: Retorna resposta crua da API ML para um item. REMOVER APÓS DEBUG."""
+    from sqlalchemy import select
+
+    from app.auth.models import MLAccount
+    from app.mercadolivre.client import MLClient
+
+    result = await db.execute(
+        select(MLAccount).where(
+            MLAccount.user_id == current_user.id,
+            MLAccount.is_active == True,
+        )
+    )
+    account = result.scalars().first()
+    if not account or not account.access_token:
+        return {"error": "Nenhuma conta ML com token ativo"}
+
+    async with MLClient(account.access_token) as client:
+        item = await client.get_item(mlb_id)
+        return {
+            "price": item.get("price"),
+            "original_price": item.get("original_price"),
+            "sale_price": item.get("sale_price"),
+            "base_price": item.get("base_price"),
+            "deal_ids": item.get("deal_ids"),
+            "tags": item.get("tags"),
+            "listing_type_id": item.get("listing_type_id"),
+            "status": item.get("status"),
+            "buying_mode": item.get("buying_mode"),
+        }
+
+
 @router.get("/kpi/summary")
 async def get_kpi_summary(
     current_user: Annotated[User, Depends(get_current_user)],
