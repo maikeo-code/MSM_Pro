@@ -24,7 +24,7 @@ function HealthBadge({ score }: { score: number | null }) {
 
 function quickHealthScore(listing: ListingOut): number {
   const snap = listing.last_snapshot;
-  let score = 50; // base
+  let score = 50;
   if (listing.thumbnail) score += 10;
   if (listing.status === "active") score += 10;
   if (snap) {
@@ -41,6 +41,20 @@ export default function Anuncios() {
     queryKey: ["listings"],
     queryFn: () => listingsService.list(),
   });
+
+  const { data: kpi } = useQuery({
+    queryKey: ["kpi-summary"],
+    queryFn: () => listingsService.getKpiSummary(),
+    retry: 2,
+  });
+
+  const displayListings = listings ?? [];
+
+  const totalEstoqueAtual = displayListings.reduce((sum, l) => {
+    const preco = l.sale_price ?? l.price;
+    const estoque = l.last_snapshot?.stock ?? 0;
+    return sum + preco * estoque;
+  }, 0);
 
   return (
     <div className="p-8">
@@ -59,7 +73,68 @@ export default function Anuncios() {
         </div>
       )}
 
+      {/* Resumo por Periodo */}
+      <div className="rounded-lg border bg-card shadow-sm mb-6">
+        <div className="px-4 py-2 border-b">
+          <h2 className="text-sm font-semibold text-foreground">Resumo por Periodo</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Periodo</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Anuncios</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Vendas</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Visitas</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Conversao</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Receita</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Valor Estoque</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { label: "Hoje", data: kpi?.hoje },
+                { label: "Ontem", data: kpi?.ontem },
+                { label: "Anteontem", data: kpi?.anteontem },
+                { label: "7 dias", data: kpi?.["7dias"] },
+                { label: "30 dias", data: kpi?.["30dias"] },
+              ].map(({ label, data }) => (
+                <tr key={label} className="border-b hover:bg-muted/50">
+                  <td className="px-4 py-2 font-medium text-foreground">{label}</td>
+                  <td className="px-4 py-2 text-right text-foreground">{data?.anuncios ?? "-"}</td>
+                  <td className="px-4 py-2 text-right font-medium text-foreground">{data?.vendas ?? "-"}</td>
+                  <td className="px-4 py-2 text-right text-foreground">{data?.visitas?.toLocaleString("pt-BR") ?? "-"}</td>
+                  <td className="px-4 py-2 text-right text-foreground">
+                    {data?.conversao != null ? `${data.conversao.toFixed(2)}%` : "-"}
+                  </td>
+                  <td className="px-4 py-2 text-right font-medium text-green-600">
+                    {data?.receita != null && data.receita > 0 ? formatCurrency(data.receita) : "-"}
+                  </td>
+                  <td className="px-4 py-2 text-right font-medium text-foreground">
+                    {data?.valor_estoque != null ? formatCurrency(data.valor_estoque) : "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Card total estoque atual */}
+      {displayListings.length > 0 && (
+        <div className="rounded-lg border bg-card shadow-sm mb-6 px-6 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">Valor Total em Estoque (atual)</p>
+          </div>
+          <p className="text-2xl font-bold text-green-600">{formatCurrency(totalEstoqueAtual)}</p>
+        </div>
+      )}
+
+      {/* Tabela de anuncios */}
       <div className="rounded-lg border bg-card shadow-sm">
+        <div className="px-6 py-4 border-b">
+          <h2 className="text-lg font-semibold text-foreground">Todos os Anuncios ({displayListings.length})</h2>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -71,16 +146,22 @@ export default function Anuncios() {
                   Tipo
                 </th>
                 <th className="px-6 py-3 text-right font-medium text-muted-foreground">
-                  Preco atual
+                  Preco
                 </th>
                 <th className="px-6 py-3 text-right font-medium text-muted-foreground">
                   Visitas
+                </th>
+                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
+                  Vendas hoje
                 </th>
                 <th className="px-6 py-3 text-right font-medium text-muted-foreground">
                   Conversao
                 </th>
                 <th className="px-6 py-3 text-right font-medium text-muted-foreground">
                   Estoque
+                </th>
+                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
+                  Valor Estoque
                 </th>
                 <th className="px-6 py-3 text-center font-medium text-muted-foreground">
                   Acoes
@@ -90,13 +171,13 @@ export default function Anuncios() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-6 py-8 text-center text-muted-foreground">
                     Carregando...
                   </td>
                 </tr>
-              ) : !listings || listings.length === 0 ? (
+              ) : displayListings.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
+                  <td colSpan={9} className="px-6 py-12 text-center">
                     <TrendingUp className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
                     <p className="font-medium text-foreground">Nenhum anuncio encontrado</p>
                     <p className="text-sm text-muted-foreground mt-1">
@@ -105,7 +186,7 @@ export default function Anuncios() {
                   </td>
                 </tr>
               ) : (
-                listings.map((listing) => (
+                displayListings.map((listing) => (
                   <tr
                     key={listing.id}
                     className="border-b hover:bg-muted/50 transition-colors"
@@ -160,6 +241,9 @@ export default function Anuncios() {
                     <td className="px-6 py-4 text-right">
                       {listing.last_snapshot?.visits?.toLocaleString("pt-BR") ?? "-"}
                     </td>
+                    <td className="px-6 py-4 text-right font-medium">
+                      {listing.last_snapshot?.sales_today ?? "-"}
+                    </td>
                     <td className="px-6 py-4 text-right">
                       {listing.last_snapshot?.conversion_rate
                         ? formatPercent(listing.last_snapshot.conversion_rate)
@@ -175,6 +259,11 @@ export default function Anuncios() {
                       >
                         {listing.last_snapshot?.stock ?? "-"}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-right font-medium text-foreground">
+                      {listing.last_snapshot?.stock != null
+                        ? formatCurrency((listing.sale_price ?? listing.price) * listing.last_snapshot.stock)
+                        : "-"}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
