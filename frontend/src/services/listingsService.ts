@@ -6,6 +6,7 @@ export interface KpiPeriod {
   conversao: number;
   anuncios: number;
   valor_estoque: number;
+  receita: number;
 }
 
 export interface KpiSummary {

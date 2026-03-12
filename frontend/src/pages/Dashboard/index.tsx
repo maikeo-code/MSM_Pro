@@ -121,6 +121,7 @@ export default function Dashboard() {
                 <th className="px-4 py-2 text-right font-medium text-muted-foreground">Vendas</th>
                 <th className="px-4 py-2 text-right font-medium text-muted-foreground">Visitas</th>
                 <th className="px-4 py-2 text-right font-medium text-muted-foreground">Conversao</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Receita</th>
                 <th className="px-4 py-2 text-right font-medium text-muted-foreground">Valor Estoque</th>
               </tr>
             </thead>
@@ -137,6 +138,9 @@ export default function Dashboard() {
                   <td className="px-4 py-2 text-right text-foreground">{data?.visitas?.toLocaleString("pt-BR") ?? "-"}</td>
                   <td className="px-4 py-2 text-right text-foreground">
                     {data?.conversao != null ? `${data.conversao.toFixed(2)}%` : "-"}
+                  </td>
+                  <td className="px-4 py-2 text-right font-medium text-green-600">
+                    {data?.receita != null && data.receita > 0 ? formatCurrency(data.receita) : "-"}
                   </td>
                   <td className="px-4 py-2 text-right font-medium text-foreground">
                     {data?.valor_estoque != null ? formatCurrency(data.valor_estoque) : "-"}

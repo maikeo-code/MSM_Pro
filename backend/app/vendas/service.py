@@ -695,18 +695,39 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
     listing_ids = [row[0] for row in listings_result.fetchall()]
 
     if not listing_ids:
-        empty = {"vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0, "valor_estoque": 0.0}
+        empty = {"vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0, "valor_estoque": 0.0, "receita": 0.0}
         return {"hoje": empty, "ontem": empty, "anteontem": empty}
 
     periods = {}
     for label, dt in [("hoje", today), ("ontem", yesterday), ("anteontem", anteontem)]:
+        # Subquery: último snapshot de cada listing no dia
+        latest_snap_subq = (
+            select(
+                ListingSnapshot.listing_id,
+                func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+            )
+            .where(
+                ListingSnapshot.listing_id.in_(listing_ids),
+                cast(ListingSnapshot.captured_at, Date) == dt,
+            )
+            .group_by(ListingSnapshot.listing_id)
+            .subquery()
+        )
+
         result = await db.execute(
             select(
                 func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label("vendas"),
                 func.coalesce(func.sum(ListingSnapshot.visits), 0).label("visitas"),
                 func.count(func.distinct(ListingSnapshot.listing_id)).label("anuncios"),
                 func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.stock), 0).label("valor_estoque"),
-            ).where(
+                func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.sales_today), 0).label("receita"),
+            )
+            .join(
+                latest_snap_subq,
+                (ListingSnapshot.listing_id == latest_snap_subq.c.listing_id)
+                & (ListingSnapshot.captured_at == latest_snap_subq.c.max_captured_at),
+            )
+            .where(
                 ListingSnapshot.listing_id.in_(listing_ids),
                 cast(ListingSnapshot.captured_at, Date) == dt,
             )
@@ -722,6 +743,7 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
             "conversao": conversao,
             "anuncios": int(row.anuncios) if row else 0,
             "valor_estoque": float(row.valor_estoque) if row else 0.0,
+            "receita": float(row.receita) if row else 0.0,
         }
 
     return periods
