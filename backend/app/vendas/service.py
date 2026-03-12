@@ -522,11 +522,13 @@ async def get_listing_analysis(
         )
         return _generate_mock_analysis(mock_listing, None)
 
-    # Busca SKU
-    product_result = await db.execute(
-        select(Product).where(Product.id == listing.product_id)
-    )
-    product = product_result.scalar_one_or_none()
+    # Busca SKU (pode ser None se product_id não está cadastrado)
+    product = None
+    if listing.product_id:
+        product_result = await db.execute(
+            select(Product).where(Product.id == listing.product_id)
+        )
+        product = product_result.scalar_one_or_none()
 
     # Determina se temos custo real — margem será estimada se não tiver
     sku_cost = Decimal(str(product.cost)) if product and product.cost else Decimal("0")
@@ -567,13 +569,15 @@ async def get_listing_analysis(
     # Busca concorrente vinculado (primeiro encontrado para este SKU)
     from app.concorrencia.models import Competitor, CompetitorSnapshot
 
-    competitor_result = await db.execute(
-        select(Competitor)
-        .join(Listing, Competitor.listing_id == Listing.id)
-        .where(Listing.product_id == listing.product_id, Listing.user_id == user_id)
-        .limit(1)
-    )
-    competitor = competitor_result.scalar_one_or_none()
+    competitor = None
+    if listing.product_id:
+        competitor_result = await db.execute(
+            select(Competitor)
+            .join(Listing, Competitor.listing_id == Listing.id)
+            .where(Listing.product_id == listing.product_id, Listing.user_id == user_id)
+            .limit(1)
+        )
+        competitor = competitor_result.scalar_one_or_none()
 
     competitor_price = None
     comp_snapshot = None  # BUG 3 FIX: garantir que comp_snapshot existe antes do return
