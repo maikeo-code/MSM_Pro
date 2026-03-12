@@ -1,9 +1,144 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, RefreshCw, WifiOff, TrendingUp, TrendingDown, ShoppingCart, Package, DollarSign, Target, BarChart2 } from "lucide-react";
+import { AlertCircle, RefreshCw, WifiOff, TrendingUp, TrendingDown, ShoppingCart, Package, DollarSign, Target, BarChart2, Sparkles, X, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import listingsService from "@/services/listingsService";
+import { consultorService, type ConsultorResponse } from "@/services/consultorService";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+
+// ─── Render simples de markdown: **bold**, listas (- item), paragrafos ────────
+function RenderAnalise({ texto }: { texto: string }) {
+  const paragrafos = texto.split(/\n\n+/);
+  return (
+    <div className="space-y-3 text-sm leading-relaxed text-gray-700">
+      {paragrafos.map((paragrafo, i) => {
+        const linhas = paragrafo.split("\n");
+        const ehLista = linhas.every((l) => l.trim().startsWith("- ") || l.trim() === "");
+        if (ehLista && linhas.some((l) => l.trim().startsWith("- "))) {
+          return (
+            <ul key={i} className="list-none space-y-1 pl-0">
+              {linhas.filter((l) => l.trim().startsWith("- ")).map((item, j) => {
+                const conteudo = item.replace(/^-\s+/, "");
+                return (
+                  <li key={j} className="flex items-start gap-2">
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
+                    <span dangerouslySetInnerHTML={{ __html: conteudo.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>") }} />
+                  </li>
+                );
+              })}
+            </ul>
+          );
+        }
+        const html = paragrafo.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+        return (
+          <p key={i} dangerouslySetInnerHTML={{ __html: html }} />
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Drawer do Consultor IA ───────────────────────────────────────────────────
+interface ConsultorDrawerProps {
+  aberto: boolean;
+  onFechar: () => void;
+  loading: boolean;
+  resultado: ConsultorResponse | null;
+  erro: string | null;
+}
+
+function ConsultorDrawer({ aberto, onFechar, loading, resultado, erro }: ConsultorDrawerProps) {
+  return (
+    <>
+      {/* Overlay */}
+      <div
+        className={cn(
+          "fixed inset-0 z-40 bg-black/30 backdrop-blur-sm transition-opacity duration-300",
+          aberto ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onFechar}
+      />
+
+      {/* Drawer */}
+      <div
+        className={cn(
+          "fixed inset-y-0 right-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out",
+          "w-full sm:w-[480px]",
+          aberto ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+        {/* Header do drawer */}
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-white" />
+            <h2 className="text-base font-semibold text-white">Consultor IA</h2>
+          </div>
+          <button
+            onClick={onFechar}
+            className="rounded-md p-1.5 text-white/70 hover:text-white hover:bg-white/20 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Corpo */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="relative">
+                <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
+                <div className="absolute inset-0 rounded-full bg-blue-50" style={{ zIndex: -1 }} />
+              </div>
+              <p className="text-sm text-gray-500 font-medium">Analisando seus anuncios...</p>
+              <p className="text-xs text-gray-400 text-center max-w-xs">
+                A IA esta processando seus dados de vendas, estoque e conversao para gerar insights personalizados.
+              </p>
+            </div>
+          )}
+
+          {erro && !loading && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <p className="font-semibold mb-1">Erro ao gerar analise</p>
+              <p>{erro}</p>
+            </div>
+          )}
+
+          {resultado && !loading && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-3">
+                <p className="text-xs text-blue-600 font-medium uppercase tracking-wide">Analise gerada</p>
+              </div>
+              <RenderAnalise texto={resultado.analise} />
+            </div>
+          )}
+
+          {!loading && !erro && !resultado && (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <Sparkles className="h-10 w-10 text-blue-200" />
+              <p className="text-sm text-gray-500">Clique em "Analisar" para gerar insights com IA</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {resultado && !loading && (
+          <div className="border-t border-gray-200 px-6 py-3 bg-gray-50">
+            <p className="text-xs text-gray-500">
+              {resultado.anuncios_analisados} anuncios analisados &bull;{" "}
+              {new Date(resultado.gerado_em).toLocaleString("pt-BR", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
 
 // ─── Componente de variacao (seta verde/vermelha) ───────────────────────────
 function Variacao({ value, unit = "%" }: { value?: number | null; unit?: string }) {
@@ -59,6 +194,27 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  // ─── Consultor IA ────────────────────────────────────────────────────────────
+  const [consultorAberto, setConsultorAberto] = useState(false);
+  const [consultorLoading, setConsultorLoading] = useState(false);
+  const [consultorResultado, setConsultorResultado] = useState<ConsultorResponse | null>(null);
+  const [consultorErro, setConsultorErro] = useState<string | null>(null);
+
+  const handleConsultor = async () => {
+    setConsultorAberto(true);
+    if (consultorResultado) return; // ja tem resultado, so abre
+    setConsultorLoading(true);
+    setConsultorErro(null);
+    try {
+      const res = await consultorService.analisar();
+      setConsultorResultado(res);
+    } catch {
+      setConsultorErro("Nao foi possivel gerar a analise. Verifique se o backend esta online.");
+    } finally {
+      setConsultorLoading(false);
+    }
+  };
 
   const { data: listings, isLoading, isError, error } = useQuery({
     queryKey: ["listings"],
@@ -118,6 +274,15 @@ export default function Dashboard() {
 
   return (
     <div className="p-8">
+      {/* Drawer do Consultor IA */}
+      <ConsultorDrawer
+        aberto={consultorAberto}
+        onFechar={() => setConsultorAberto(false)}
+        loading={consultorLoading}
+        resultado={consultorResultado}
+        erro={consultorErro}
+      />
+
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
@@ -133,6 +298,24 @@ export default function Dashboard() {
             <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
             {syncing ? "Sincronizando..." : "Sincronizar ML"}
           </button>
+
+          <button
+            onClick={handleConsultor}
+            className="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-blue-600 to-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-blue-700 hover:to-violet-700 transition-all"
+          >
+            <Sparkles className="h-4 w-4" />
+            Consultor IA
+          </button>
+
+          {consultorResultado && (
+            <button
+              onClick={() => { setConsultorResultado(null); setConsultorErro(null); handleConsultor(); }}
+              className="text-xs text-muted-foreground hover:text-foreground underline transition-colors"
+            >
+              Atualizar analise
+            </button>
+          )}
+
           {syncMsg && (
             <span className="text-sm text-muted-foreground">{syncMsg}</span>
           )}

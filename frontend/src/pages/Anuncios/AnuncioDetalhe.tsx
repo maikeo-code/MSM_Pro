@@ -16,7 +16,11 @@ import {
   DollarSign,
   Activity,
   Layers,
+  Sparkles,
+  X,
+  Loader2,
 } from "lucide-react";
+import { consultorService, type ConsultorResponse } from "@/services/consultorService";
 import {
   ComposedChart,
   AreaChart,
@@ -35,6 +39,126 @@ import {
 import listingsService from "@/services/listingsService";
 import productsService from "@/services/productsService";
 import { formatCurrency, formatDate, formatPercent, cn } from "@/lib/utils";
+
+// ─── Render simples de markdown para o Consultor IA ──────────────────────────
+function RenderAnalise({ texto }: { texto: string }) {
+  const paragrafos = texto.split(/\n\n+/);
+  return (
+    <div className="space-y-3 text-sm leading-relaxed text-gray-700">
+      {paragrafos.map((paragrafo, i) => {
+        const linhas = paragrafo.split("\n");
+        const ehLista = linhas.every((l) => l.trim().startsWith("- ") || l.trim() === "");
+        if (ehLista && linhas.some((l) => l.trim().startsWith("- "))) {
+          return (
+            <ul key={i} className="list-none space-y-1 pl-0">
+              {linhas.filter((l) => l.trim().startsWith("- ")).map((item, j) => {
+                const conteudo = item.replace(/^-\s+/, "");
+                return (
+                  <li key={j} className="flex items-start gap-2">
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
+                    <span dangerouslySetInnerHTML={{ __html: conteudo.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>") }} />
+                  </li>
+                );
+              })}
+            </ul>
+          );
+        }
+        const html = paragrafo.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+        return <p key={i} dangerouslySetInnerHTML={{ __html: html }} />;
+      })}
+    </div>
+  );
+}
+
+// ─── Drawer do Consultor IA (inline) ─────────────────────────────────────────
+interface ConsultorDrawerProps {
+  aberto: boolean;
+  onFechar: () => void;
+  loading: boolean;
+  resultado: ConsultorResponse | null;
+  erro: string | null;
+}
+
+function ConsultorDrawer({ aberto, onFechar, loading, resultado, erro }: ConsultorDrawerProps) {
+  return (
+    <>
+      <div
+        className={cn(
+          "fixed inset-0 z-40 bg-black/30 backdrop-blur-sm transition-opacity duration-300",
+          aberto ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onFechar}
+      />
+      <div
+        className={cn(
+          "fixed inset-y-0 right-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out",
+          "w-full sm:w-[480px]",
+          aberto ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-white" />
+            <h2 className="text-base font-semibold text-white">Consultor IA — Analise do Anuncio</h2>
+          </div>
+          <button
+            onClick={onFechar}
+            className="rounded-md p-1.5 text-white/70 hover:text-white hover:bg-white/20 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
+              <p className="text-sm text-gray-500 font-medium">Analisando este anuncio...</p>
+              <p className="text-xs text-gray-400 text-center max-w-xs">
+                A IA esta processando o historico de vendas, conversao e estoque deste anuncio.
+              </p>
+            </div>
+          )}
+          {erro && !loading && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <p className="font-semibold mb-1">Erro ao gerar analise</p>
+              <p>{erro}</p>
+            </div>
+          )}
+          {resultado && !loading && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-3">
+                <p className="text-xs text-blue-600 font-medium uppercase tracking-wide">Analise do anuncio</p>
+              </div>
+              <RenderAnalise texto={resultado.analise} />
+            </div>
+          )}
+          {!loading && !erro && !resultado && (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <Sparkles className="h-10 w-10 text-blue-200" />
+              <p className="text-sm text-gray-500">A analise sera gerada automaticamente</p>
+            </div>
+          )}
+        </div>
+
+        {resultado && !loading && (
+          <div className="border-t border-gray-200 px-6 py-3 bg-gray-50">
+            <p className="text-xs text-gray-500">
+              {resultado.anuncios_analisados} anuncio(s) analisado(s) &bull;{" "}
+              {new Date(resultado.gerado_em).toLocaleString("pt-BR", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 type ChartView = "vendas" | "preco" | "conversao" | "completo";
@@ -103,6 +227,27 @@ export default function AnuncioDetalhe() {
   const [simPreco, setSimPreco] = React.useState<string>("");
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
   const [chartView, setChartView] = React.useState<ChartView>("vendas");
+
+  // ─── Consultor IA ──────────────────────────────────────────────────────────
+  const [consultorAberto, setConsultorAberto] = React.useState(false);
+  const [consultorLoading, setConsultorLoading] = React.useState(false);
+  const [consultorResultado, setConsultorResultado] = React.useState<ConsultorResponse | null>(null);
+  const [consultorErro, setConsultorErro] = React.useState<string | null>(null);
+
+  const handleConsultor = async () => {
+    setConsultorAberto(true);
+    setConsultorLoading(true);
+    setConsultorErro(null);
+    setConsultorResultado(null);
+    try {
+      const res = await consultorService.analisar({ mlb_id: mlbId });
+      setConsultorResultado(res);
+    } catch {
+      setConsultorErro("Nao foi possivel gerar a analise. Verifique se o backend esta online.");
+    } finally {
+      setConsultorLoading(false);
+    }
+  };
 
   const { data: analysis, isLoading, error } = useQuery({
     queryKey: ["listing-analysis", mlbId, days],
@@ -219,6 +364,15 @@ export default function AnuncioDetalhe() {
 
   return (
     <div className="p-8 space-y-6">
+      {/* Drawer do Consultor IA */}
+      <ConsultorDrawer
+        aberto={consultorAberto}
+        onFechar={() => setConsultorAberto(false)}
+        loading={consultorLoading}
+        resultado={consultorResultado}
+        erro={consultorErro}
+      />
+
       {/* ─── Header ──────────────────────────────────────────────────────────── */}
       <div className="mb-8">
         <Link
@@ -273,7 +427,7 @@ export default function AnuncioDetalhe() {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {[7, 30, 90].map((d) => (
               <button
                 key={d}
@@ -288,6 +442,13 @@ export default function AnuncioDetalhe() {
                 {d}d
               </button>
             ))}
+            <button
+              onClick={handleConsultor}
+              className="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-blue-600 to-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-blue-700 hover:to-violet-700 transition-all"
+            >
+              <Sparkles className="h-4 w-4" />
+              Analisar com IA
+            </button>
           </div>
         </div>
       </div>
