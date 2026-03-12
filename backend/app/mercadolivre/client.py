@@ -147,6 +147,53 @@ class MLClient:
         )
         return response.get("results", [])
 
+    async def get_item_orders_by_status(
+        self, mlb_id: str, seller_id: str, days: int = 1, status: str | None = None
+    ) -> list[dict]:
+        """
+        Busca pedidos de um anúncio com filtro opcional de status.
+
+        Args:
+            mlb_id: ID do anúncio MLB
+            seller_id: ID do vendedor ML
+            days: Número de dias para buscar (retroativos a partir de hoje)
+            status: Status do pedido (ex: "paid", "cancelled"). None = todos os status.
+
+        NOTA: o parâmetro "q" é uma busca textual — a API do ML não oferece filtro exato
+        por item_id em /orders/search. A validação exata (garantir que o item no pedido
+        realmente corresponde ao mlb_id desejado) é responsabilidade do código chamador,
+        que deve comparar order_items[].item.id após normalizar ambos os lados
+        (upper + remover hífens).
+        """
+        from datetime import date as date_type, timedelta as td
+
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+
+        date_from = date_type.today() - td(days=days - 1)
+        date_from_str = f"{date_from.isoformat()}T00:00:00.000-03:00"
+        date_to = date_from
+        date_to_str = f"{date_to.isoformat()}T23:59:59.000-03:00"
+
+        params = {
+            "seller": seller_id,
+            "q": item_id,
+            "order.date_created.from": date_from_str,
+            "order.date_created.to": date_to_str,
+            "sort": "date_desc",
+            "limit": 50,
+        }
+        if status:
+            params["order.status"] = status
+
+        response = await self._request(
+            "GET",
+            "/orders/search",
+            params=params,
+        )
+        return response.get("results", [])
+
     async def get_item_orders(self, mlb_id: str, seller_id: str, days: int = 1) -> list[dict]:
         """
         Busca vendas/orders de um anúncio filtrado por data.
@@ -166,6 +213,9 @@ class MLClient:
 
         date_from = date_type.today() - td(days=days - 1)
         date_from_str = f"{date_from.isoformat()}T00:00:00.000-03:00"
+        # date_to = mesmo dia que date_from para busca diária (intervalo fechado)
+        date_to = date_from
+        date_to_str = f"{date_to.isoformat()}T23:59:59.000-03:00"
 
         response = await self._request(
             "GET",
@@ -174,6 +224,8 @@ class MLClient:
                 "seller": seller_id,
                 "q": item_id,  # busca textual; validação exata feita no caller
                 "order.date_created.from": date_from_str,
+                "order.date_created.to": date_to_str,
+                "order.status": "paid",
                 "sort": "date_desc",
                 "limit": 50,
             },

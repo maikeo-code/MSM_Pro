@@ -38,6 +38,10 @@ class SnapshotOut(BaseModel):
     questions: int
     stock: int
     conversion_rate: Decimal | None
+    orders_count: int | None = 0
+    revenue: float | None = None
+    avg_selling_price: float | None = None
+    cancelled_orders: int | None = 0
     captured_at: datetime
 
     model_config = {"from_attributes": True}
@@ -60,8 +64,31 @@ class ListingOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_snapshot: SnapshotOut | None = None
+    # Campos calculados
+    dias_para_zerar: int | None = None
+    rpv: float | None = None  # receita por visita
+    taxa_cancelamento: float | None = None
 
     model_config = {"from_attributes": True}
+
+
+class KpiPeriodOut(BaseModel):
+    vendas: int = 0
+    visitas: int = 0
+    conversao: float = 0.0
+    anuncios: int = 0
+    valor_estoque: float = 0.0
+    receita: float = 0.0
+    # Métricas de pedidos
+    pedidos: int = 0
+    receita_total: float = 0.0
+    preco_medio: float = 0.0
+    taxa_cancelamento: float = 0.0
+    # Variações vs período anterior
+    vendas_variacao: float | None = None
+    receita_variacao: float | None = None
+    visitas_variacao: float | None = None
+    conversao_variacao: float | None = None
 
 
 class MargemResult(BaseModel):

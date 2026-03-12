@@ -371,8 +371,56 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
         snap.listing_id: snap for snap in snaps_result.scalars().all()
     }
 
+    # Busca últimos 7 snapshots por listing para calcular velocidade de vendas
+    # Subquery: rank de snapshots mais recentes por listing_id
+    cutoff_7d = datetime.now(timezone.utc) - timedelta(days=7)
+    snaps_7d_result = await db.execute(
+        select(ListingSnapshot)
+        .where(
+            ListingSnapshot.listing_id.in_(listing_ids),
+            ListingSnapshot.captured_at >= cutoff_7d,
+        )
+        .order_by(ListingSnapshot.listing_id, ListingSnapshot.captured_at.desc())
+    )
+    # Agrupa por listing_id (até 7 snapshots por listing)
+    snaps_7d_by_listing: dict = {}
+    for snap in snaps_7d_result.scalars().all():
+        lid = snap.listing_id
+        if lid not in snaps_7d_by_listing:
+            snaps_7d_by_listing[lid] = []
+        if len(snaps_7d_by_listing[lid]) < 7:
+            snaps_7d_by_listing[lid].append(snap)
+
     output = []
     for listing in listings:
+        last_snap = snaps_by_listing.get(listing.id)
+        recent_snaps = snaps_7d_by_listing.get(listing.id, [])
+
+        # Calcula dias_para_zerar
+        dias_para_zerar: int | None = None
+        if recent_snaps and last_snap and last_snap.stock and last_snap.stock > 0:
+            avg_sales = sum(s.sales_today for s in recent_snaps) / len(recent_snaps)
+            if avg_sales > 0:
+                dias_para_zerar = int(last_snap.stock / avg_sales)
+
+        # Calcula rpv (receita por visita) — usa revenue real se disponível, senão price * sales_today
+        rpv: float | None = None
+        if last_snap and last_snap.visits and last_snap.visits > 0:
+            receita_snap = float(last_snap.revenue) if last_snap.revenue else (
+                float(last_snap.price) * last_snap.sales_today
+            )
+            if receita_snap > 0:
+                rpv = round(receita_snap / last_snap.visits, 4)
+
+        # Calcula taxa_cancelamento do último snapshot
+        taxa_cancelamento: float | None = None
+        if last_snap:
+            pedidos = last_snap.orders_count or 0
+            cancelados = last_snap.cancelled_orders or 0
+            total = pedidos + cancelados
+            if total > 0:
+                taxa_cancelamento = round(cancelados / total * 100, 2)
+
         listing_dict = {
             "id": listing.id,
             "user_id": listing.user_id,
@@ -389,7 +437,10 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
             "thumbnail": listing.thumbnail,
             "created_at": listing.created_at,
             "updated_at": listing.updated_at,
-            "last_snapshot": snaps_by_listing.get(listing.id),
+            "last_snapshot": last_snap,
+            "dias_para_zerar": dias_para_zerar,
+            "rpv": rpv,
+            "taxa_cancelamento": taxa_cancelamento,
         }
         output.append(listing_dict)
 
@@ -748,6 +799,9 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
             func.count(func.distinct(ListingSnapshot.listing_id)).label("anuncios"),
             func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.stock), 0).label("valor_estoque"),
             func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.sales_today), 0).label("receita"),
+            func.coalesce(func.sum(ListingSnapshot.orders_count), 0).label("pedidos"),
+            func.coalesce(func.sum(ListingSnapshot.revenue), 0).label("receita_total"),
+            func.coalesce(func.sum(ListingSnapshot.cancelled_orders), 0).label("cancelados"),
         )
         .join(
             latest_snap_subq,
@@ -763,6 +817,12 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
     vendas = int(row.vendas) if row else 0
     visitas = int(row.visitas) if row else 0
     conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
+    pedidos = int(row.pedidos) if row else 0
+    receita_total = float(row.receita_total) if row else 0.0
+    cancelados = int(row.cancelados) if row else 0
+    preco_medio = round(receita_total / vendas, 2) if vendas > 0 else 0.0
+    total_pedidos_com_cancelados = pedidos + cancelados
+    taxa_cancelamento = round(cancelados / total_pedidos_com_cancelados * 100, 2) if total_pedidos_com_cancelados > 0 else 0.0
 
     return {
         "vendas": vendas,
@@ -771,6 +831,10 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
         "anuncios": int(row.anuncios) if row else 0,
         "valor_estoque": float(row.valor_estoque) if row else 0.0,
         "receita": float(row.receita) if row else 0.0,
+        "pedidos": pedidos,
+        "receita_total": receita_total,
+        "preco_medio": preco_medio,
+        "taxa_cancelamento": taxa_cancelamento,
     }
 
 
@@ -798,6 +862,9 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
             func.coalesce(func.sum(ListingSnapshot.visits), 0).label("visitas"),
             func.count(func.distinct(ListingSnapshot.listing_id)).label("anuncios"),
             func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.sales_today), 0).label("receita"),
+            func.coalesce(func.sum(ListingSnapshot.orders_count), 0).label("pedidos"),
+            func.coalesce(func.sum(ListingSnapshot.revenue), 0).label("receita_total"),
+            func.coalesce(func.sum(ListingSnapshot.cancelled_orders), 0).label("cancelados"),
         )
         .join(
             latest_per_day,
@@ -812,6 +879,12 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
     vendas = int(row.vendas) if row else 0
     visitas = int(row.visitas) if row else 0
     conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
+    pedidos = int(row.pedidos) if row else 0
+    receita_total = float(row.receita_total) if row else 0.0
+    cancelados = int(row.cancelados) if row else 0
+    preco_medio = round(receita_total / vendas, 2) if vendas > 0 else 0.0
+    total_pedidos_com_cancelados = pedidos + cancelados
+    taxa_cancelamento = round(cancelados / total_pedidos_com_cancelados * 100, 2) if total_pedidos_com_cancelados > 0 else 0.0
 
     # Valor estoque = snapshot mais recente disponível no intervalo (ponto no tempo, não acumulado)
     # BUG 4 FIX: usar a data mais recente com snapshot, não date_to que pode estar sem dados
@@ -837,6 +910,10 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
         "anuncios": int(row.anuncios) if row else 0,
         "valor_estoque": valor_estoque,
         "receita": float(row.receita) if row else 0.0,
+        "pedidos": pedidos,
+        "receita_total": receita_total,
+        "preco_medio": preco_medio,
+        "taxa_cancelamento": taxa_cancelamento,
     }
 
 
@@ -852,7 +929,13 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
     )
     listing_ids = [row[0] for row in listings_result.fetchall()]
 
-    empty = {"vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0, "valor_estoque": 0.0, "receita": 0.0}
+    empty = {
+        "vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0,
+        "valor_estoque": 0.0, "receita": 0.0,
+        "pedidos": 0, "receita_total": 0.0, "preco_medio": 0.0, "taxa_cancelamento": 0.0,
+        "vendas_variacao": None, "receita_variacao": None,
+        "visitas_variacao": None, "conversao_variacao": None,
+    }
     if not listing_ids:
         return {"hoje": empty, "ontem": empty, "anteontem": empty, "7dias": empty, "30dias": empty}
 
@@ -869,6 +952,40 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
     periods["30dias"] = await _kpi_date_range(
         db, listing_ids, today - timedelta(days=29), today
     )
+
+    # Calcular variações entre períodos (hoje vs ontem, ontem vs anteontem)
+    def _calc_variacao(current: float, previous: float) -> float | None:
+        """Calcula variação percentual entre dois valores. None se anterior for 0."""
+        if previous == 0:
+            return None
+        return round(((current - previous) / previous) * 100, 2)
+
+    hoje = periods["hoje"]
+    ontem = periods["ontem"]
+    anteontem_kpi = periods["anteontem"]
+
+    hoje["vendas_variacao"] = _calc_variacao(hoje["vendas"], ontem["vendas"])
+    hoje["receita_variacao"] = _calc_variacao(hoje["receita_total"], ontem["receita_total"])
+    hoje["visitas_variacao"] = _calc_variacao(hoje["visitas"], ontem["visitas"])
+    hoje["conversao_variacao"] = _calc_variacao(hoje["conversao"], ontem["conversao"])
+
+    ontem["vendas_variacao"] = _calc_variacao(ontem["vendas"], anteontem_kpi["vendas"])
+    ontem["receita_variacao"] = _calc_variacao(ontem["receita_total"], anteontem_kpi["receita_total"])
+    ontem["visitas_variacao"] = _calc_variacao(ontem["visitas"], anteontem_kpi["visitas"])
+    ontem["conversao_variacao"] = _calc_variacao(ontem["conversao"], anteontem_kpi["conversao"])
+
+    # anteontem não tem variação (sem período anterior disponível neste endpoint)
+    anteontem_kpi["vendas_variacao"] = None
+    anteontem_kpi["receita_variacao"] = None
+    anteontem_kpi["visitas_variacao"] = None
+    anteontem_kpi["conversao_variacao"] = None
+
+    # 7dias vs 30dias não possuem variação (períodos diferentes de tamanho)
+    for label in ["7dias", "30dias"]:
+        periods[label]["vendas_variacao"] = None
+        periods[label]["receita_variacao"] = None
+        periods[label]["visitas_variacao"] = None
+        periods[label]["conversao_variacao"] = None
 
     return periods
 

@@ -46,20 +46,23 @@ def run_async(coro):
     max_retries=3,
     default_retry_delay=60,
 )
-def sync_listing_snapshot(self, listing_id: str):
+def sync_listing_snapshot(self, listing_id: str, visits_override: int | None = None):
     """
     Sincroniza snapshot de um anúncio específico.
     Chama a API ML e salva o snapshot no banco.
+
+    visits_override: quando fornecido pelo bulk caller (_sync_all_snapshots_async),
+    pula a chamada individual de visitas e usa este valor diretamente.
     """
     try:
-        return run_async(_sync_listing_snapshot_async(listing_id))
+        return run_async(_sync_listing_snapshot_async(listing_id, visits_override=visits_override))
     except Exception as exc:
         logger.error(f"Erro ao sincronizar snapshot de {listing_id}: {exc}")
         # Retry com backoff exponencial
         raise self.retry(exc=exc, countdown=2 ** self.request.retries)
 
 
-async def _sync_listing_snapshot_async(listing_id: str):
+async def _sync_listing_snapshot_async(listing_id: str, visits_override: int | None = None):
     """Lógica assíncrona do sync de snapshot."""
     async with AsyncSessionLocal() as db:
         # Busca o listing com a conta ML
@@ -123,29 +126,56 @@ async def _sync_listing_snapshot_async(listing_id: str):
                     logger.debug(f"Não conseguiu buscar promoções para {listing.mlb_id}")
 
             # Busca visitas do dia
+            # Se visits_override foi fornecido pelo chamador bulk, evita N chamadas individuais
             visits = 0
-            try:
-                visits_data = await client.get_item_visits(listing.mlb_id, days=1)
-                if visits_data and isinstance(visits_data, list) and visits_data:
-                    visits = visits_data[0].get("total", 0)
-            except MLClientError:
-                logger.debug(f"Não conseguiu buscar visitas para {listing.mlb_id}")
+            if visits_override is not None:
+                visits = visits_override
+            else:
+                try:
+                    visits_data = await client.get_item_visits(listing.mlb_id, days=1)
+                    if visits_data and isinstance(visits_data, list) and visits_data:
+                        visits = visits_data[0].get("total", 0)
+                except MLClientError:
+                    logger.debug(f"Não conseguiu buscar visitas para {listing.mlb_id}")
 
-            # Busca vendas do dia
+            # Busca pedidos PAGOS (unidades vendidas + receita)
             sales_today = 0
+            orders_count = 0
+            revenue = Decimal("0")
+            mlb_normalized = listing.mlb_id.upper().replace("-", "")
             try:
-                mlb_normalized = listing.mlb_id.upper().replace("-", "")
-                orders_data = await client.get_item_orders(listing.mlb_id, account.ml_user_id, days=1)
-                if orders_data and isinstance(orders_data, list):
-                    for order in orders_data:
-                        for oi in order.get("order_items", []):
-                            # Normaliza ambos os lados para comparação exata —
-                            # a API pode retornar o item_id com ou sem hífen
-                            item_id = oi.get("item", {}).get("id", "").upper().replace("-", "")
-                            if item_id == mlb_normalized:
-                                sales_today += oi.get("quantity", 1)
+                paid_orders = await client.get_item_orders_by_status(
+                    listing.mlb_id, account.ml_user_id, days=1, status="paid"
+                )
+                for order in paid_orders:
+                    for oi in order.get("order_items", []):
+                        # Normaliza ambos os lados para comparação exata —
+                        # a API pode retornar o item_id com ou sem hífen
+                        item_id = oi.get("item", {}).get("id", "").upper().replace("-", "")
+                        if item_id == mlb_normalized:
+                            qty = oi.get("quantity", 1)
+                            unit_price = Decimal(str(oi.get("unit_price", 0)))
+                            sales_today += qty
+                            orders_count += 1
+                            revenue += unit_price * qty
             except MLClientError:
-                logger.debug(f"Não conseguiu buscar pedidos para {listing.mlb_id}")
+                logger.debug(f"Não conseguiu buscar pedidos pagos para {listing.mlb_id}")
+
+            avg_selling_price = (revenue / sales_today) if sales_today > 0 else None
+
+            # Busca pedidos CANCELADOS
+            cancelled_orders = 0
+            try:
+                cancelled_data = await client.get_item_orders_by_status(
+                    listing.mlb_id, account.ml_user_id, days=1, status="cancelled"
+                )
+                for order in cancelled_data:
+                    for oi in order.get("order_items", []):
+                        item_id = oi.get("item", {}).get("id", "").upper().replace("-", "")
+                        if item_id == mlb_normalized:
+                            cancelled_orders += 1
+            except MLClientError:
+                logger.debug(f"Não conseguiu buscar pedidos cancelados para {listing.mlb_id}")
 
             # Busca perguntas
             questions_count = 0
@@ -178,6 +208,10 @@ async def _sync_listing_snapshot_async(listing_id: str):
                 existing_snap.questions = questions_count
                 existing_snap.stock = stock
                 existing_snap.conversion_rate = conversion_rate
+                existing_snap.orders_count = orders_count
+                existing_snap.revenue = revenue
+                existing_snap.avg_selling_price = avg_selling_price
+                existing_snap.cancelled_orders = cancelled_orders
                 existing_snap.captured_at = datetime.now(timezone.utc)
             else:
                 snapshot = ListingSnapshot(
@@ -188,6 +222,10 @@ async def _sync_listing_snapshot_async(listing_id: str):
                     questions=questions_count,
                     stock=stock,
                     conversion_rate=conversion_rate,
+                    orders_count=orders_count,
+                    revenue=revenue,
+                    avg_selling_price=avg_selling_price,
+                    cancelled_orders=cancelled_orders,
                 )
                 db.add(snapshot)
 
@@ -208,6 +246,9 @@ async def _sync_listing_snapshot_async(listing_id: str):
                 "price": float(price),
                 "visits": visits,
                 "sales_today": sales_today,
+                "orders_count": orders_count,
+                "revenue": float(revenue),
+                "cancelled_orders": cancelled_orders,
             }
 
         except MLClientError as e:
@@ -239,7 +280,17 @@ def sync_all_snapshots(self):
 
 
 async def _sync_all_snapshots_async():
-    """Busca todos os listings ativos e sincroniza snapshots de cada um."""
+    """
+    Busca todos os listings ativos e sincroniza snapshots de cada um.
+
+    Otimização de visitas: em vez de N chamadas individuais (1 por anúncio),
+    faz 1 chamada bulk por conta ML usando get_items_visits_bulk().
+    O resultado é passado como visits_override para cada task individual,
+    evitando o overhead de rate-limit N vezes.
+    """
+    from datetime import date as date_type
+    from collections import defaultdict
+
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(Listing).where(Listing.status == "active")
@@ -248,9 +299,65 @@ async def _sync_all_snapshots_async():
 
         logger.info(f"Iniciando sincronização de {len(listings)} anúncios ativos")
 
+        # Agrupar listings por ml_account_id para fazer 1 chamada bulk por conta
+        listings_by_account: dict[str, list] = defaultdict(list)
+        for listing in listings:
+            listings_by_account[str(listing.ml_account_id)].append(listing)
+
+        # Para cada conta, buscar token e chamar bulk de visitas
+        # visits_map: mlb_id (normalizado) -> total do dia
+        visits_map: dict[str, int] = {}
+        today_str = date_type.today().isoformat()
+
+        for account_id, account_listings in listings_by_account.items():
+            acc_result = await db.execute(
+                select(MLAccount).where(MLAccount.id == account_id)
+            )
+            account = acc_result.scalar_one_or_none()
+            if not account or not account.access_token:
+                logger.warning(f"Sem token ML para conta {account_id} — visitas bulk puladas")
+                continue
+
+            mlb_ids = [
+                lst.mlb_id.upper().replace("-", "")
+                for lst in account_listings
+            ]
+            # Garante prefixo MLB
+            mlb_ids = [
+                mid if mid.startswith("MLB") else f"MLB{mid}"
+                for mid in mlb_ids
+            ]
+
+            client = MLClient(account.access_token)
+            try:
+                bulk_result = await client.get_items_visits_bulk(
+                    mlb_ids, date_from=today_str, date_to=today_str
+                )
+                visits_map.update(bulk_result)
+                logger.info(
+                    f"Visitas bulk OK para conta {account_id}: "
+                    f"{len(bulk_result)} itens retornados"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Falha no bulk de visitas para conta {account_id}: {e} — "
+                    "tasks usarão chamada individual como fallback"
+                )
+            finally:
+                await client.close()
+
+        # Despachar tasks individuais com visits_override quando disponível
         dispatched = []
         for listing in listings:
-            sync_listing_snapshot.delay(str(listing.id))
+            mlb_normalized = listing.mlb_id.upper().replace("-", "")
+            if not mlb_normalized.startswith("MLB"):
+                mlb_normalized = f"MLB{mlb_normalized}"
+
+            # Se o bulk retornou dado para este item, passa como override;
+            # caso contrário, a task buscará individualmente (fallback seguro)
+            visits_val = visits_map.get(mlb_normalized)
+
+            sync_listing_snapshot.delay(str(listing.id), visits_override=visits_val)
             dispatched.append(str(listing.id))
 
         logger.info(f"Enfileiradas {len(dispatched)} tasks de snapshot")
