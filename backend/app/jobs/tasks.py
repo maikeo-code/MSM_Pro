@@ -89,6 +89,21 @@ async def _sync_listing_snapshot_async(listing_id: str):
             stock = item_data.get("available_quantity", 0)
             status = item_data.get("status", listing.status)
 
+            # Extrai original_price e sale_price
+            original_price_raw = item_data.get("original_price")
+            original_price = Decimal(str(original_price_raw)) if original_price_raw else None
+
+            sale_price_data = item_data.get("sale_price")
+            sale_price_val = None
+            if sale_price_data and isinstance(sale_price_data, dict):
+                sp_amount = sale_price_data.get("amount")
+                if sp_amount is not None:
+                    sale_price_val = Decimal(str(sp_amount))
+
+            # Se sale_price existe e é menor que price, price é o preço original
+            if sale_price_val is not None and original_price is None and price > sale_price_val:
+                original_price = price
+
             # Busca visitas do dia
             visits = 0
             try:
@@ -133,8 +148,10 @@ async def _sync_listing_snapshot_async(listing_id: str):
             )
             db.add(snapshot)
 
-            # Atualiza preço e status do listing
+            # Atualiza preço, status e campos de desconto do listing
             listing.price = price
+            listing.original_price = original_price
+            listing.sale_price = sale_price_val
             listing.status = status
             listing.updated_at = datetime.now(timezone.utc)
 

@@ -695,18 +695,17 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
     listing_ids = [row[0] for row in listings_result.fetchall()]
 
     if not listing_ids:
-        empty = {"vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0}
+        empty = {"vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0, "valor_estoque": 0.0}
         return {"hoje": empty, "ontem": empty, "anteontem": empty}
 
     periods = {}
     for label, dt in [("hoje", today), ("ontem", yesterday), ("anteontem", anteontem)]:
         result = await db.execute(
             select(
-                func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label(
-                    "vendas"
-                ),
+                func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label("vendas"),
                 func.coalesce(func.sum(ListingSnapshot.visits), 0).label("visitas"),
                 func.count(func.distinct(ListingSnapshot.listing_id)).label("anuncios"),
+                func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.stock), 0).label("valor_estoque"),
             ).where(
                 ListingSnapshot.listing_id.in_(listing_ids),
                 cast(ListingSnapshot.captured_at, Date) == dt,
@@ -722,6 +721,7 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
             "visitas": visitas,
             "conversao": conversao,
             "anuncios": int(row.anuncios) if row else 0,
+            "valor_estoque": float(row.valor_estoque) if row else 0.0,
         }
 
     return periods
@@ -921,6 +921,10 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                             sp_amount = sale_price_data.get("amount")
                             if sp_amount is not None:
                                 sale_price_val = Decimal(str(sp_amount))
+
+                        # Se temos sale_price menor que price, então price é o preço original
+                        if sale_price_val is not None and original_price is None and price > sale_price_val:
+                            original_price = price
 
                         # Verifica se listing já existe
                         existing = await db.execute(

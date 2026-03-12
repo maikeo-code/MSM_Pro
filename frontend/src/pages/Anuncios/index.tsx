@@ -138,8 +138,24 @@ export default function Anuncios() {
                         {listing.listing_type}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right font-medium">
-                      {formatCurrency(listing.price)}
+                    <td className="px-6 py-4 text-right">
+                      {(() => {
+                        const effectivePrice = listing.sale_price ?? listing.price;
+                        const origPrice = listing.original_price ?? (listing.sale_price != null && listing.sale_price < listing.price ? listing.price : null);
+                        const hasDiscount = origPrice != null && Number(origPrice) > Number(effectivePrice);
+                        return (
+                          <div>
+                            {hasDiscount && (
+                              <p className="text-xs text-muted-foreground line-through">
+                                {formatCurrency(origPrice!)}
+                              </p>
+                            )}
+                            <p className={`font-medium ${hasDiscount ? "text-green-600" : ""}`}>
+                              {formatCurrency(effectivePrice)}
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-right">
                       {listing.last_snapshot?.visits?.toLocaleString("pt-BR") ?? "-"}

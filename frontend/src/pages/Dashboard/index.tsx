@@ -42,6 +42,12 @@ export default function Dashboard() {
 
   const displayListings = listings ?? [];
 
+  const totalEstoqueAtual = displayListings.reduce((sum, l) => {
+    const preco = l.sale_price ?? l.price;
+    const estoque = l.last_snapshot?.stock ?? 0;
+    return sum + preco * estoque;
+  }, 0);
+
   return (
     <div className="p-8">
       {/* Header */}
@@ -115,6 +121,7 @@ export default function Dashboard() {
                 <th className="px-4 py-2 text-right font-medium text-muted-foreground">Vendas</th>
                 <th className="px-4 py-2 text-right font-medium text-muted-foreground">Visitas</th>
                 <th className="px-4 py-2 text-right font-medium text-muted-foreground">Conversao</th>
+                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Valor Estoque</th>
               </tr>
             </thead>
             <tbody>
@@ -131,12 +138,26 @@ export default function Dashboard() {
                   <td className="px-4 py-2 text-right text-foreground">
                     {data?.conversao != null ? `${data.conversao.toFixed(2)}%` : "-"}
                   </td>
+                  <td className="px-4 py-2 text-right font-medium text-foreground">
+                    {data?.valor_estoque != null ? formatCurrency(data.valor_estoque) : "-"}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Card total estoque atual */}
+      {displayListings.length > 0 && (
+        <div className="rounded-lg border bg-card shadow-sm mb-6 px-6 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">Valor Total em Estoque (atual)</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Soma de todos os anúncios ativos × estoque × preço com desconto</p>
+          </div>
+          <p className="text-2xl font-bold text-green-600">{formatCurrency(totalEstoqueAtual)}</p>
+        </div>
+      )}
 
       {/* Tabela de anuncios */}
       <div className="rounded-lg border bg-card shadow-sm">
@@ -216,17 +237,18 @@ export default function Dashboard() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       {(() => {
-                        const realPrice = listing.sale_price ?? listing.price;
-                        const hasDiscount = listing.original_price && listing.original_price > realPrice;
+                        const effectivePrice = listing.sale_price ?? listing.price;
+                        const origPrice = listing.original_price ?? (listing.sale_price != null && listing.sale_price < listing.price ? listing.price : null);
+                        const hasDiscount = origPrice != null && Number(origPrice) > Number(effectivePrice);
                         return (
                           <div>
                             {hasDiscount && (
                               <p className="text-xs text-muted-foreground line-through">
-                                {formatCurrency(listing.original_price!)}
+                                {formatCurrency(origPrice!)}
                               </p>
                             )}
                             <p className={`font-medium ${hasDiscount ? "text-green-600" : ""}`}>
-                              {formatCurrency(realPrice)}
+                              {formatCurrency(effectivePrice)}
                             </p>
                           </div>
                         );

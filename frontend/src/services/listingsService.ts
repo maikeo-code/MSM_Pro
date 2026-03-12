@@ -5,6 +5,7 @@ export interface KpiPeriod {
   visitas: number;
   conversao: number;
   anuncios: number;
+  valor_estoque: number;
 }
 
 export interface KpiSummary {

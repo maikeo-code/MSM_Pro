@@ -21,7 +21,7 @@ const api: AxiosInstance = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 30000,
+  timeout: 120000,
 });
 
 // Interceptor de request: adiciona JWT no header Authorization
