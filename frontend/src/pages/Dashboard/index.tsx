@@ -103,6 +103,8 @@ export default function Dashboard() {
   const totalVisitas = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.visits ?? 0), 0);
   const avgConversao = totalVisitas > 0 ? (totalUnidades / totalVisitas) * 100 : 0;
   const avgPrecoMedio = totalUnidades > 0 ? totalReceita / totalUnidades : 0;
+  // Preço médio por venda (receita / pedidos — diferente de receita / unidades)
+  const avgPrecoMedioPorVenda = totalPedidos > 0 ? totalReceita / totalPedidos : 0;
 
   // Dados KPI para cards (usa periodo "hoje" ou soma dos listings)
   const kpiHoje = kpi?.hoje;
@@ -271,7 +273,9 @@ export default function Dashboard() {
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Pedidos</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Unidades</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Receita (R$)</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Preco Medio</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Preco/Unidade</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Preco/Venda</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Participacao</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Conversao</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Estoque</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Dias p/ Zerar</th>
@@ -281,13 +285,13 @@ export default function Dashboard() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={11} className="px-6 py-8 text-center text-muted-foreground">
                     Carregando...
                   </td>
                 </tr>
               ) : displayListings.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={11} className="px-6 py-8 text-center text-muted-foreground">
                     Nenhum anuncio encontrado. Sincronize para importar do Mercado Livre.
                   </td>
                 </tr>
@@ -300,6 +304,9 @@ export default function Dashboard() {
                     const unidades = snap?.sales_today ?? 0;
                     const receita = snap?.revenue ?? (unidades * effectivePrice);
                     const precoMedio = snap?.avg_selling_price ?? (unidades > 0 ? receita / unidades : effectivePrice);
+                    // Preço médio por VENDA (receita / pedidos — 1 pedido pode ter N unidades)
+                    const precoMedioPorVenda = listing.avg_price_per_sale ?? (pedidos > 0 ? receita / pedidos : null);
+                    const participacao = listing.participacao_pct;
                     const conversao = snap?.conversion_rate;
                     const estoque = snap?.stock;
                     const diasParaZerar = listing.dias_para_zerar;
@@ -340,8 +347,37 @@ export default function Dashboard() {
                         <td className="px-4 py-3 text-right font-medium text-green-600">
                           {receita > 0 ? formatCurrency(receita) : "-"}
                         </td>
+                        {/* Preco/Unidade */}
                         <td className="px-4 py-3 text-right">
                           {formatCurrency(precoMedio)}
+                        </td>
+                        {/* ITEM 1: Preco/Venda */}
+                        <td className="px-4 py-3 text-right">
+                          {precoMedioPorVenda != null ? (
+                            <span className="text-blue-700 font-medium">{formatCurrency(precoMedioPorVenda)}</span>
+                          ) : "-"}
+                        </td>
+                        {/* ITEM 2: Participacao % */}
+                        <td className="px-4 py-3 text-right">
+                          {participacao != null ? (
+                            <div className="flex flex-col items-end gap-0.5">
+                              <span className={cn(
+                                "text-xs font-semibold",
+                                participacao >= 30 ? "text-green-700" : participacao >= 10 ? "text-yellow-700" : "text-muted-foreground"
+                              )}>
+                                {participacao.toFixed(1)}%
+                              </span>
+                              <div className="w-12 h-1 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className={cn(
+                                    "h-full rounded-full",
+                                    participacao >= 30 ? "bg-green-500" : participacao >= 10 ? "bg-yellow-500" : "bg-gray-400"
+                                  )}
+                                  style={{ width: `${Math.min(100, participacao)}%` }}
+                                />
+                              </div>
+                            </div>
+                          ) : "-"}
                         </td>
                         <td className="px-4 py-3 text-right">
                           {conversao != null ? (
@@ -384,6 +420,8 @@ export default function Dashboard() {
                     <td className="px-4 py-3 text-right">{totalUnidades > 0 ? totalUnidades : "-"}</td>
                     <td className="px-4 py-3 text-right text-green-600">{totalReceita > 0 ? formatCurrency(totalReceita) : "-"}</td>
                     <td className="px-4 py-3 text-right">{formatCurrency(avgPrecoMedio > 0 ? avgPrecoMedio : 0)}</td>
+                    <td className="px-4 py-3 text-right text-blue-700">{avgPrecoMedioPorVenda > 0 ? formatCurrency(avgPrecoMedioPorVenda) : "-"}</td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">100%</td>
                     <td className="px-4 py-3 text-right">{formatPercent(avgConversao)}</td>
                     <td className="px-4 py-3 text-right">{totalEstoque > 0 ? totalEstoque : "-"}</td>
                     <td className="px-4 py-3 text-right text-muted-foreground">—</td>

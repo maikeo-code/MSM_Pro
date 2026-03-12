@@ -148,6 +148,9 @@ async def _sync_listing_snapshot_async(listing_id: str, visits_override: int | N
                     listing.mlb_id, account.ml_user_id, days=1, status="paid"
                 )
                 for order in paid_orders:
+                    # orders_count incrementa 1 por PEDIDO (não por item).
+                    # Um pedido com 2 unidades = 1 pedido, 2 unidades vendidas.
+                    order_matched = False
                     for oi in order.get("order_items", []):
                         # Normaliza ambos os lados para comparação exata —
                         # a API pode retornar o item_id com ou sem hífen
@@ -156,26 +159,53 @@ async def _sync_listing_snapshot_async(listing_id: str, visits_override: int | N
                             qty = oi.get("quantity", 1)
                             unit_price = Decimal(str(oi.get("unit_price", 0)))
                             sales_today += qty
-                            orders_count += 1
                             revenue += unit_price * qty
+                            order_matched = True
+                    if order_matched:
+                        orders_count += 1
             except MLClientError:
                 logger.debug(f"Não conseguiu buscar pedidos pagos para {listing.mlb_id}")
 
             avg_selling_price = (revenue / sales_today) if sales_today > 0 else None
 
-            # Busca pedidos CANCELADOS
+            # Busca pedidos CANCELADOS (conta pedidos + soma valor)
             cancelled_orders = 0
+            cancelled_revenue = Decimal("0")
             try:
                 cancelled_data = await client.get_item_orders_by_status(
                     listing.mlb_id, account.ml_user_id, days=1, status="cancelled"
                 )
                 for order in cancelled_data:
+                    # cancelled_orders conta PEDIDOS cancelados (não itens).
                     for oi in order.get("order_items", []):
                         item_id = oi.get("item", {}).get("id", "").upper().replace("-", "")
                         if item_id == mlb_normalized:
                             cancelled_orders += 1
+                            qty = oi.get("quantity", 1)
+                            unit_price = Decimal(str(oi.get("unit_price", 0)))
+                            cancelled_revenue += unit_price * qty
+                            break  # 1 pedido = 1 cancelamento, independente da qtd de itens
             except MLClientError:
                 logger.debug(f"Não conseguiu buscar pedidos cancelados para {listing.mlb_id}")
+
+            # Busca DEVOLUÇÕES (status returned/refunded)
+            returns_count = 0
+            returns_revenue = Decimal("0")
+            try:
+                returned_data = await client.get_item_orders_by_status(
+                    listing.mlb_id, account.ml_user_id, days=1, status="returned"
+                )
+                for order in returned_data:
+                    for oi in order.get("order_items", []):
+                        item_id = oi.get("item", {}).get("id", "").upper().replace("-", "")
+                        if item_id == mlb_normalized:
+                            returns_count += 1
+                            qty = oi.get("quantity", 1)
+                            unit_price = Decimal(str(oi.get("unit_price", 0)))
+                            returns_revenue += unit_price * qty
+                            break
+            except MLClientError:
+                logger.debug(f"Não conseguiu buscar devoluções para {listing.mlb_id}")
 
             # Busca perguntas
             questions_count = 0
@@ -212,6 +242,9 @@ async def _sync_listing_snapshot_async(listing_id: str, visits_override: int | N
                 existing_snap.revenue = revenue
                 existing_snap.avg_selling_price = avg_selling_price
                 existing_snap.cancelled_orders = cancelled_orders
+                existing_snap.cancelled_revenue = cancelled_revenue
+                existing_snap.returns_count = returns_count
+                existing_snap.returns_revenue = returns_revenue
                 existing_snap.captured_at = datetime.now(timezone.utc)
             else:
                 snapshot = ListingSnapshot(
@@ -226,6 +259,9 @@ async def _sync_listing_snapshot_async(listing_id: str, visits_override: int | N
                     revenue=revenue,
                     avg_selling_price=avg_selling_price,
                     cancelled_orders=cancelled_orders,
+                    cancelled_revenue=cancelled_revenue,
+                    returns_count=returns_count,
+                    returns_revenue=returns_revenue,
                 )
                 db.add(snapshot)
 
@@ -249,6 +285,9 @@ async def _sync_listing_snapshot_async(listing_id: str, visits_override: int | N
                 "orders_count": orders_count,
                 "revenue": float(revenue),
                 "cancelled_orders": cancelled_orders,
+                "cancelled_revenue": float(cancelled_revenue),
+                "returns_count": returns_count,
+                "returns_revenue": float(returns_revenue),
             }
 
         except MLClientError as e:

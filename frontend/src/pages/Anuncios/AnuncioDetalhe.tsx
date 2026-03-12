@@ -191,19 +191,28 @@ export default function AnuncioDetalhe() {
   const totalSales = analysis.snapshots.reduce((sum, s) => sum + s.sales_today, 0);
   const totalReceita = analysis.snapshots.reduce((sum, s) => sum + (s.revenue ?? 0), 0);
   const totalVisitas = analysis.snapshots.reduce((sum, s) => sum + s.visits, 0);
-  const avgConversion = analysis.snapshots.length
-    ? analysis.snapshots.reduce((sum, s) => sum + (Number(s.conversion_rate) || 0), 0) /
-      analysis.snapshots.length
-    : 0;
+  // Conversão calculada como (total vendas / total visitas) * 100 — não como média de %
+  const avgConversion = totalVisitas > 0 ? (totalSales / totalVisitas) * 100 : 0;
   const currentPrice = analysis.listing.price;
   const lastSnapshot = analysis.snapshots[analysis.snapshots.length - 1];
   const lastStock = lastSnapshot ? lastSnapshot.stock : 0;
 
-  // ─── Metricas extras (TAREFA 5) ─────────────────────────────────────────────
+  // ─── Metricas extras ─────────────────────────────────────────────────────────
   const rpv = totalVisitas > 0 ? totalReceita / totalVisitas : null;
   const totalCancelled = analysis.snapshots.reduce((sum, s) => sum + (s.cancelled_orders ?? 0), 0);
   const totalOrders = analysis.snapshots.reduce((sum, s) => sum + (s.orders_count ?? s.sales_today), 0);
   const taxaCancelamento = totalOrders > 0 ? (totalCancelled / totalOrders) * 100 : null;
+
+  // ITEM 1: Preco medio por VENDA (receita / pedidos)
+  const precoMedioPorVenda = totalOrders > 0 ? totalReceita / totalOrders : null;
+
+  // ITEMS 3 e 4: Cancelamentos e devoluções com valor em R$
+  const totalCancelledRevenue = analysis.snapshots.reduce((sum, s) => sum + (s.cancelled_revenue ?? 0), 0);
+  const totalReturnsCount = analysis.snapshots.reduce((sum, s) => sum + (s.returns_count ?? 0), 0);
+  const totalReturnsRevenue = analysis.snapshots.reduce((sum, s) => sum + (s.returns_revenue ?? 0), 0);
+
+  // ITEM 5: Vendas concluidas = receita bruta - cancelamentos - devoluções
+  const vendasConcluidas = totalReceita - totalCancelledRevenue - totalReturnsRevenue;
 
   // Dias para zerar (usa full_stock do backend)
   const diasParaZerar = analysis.full_stock.days_until_stockout_7d;
@@ -284,71 +293,81 @@ export default function AnuncioDetalhe() {
       </div>
 
       {/* ─── KPI Cards ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Vendas Total</p>
-              <p className="text-2xl font-bold text-foreground mt-2">
-                {totalSales}
-              </p>
-            </div>
-            <TrendingUp className="h-8 w-8 text-primary/50" />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="rounded-lg border bg-card p-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-muted-foreground font-medium">Vendas Total</p>
+            <TrendingUp className="h-4 w-4 text-primary/50" />
           </div>
+          <p className="text-2xl font-bold text-foreground">{totalSales}</p>
+          <p className="text-xs text-muted-foreground mt-1">{totalOrders} pedidos</p>
         </div>
 
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Conversao Media</p>
-              <p className="text-2xl font-bold text-foreground mt-2">
-                {formatPercent(avgConversion)}
-              </p>
-            </div>
-            <Target className="h-8 w-8 text-primary/50" />
+        <div className="rounded-lg border bg-card p-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-muted-foreground font-medium">Conversao Media</p>
+            <Target className="h-4 w-4 text-primary/50" />
           </div>
+          <p className="text-2xl font-bold text-foreground">{formatPercent(avgConversion)}</p>
+          <p className="text-xs text-muted-foreground mt-1">{totalVisitas.toLocaleString("pt-BR")} visitas</p>
         </div>
 
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Preco Atual</p>
-              <p className="text-2xl font-bold text-foreground mt-2">
-                {formatCurrency(currentPrice)}
-              </p>
-            </div>
-            <Zap className="h-8 w-8 text-primary/50" />
+        <div className="rounded-lg border bg-card p-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-muted-foreground font-medium">Preco Atual</p>
+            <Zap className="h-4 w-4 text-primary/50" />
           </div>
+          <p className="text-2xl font-bold text-foreground">{formatCurrency(currentPrice)}</p>
+          {/* ITEM 1: preco medio por venda */}
+          {precoMedioPorVenda != null && (
+            <p className="text-xs text-blue-600 mt-1">{formatCurrency(precoMedioPorVenda)}/venda</p>
+          )}
         </div>
 
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Estoque</p>
-              <p className="text-2xl font-bold text-foreground mt-2">
-                {lastStock}
-              </p>
-            </div>
-            <Package className="h-8 w-8 text-primary/50" />
+        <div className="rounded-lg border bg-card p-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-muted-foreground font-medium">Estoque</p>
+            <Package className="h-4 w-4 text-primary/50" />
           </div>
+          <p className="text-2xl font-bold text-foreground">{lastStock}</p>
+          <p className="text-xs text-muted-foreground mt-1">{diasParaZerar != null ? `${diasParaZerar}d para zerar` : "—"}</p>
+        </div>
+
+        {/* ITEM 5: Vendas Brutas vs Concluidas */}
+        <div className="rounded-lg border bg-card p-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-muted-foreground font-medium">Receita Bruta</p>
+            <DollarSign className="h-4 w-4 text-primary/50" />
+          </div>
+          <p className="text-2xl font-bold text-green-600">{formatCurrency(totalReceita)}</p>
+          <p className="text-xs text-muted-foreground mt-1">no periodo</p>
+        </div>
+
+        <div className="rounded-lg border bg-card p-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-muted-foreground font-medium">Vendas Concluidas</p>
+            <Star className="h-4 w-4 text-primary/50" />
+          </div>
+          <p className="text-2xl font-bold text-emerald-700">{formatCurrency(vendasConcluidas)}</p>
+          <p className="text-xs text-muted-foreground mt-1">apos deducoes</p>
         </div>
       </div>
 
-      {/* ─── TAREFA 5: Card de metricas extras ─────────────────────────────── */}
+      {/* ─── Card de metricas avancadas ──────────────────────────────────────── */}
       <div className="rounded-lg border bg-card p-6">
         <div className="flex items-center gap-2 mb-4">
           <Activity className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">Metricas Avancadas</h2>
         </div>
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {/* RPV */}
           <div className="space-y-1">
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">RPV (Receita por Visita)</p>
-            <p className="text-2xl font-bold text-foreground">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">RPV (Receita/Visita)</p>
+            <p className="text-xl font-bold text-foreground">
               {rpv != null ? formatCurrency(rpv) : "—"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {totalVisitas > 0 ? `${totalVisitas.toLocaleString("pt-BR")} visitas no periodo` : "Sem visitas no periodo"}
+              {totalVisitas > 0 ? `${totalVisitas.toLocaleString("pt-BR")} visitas` : "Sem visitas"}
             </p>
           </div>
 
@@ -356,30 +375,42 @@ export default function AnuncioDetalhe() {
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Taxa de Cancelamento</p>
             <div className="flex items-center gap-2">
-              <p className="text-2xl font-bold text-foreground">
+              <p className="text-xl font-bold text-foreground">
                 {taxaCancelamento != null ? formatPercent(taxaCancelamento) : "—"}
               </p>
               {taxaCancelamento != null && taxaCancelamento > 3 && (
-                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800">
-                  Alta
-                </span>
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800">Alta</span>
               )}
               {taxaCancelamento != null && taxaCancelamento <= 3 && taxaCancelamento > 0 && (
-                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800">
-                  Normal
-                </span>
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800">Normal</span>
               )}
             </div>
+            {/* ITEM 3: valor dos cancelamentos */}
             <p className="text-xs text-muted-foreground">
-              {totalCancelled > 0 ? `${totalCancelled} cancelados de ${totalOrders} pedidos` : "Sem cancelamentos no periodo"}
+              {totalCancelled > 0
+                ? `${totalCancelled} cancelados • ${formatCurrency(totalCancelledRevenue)}`
+                : "Sem cancelamentos"}
             </p>
           </div>
 
-          {/* Velocidade de venda / Dias para zerar */}
+          {/* ITEM 4: Devoluções */}
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Devolucoes</p>
+            <p className="text-xl font-bold text-foreground">
+              {totalReturnsCount > 0 ? totalReturnsCount : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {totalReturnsCount > 0
+                ? `${totalReturnsCount} ${totalReturnsCount === 1 ? "pedido" : "pedidos"} • ${formatCurrency(totalReturnsRevenue)}`
+                : "Sem devolucoes"}
+            </p>
+          </div>
+
+          {/* Velocidade de venda */}
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Velocidade de Venda</p>
             <div className="flex items-center gap-2">
-              <p className="text-2xl font-bold text-foreground">
+              <p className="text-xl font-bold text-foreground">
                 {diasParaZerar != null ? `${diasParaZerar}d` : "—"}
               </p>
               {diasParaZerar != null && (
@@ -391,7 +422,7 @@ export default function AnuncioDetalhe() {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              para zerar estoque (base: velocidade 7d: {analysis.full_stock.velocity_7d.toFixed(1)} und/dia)
+              {analysis.full_stock.velocity_7d.toFixed(1)} und/dia (7d)
             </p>
           </div>
         </div>

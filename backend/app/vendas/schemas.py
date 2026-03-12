@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class ListingCreate(BaseModel):
-    product_id: UUID
+    product_id: UUID | None = None
     ml_account_id: UUID
     mlb_id: str = Field(min_length=3, max_length=50, pattern=r"^MLB-?\d+$")
     title: str = Field(min_length=1, max_length=500)
@@ -42,6 +42,9 @@ class SnapshotOut(BaseModel):
     revenue: float | None = None
     avg_selling_price: float | None = None
     cancelled_orders: int | None = 0
+    cancelled_revenue: float | None = 0
+    returns_count: int | None = 0
+    returns_revenue: float | None = 0
     captured_at: datetime
 
     model_config = {"from_attributes": True}
@@ -68,6 +71,9 @@ class ListingOut(BaseModel):
     dias_para_zerar: int | None = None
     rpv: float | None = None  # receita por visita
     taxa_cancelamento: float | None = None
+    avg_price_per_sale: float | None = None  # revenue / orders_count
+    participacao_pct: float | None = None  # % do total de receita
+    vendas_concluidas: float | None = None  # revenue - cancelled_revenue - returns_revenue
 
     model_config = {"from_attributes": True}
 
@@ -84,6 +90,12 @@ class KpiPeriodOut(BaseModel):
     receita_total: float = 0.0
     preco_medio: float = 0.0
     taxa_cancelamento: float = 0.0
+    # Novas métricas
+    preco_medio_por_venda: float = 0.0  # receita / pedidos (não por unidade)
+    vendas_concluidas: float = 0.0  # receita - cancelamentos - devoluções
+    cancelamentos_valor: float = 0.0  # soma de cancelled_revenue no período
+    devolucoes_valor: float = 0.0  # soma de returns_revenue no período
+    devolucoes_qtd: int = 0  # soma de returns_count no período
     # Variações vs período anterior
     vendas_variacao: float | None = None
     receita_variacao: float | None = None

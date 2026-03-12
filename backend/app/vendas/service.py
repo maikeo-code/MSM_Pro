@@ -12,10 +12,7 @@ from app.produtos.models import Product
 from app.vendas.models import Listing, ListingSnapshot
 from app.vendas.schemas import (
     ListingCreate,
-    ListingOut,
-    ListingUpdate,
     MargemResult,
-    SnapshotOut,
 )
 
 
@@ -42,6 +39,7 @@ def _generate_mock_snapshots(days: int = 30) -> list[dict]:
         sales = max(1, int(visits * (0.01 + (i % 8) * 0.01)))  # 1-8% conversão
         conversion = Decimal(str(round((sales / max(1, visits)) * 100, 2)))
 
+        revenue_mock = float(price) * sales
         snapshots.append({
             "id": str(UUID(int=i)),
             "listing_id": str(UUID(int=0)),
@@ -52,6 +50,14 @@ def _generate_mock_snapshots(days: int = 30) -> list[dict]:
             "stock": 100 + (i % 50),
             "conversion_rate": conversion,
             "captured_at": date,
+            # Campos de analytics — simulados no mock
+            "orders_count": max(1, sales - (i % 2)),  # pedidos ligeiramente abaixo de unidades
+            "revenue": revenue_mock,
+            "avg_selling_price": float(price),
+            "cancelled_orders": 1 if i % 7 == 0 else 0,
+            "cancelled_revenue": float(price) if i % 7 == 0 else 0.0,
+            "returns_count": 1 if i % 15 == 0 else 0,
+            "returns_revenue": float(price) if i % 15 == 0 else 0.0,
         })
 
     return snapshots
@@ -171,7 +177,12 @@ def _calculate_price_bands(
         price_bands[band_key]["prices"].append(price)
         price_bands[band_key]["sales_list"].append(snap["sales_today"])
         price_bands[band_key]["visits_list"].append(snap["visits"])
-        price_bands[band_key]["revenue"] += price * snap["sales_today"]
+        # Usa revenue real se disponível; caso contrário estima price * qty
+        snap_revenue = snap.get("revenue")
+        if snap_revenue is not None and snap_revenue > 0:
+            price_bands[band_key]["revenue"] += Decimal(str(snap_revenue))
+        else:
+            price_bands[band_key]["revenue"] += price * snap["sales_today"]
         price_bands[band_key]["days_count"] += 1
 
     # Calcula médias e margens
@@ -421,6 +432,20 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
             if total > 0:
                 taxa_cancelamento = round(cancelados / total * 100, 2)
 
+        # ITEM 1: avg_price_per_sale = receita / pedidos (diferente de receita / unidades)
+        avg_price_per_sale: float | None = None
+        if last_snap and last_snap.orders_count and last_snap.orders_count > 0:
+            snap_revenue = float(last_snap.revenue) if last_snap.revenue else 0.0
+            if snap_revenue > 0:
+                avg_price_per_sale = round(snap_revenue / last_snap.orders_count, 2)
+
+        # ITEM 5: vendas_concluidas = revenue - cancelled_revenue - returns_revenue
+        vendas_concluidas: float | None = None
+        if last_snap and last_snap.revenue is not None:
+            cancelled_rev = float(last_snap.cancelled_revenue or 0)
+            returns_rev = float(last_snap.returns_revenue or 0)
+            vendas_concluidas = round(float(last_snap.revenue) - cancelled_rev - returns_rev, 2)
+
         listing_dict = {
             "id": listing.id,
             "user_id": listing.user_id,
@@ -441,8 +466,25 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
             "dias_para_zerar": dias_para_zerar,
             "rpv": rpv,
             "taxa_cancelamento": taxa_cancelamento,
+            "avg_price_per_sale": avg_price_per_sale,
+            "vendas_concluidas": vendas_concluidas,
         }
         output.append(listing_dict)
+
+    # ITEM 2: participacao_pct — calculado após montar output completo (precisa do total)
+    total_revenue_all = sum(
+        float(item["last_snapshot"].revenue)
+        for item in output
+        if item["last_snapshot"] and item["last_snapshot"].revenue
+    )
+    for item in output:
+        snap = item["last_snapshot"]
+        if snap and snap.revenue and total_revenue_all > 0:
+            item["participacao_pct"] = round(
+                float(snap.revenue) / total_revenue_all * 100, 2
+            )
+        else:
+            item["participacao_pct"] = None
 
     return output
 
@@ -636,7 +678,7 @@ async def get_listing_analysis(
         # Sem dados de snapshot ainda — retorna mock completo
         return _generate_mock_analysis(listing, product)
 
-    # Converte para dicts
+    # Converte para dicts — inclui todos os campos de analytics
     snapshots = [
         {
             "id": str(s.id),
@@ -648,6 +690,15 @@ async def get_listing_analysis(
             "stock": s.stock,
             "conversion_rate": float(s.conversion_rate) if s.conversion_rate else 0,
             "captured_at": s.captured_at.isoformat() if s.captured_at else None,
+            # Campos de analytics de pedidos (podem ser None em snapshots antigos)
+            "orders_count": s.orders_count if s.orders_count is not None else 0,
+            "revenue": float(s.revenue) if s.revenue is not None else None,
+            "avg_selling_price": float(s.avg_selling_price) if s.avg_selling_price is not None else None,
+            "cancelled_orders": s.cancelled_orders if s.cancelled_orders is not None else 0,
+            # Campos novos (migration 0005) — None se snapshot antigo
+            "cancelled_revenue": float(s.cancelled_revenue) if s.cancelled_revenue is not None else 0.0,
+            "returns_count": s.returns_count if s.returns_count is not None else 0,
+            "returns_revenue": float(s.returns_revenue) if s.returns_revenue is not None else 0.0,
         }
         for s in snapshots_db
     ]
@@ -802,6 +853,9 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
             func.coalesce(func.sum(ListingSnapshot.orders_count), 0).label("pedidos"),
             func.coalesce(func.sum(ListingSnapshot.revenue), 0).label("receita_total"),
             func.coalesce(func.sum(ListingSnapshot.cancelled_orders), 0).label("cancelados"),
+            func.coalesce(func.sum(ListingSnapshot.cancelled_revenue), 0).label("cancelados_valor"),
+            func.coalesce(func.sum(ListingSnapshot.returns_count), 0).label("devolucoes_qtd"),
+            func.coalesce(func.sum(ListingSnapshot.returns_revenue), 0).label("devolucoes_valor"),
         )
         .join(
             latest_snap_subq,
@@ -820,9 +874,14 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
     pedidos = int(row.pedidos) if row else 0
     receita_total = float(row.receita_total) if row else 0.0
     cancelados = int(row.cancelados) if row else 0
+    cancelados_valor = float(row.cancelados_valor) if row else 0.0
+    devolucoes_qtd = int(row.devolucoes_qtd) if row else 0
+    devolucoes_valor = float(row.devolucoes_valor) if row else 0.0
     preco_medio = round(receita_total / vendas, 2) if vendas > 0 else 0.0
+    preco_medio_por_venda = round(receita_total / pedidos, 2) if pedidos > 0 else 0.0
     total_pedidos_com_cancelados = pedidos + cancelados
     taxa_cancelamento = round(cancelados / total_pedidos_com_cancelados * 100, 2) if total_pedidos_com_cancelados > 0 else 0.0
+    vendas_concluidas = round(receita_total - cancelados_valor - devolucoes_valor, 2)
 
     return {
         "vendas": vendas,
@@ -835,6 +894,11 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
         "receita_total": receita_total,
         "preco_medio": preco_medio,
         "taxa_cancelamento": taxa_cancelamento,
+        "preco_medio_por_venda": preco_medio_por_venda,
+        "vendas_concluidas": vendas_concluidas,
+        "cancelamentos_valor": cancelados_valor,
+        "devolucoes_valor": devolucoes_valor,
+        "devolucoes_qtd": devolucoes_qtd,
     }
 
 
@@ -865,6 +929,9 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
             func.coalesce(func.sum(ListingSnapshot.orders_count), 0).label("pedidos"),
             func.coalesce(func.sum(ListingSnapshot.revenue), 0).label("receita_total"),
             func.coalesce(func.sum(ListingSnapshot.cancelled_orders), 0).label("cancelados"),
+            func.coalesce(func.sum(ListingSnapshot.cancelled_revenue), 0).label("cancelados_valor"),
+            func.coalesce(func.sum(ListingSnapshot.returns_count), 0).label("devolucoes_qtd"),
+            func.coalesce(func.sum(ListingSnapshot.returns_revenue), 0).label("devolucoes_valor"),
         )
         .join(
             latest_per_day,
@@ -882,9 +949,14 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
     pedidos = int(row.pedidos) if row else 0
     receita_total = float(row.receita_total) if row else 0.0
     cancelados = int(row.cancelados) if row else 0
+    cancelados_valor = float(row.cancelados_valor) if row else 0.0
+    devolucoes_qtd = int(row.devolucoes_qtd) if row else 0
+    devolucoes_valor = float(row.devolucoes_valor) if row else 0.0
     preco_medio = round(receita_total / vendas, 2) if vendas > 0 else 0.0
+    preco_medio_por_venda = round(receita_total / pedidos, 2) if pedidos > 0 else 0.0
     total_pedidos_com_cancelados = pedidos + cancelados
     taxa_cancelamento = round(cancelados / total_pedidos_com_cancelados * 100, 2) if total_pedidos_com_cancelados > 0 else 0.0
+    vendas_concluidas = round(receita_total - cancelados_valor - devolucoes_valor, 2)
 
     # Valor estoque = snapshot mais recente disponível no intervalo (ponto no tempo, não acumulado)
     # BUG 4 FIX: usar a data mais recente com snapshot, não date_to que pode estar sem dados
@@ -914,6 +986,11 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
         "receita_total": receita_total,
         "preco_medio": preco_medio,
         "taxa_cancelamento": taxa_cancelamento,
+        "preco_medio_por_venda": preco_medio_por_venda,
+        "vendas_concluidas": vendas_concluidas,
+        "cancelamentos_valor": cancelados_valor,
+        "devolucoes_valor": devolucoes_valor,
+        "devolucoes_qtd": devolucoes_qtd,
     }
 
 
@@ -933,6 +1010,8 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
         "vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0,
         "valor_estoque": 0.0, "receita": 0.0,
         "pedidos": 0, "receita_total": 0.0, "preco_medio": 0.0, "taxa_cancelamento": 0.0,
+        "preco_medio_por_venda": 0.0, "vendas_concluidas": 0.0,
+        "cancelamentos_valor": 0.0, "devolucoes_valor": 0.0, "devolucoes_qtd": 0,
         "vendas_variacao": None, "receita_variacao": None,
         "visitas_variacao": None, "conversao_variacao": None,
     }

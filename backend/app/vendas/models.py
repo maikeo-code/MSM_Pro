@@ -94,6 +94,9 @@ class ListingSnapshot(Base):
     revenue: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     avg_selling_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     cancelled_orders: Mapped[int] = mapped_column(Integer, nullable=True, default=0)
+    cancelled_revenue: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True, default=0)
+    returns_count: Mapped[int] = mapped_column(Integer, nullable=True, default=0)
+    returns_revenue: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True, default=0)
     captured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
