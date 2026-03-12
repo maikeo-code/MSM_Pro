@@ -273,6 +273,7 @@ export default function Dashboard() {
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Pedidos</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Unidades</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Receita (R$)</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Você Recebe</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Preco/Unidade</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Preco/Venda</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Participacao</th>
@@ -285,13 +286,13 @@ export default function Dashboard() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={12} className="px-6 py-8 text-center text-muted-foreground">
                     Carregando...
                   </td>
                 </tr>
               ) : displayListings.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={12} className="px-6 py-8 text-center text-muted-foreground">
                     Nenhum anuncio encontrado. Sincronize para importar do Mercado Livre.
                   </td>
                 </tr>
@@ -316,7 +317,7 @@ export default function Dashboard() {
                         key={listing.id}
                         className="border-b hover:bg-muted/50 transition-colors"
                       >
-                        {/* Produto: thumbnail + titulo + MLB ID */}
+                        {/* Produto: thumbnail + titulo + MLB ID + SKU */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             {listing.thumbnail ? (
@@ -334,7 +335,10 @@ export default function Dashboard() {
                               <p className="font-medium text-foreground line-clamp-1 text-xs leading-tight">
                                 {listing.title}
                               </p>
-                              <p className="text-xs text-muted-foreground mt-0.5">{listing.mlb_id}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                                {listing.mlb_id}
+                                {listing.seller_sku && ` · SKU: ${listing.seller_sku}`}
+                              </p>
                             </div>
                           </div>
                         </td>
@@ -346,6 +350,10 @@ export default function Dashboard() {
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-green-600">
                           {receita > 0 ? formatCurrency(receita) : "-"}
+                        </td>
+                        {/* Você Recebe */}
+                        <td className="px-4 py-3 text-right font-semibold text-green-600">
+                          {listing.voce_recebe != null ? formatCurrency(listing.voce_recebe) : "-"}
                         </td>
                         {/* Preco/Unidade */}
                         <td className="px-4 py-3 text-right">
@@ -419,6 +427,7 @@ export default function Dashboard() {
                     <td className="px-4 py-3 text-right">{totalPedidos > 0 ? totalPedidos : "-"}</td>
                     <td className="px-4 py-3 text-right">{totalUnidades > 0 ? totalUnidades : "-"}</td>
                     <td className="px-4 py-3 text-right text-green-600">{totalReceita > 0 ? formatCurrency(totalReceita) : "-"}</td>
+                    <td className="px-4 py-3 text-right text-green-600">—</td>
                     <td className="px-4 py-3 text-right">{formatCurrency(avgPrecoMedio > 0 ? avgPrecoMedio : 0)}</td>
                     <td className="px-4 py-3 text-right text-blue-700">{avgPrecoMedioPorVenda > 0 ? formatCurrency(avgPrecoMedioPorVenda) : "-"}</td>
                     <td className="px-4 py-3 text-right text-muted-foreground">100%</td>

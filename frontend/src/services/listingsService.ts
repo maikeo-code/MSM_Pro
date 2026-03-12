@@ -79,6 +79,10 @@ export interface ListingOut {
   avg_price_per_sale?: number | null;
   participacao_pct?: number | null;
   vendas_concluidas?: number | null;
+  // Novos campos para UI (SKU e voce_recebe)
+  seller_sku?: string | null;
+  category_id?: string | null;
+  voce_recebe?: number | null;
 }
 
 export interface ListingCreate {

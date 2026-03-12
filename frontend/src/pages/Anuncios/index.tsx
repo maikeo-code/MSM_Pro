@@ -172,6 +172,7 @@ export default function Anuncios() {
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Pedidos</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Unidades</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Receita (R$)</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Você Recebe</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Preco/Unidade</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Preco/Venda</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Participacao</th>
@@ -221,7 +222,7 @@ export default function Anuncios() {
                         key={listing.id}
                         className="border-b hover:bg-muted/50 transition-colors"
                       >
-                        {/* Produto: thumbnail + titulo + health badge */}
+                        {/* Produto: thumbnail + titulo + MLB ID + SKU + health badge */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             {listing.thumbnail ? (
@@ -245,8 +246,11 @@ export default function Anuncios() {
                                 </Link>
                                 <HealthBadge score={quickHealthScore(listing)} />
                               </div>
-                              <div className="flex items-center gap-2">
-                                <p className="text-xs text-muted-foreground">{listing.mlb_id}</p>
+                              <p className="text-xs text-muted-foreground font-mono">
+                                {listing.mlb_id}
+                                {listing.seller_sku && ` · SKU: ${listing.seller_sku}`}
+                              </p>
+                              <div className="flex items-center gap-2 mt-0.5">
                                 {hasDiscount && (
                                   <span className="text-xs text-muted-foreground line-through">{formatCurrency(origPrice!)}</span>
                                 )}
@@ -281,6 +285,10 @@ export default function Anuncios() {
                         {/* Receita */}
                         <td className="px-4 py-3 text-right font-medium text-green-600">
                           {receita > 0 ? formatCurrency(receita) : "-"}
+                        </td>
+                        {/* Você Recebe */}
+                        <td className="px-4 py-3 text-right font-semibold text-green-600">
+                          {listing.voce_recebe != null ? formatCurrency(listing.voce_recebe) : "-"}
                         </td>
                         {/* Preco/Unidade */}
                         <td className="px-4 py-3 text-right">
@@ -371,6 +379,7 @@ export default function Anuncios() {
                     <td className="px-4 py-3 text-right">{totalPedidos > 0 ? totalPedidos : "-"}</td>
                     <td className="px-4 py-3 text-right">{totalUnidades > 0 ? totalUnidades : "-"}</td>
                     <td className="px-4 py-3 text-right text-green-600">{totalReceita > 0 ? formatCurrency(totalReceita) : "-"}</td>
+                    <td className="px-4 py-3 text-right text-green-600">—</td>
                     <td className="px-4 py-3 text-right">{formatCurrency(avgPrecoMedio > 0 ? avgPrecoMedio : 0)}</td>
                     <td className="px-4 py-3 text-right text-blue-700">{avgPrecoMedioPorVenda > 0 ? formatCurrency(avgPrecoMedioPorVenda) : "-"}</td>
                     <td className="px-4 py-3 text-right text-muted-foreground">100%</td>
