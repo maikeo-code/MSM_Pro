@@ -698,8 +698,6 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
         empty = {"vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0}
         return {"hoje": empty, "ontem": empty, "anteontem": empty}
 
-    from sqlalchemy import func
-
     periods = {}
     for label, dt in [("hoje", today), ("ontem", yesterday), ("anteontem", anteontem)]:
         result = await db.execute(
