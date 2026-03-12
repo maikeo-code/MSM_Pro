@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { ExternalLink, TrendingUp } from "lucide-react";
+import { ExternalLink, TrendingUp, Package } from "lucide-react";
 import listingsService, { ListingOut } from "@/services/listingsService";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 
+// ─── Health badge ─────────────────────────────────────────────────────────────
 function HealthBadge({ score }: { score: number | null }) {
   if (score === null) return null;
   const color =
@@ -12,9 +13,9 @@ function HealthBadge({ score }: { score: number | null }) {
     score >= 40 ? "bg-orange-100 text-orange-700" :
     "bg-red-100 text-red-700";
   const label =
-    score >= 80 ? "Ótimo" :
+    score >= 80 ? "Otimo" :
     score >= 60 ? "Bom" :
-    score >= 40 ? "Atenção" : "Crítico";
+    score >= 40 ? "Atencao" : "Critico";
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>
       {label}
@@ -36,6 +37,20 @@ function quickHealthScore(listing: ListingOut): number {
   return Math.min(100, score);
 }
 
+// ─── Badge dias para zerar ────────────────────────────────────────────────────
+function DiasBadge({ dias }: { dias?: number | null }) {
+  if (dias == null) {
+    return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-gray-100 text-gray-500">—</span>;
+  }
+  if (dias > 30) {
+    return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800">{dias}d</span>;
+  }
+  if (dias >= 7) {
+    return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800">{dias}d</span>;
+  }
+  return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800">{dias}d</span>;
+}
+
 export default function Anuncios() {
   const { data: listings, isLoading, error } = useQuery({
     queryKey: ["listings"],
@@ -50,7 +65,19 @@ export default function Anuncios() {
 
   const displayListings = listings ?? [];
 
-  const totalEstoqueAtual = displayListings.reduce((sum, l) => {
+  // Totais calculados
+  const totalPedidos = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.orders_count ?? l.last_snapshot?.sales_today ?? 0), 0);
+  const totalUnidades = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.sales_today ?? 0), 0);
+  const totalReceita = displayListings.reduce((sum, l) => {
+    const snap = l.last_snapshot;
+    const effectivePrice = l.sale_price ?? l.price;
+    return sum + (snap?.revenue ?? ((snap?.sales_today ?? 0) * effectivePrice));
+  }, 0);
+  const totalEstoque = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.stock ?? 0), 0);
+  const totalVisitas = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.visits ?? 0), 0);
+  const avgConversao = totalVisitas > 0 ? (totalUnidades / totalVisitas) * 100 : 0;
+  const avgPrecoMedio = totalUnidades > 0 ? totalReceita / totalUnidades : 0;
+  const totalEstoqueValor = displayListings.reduce((sum, l) => {
     const preco = l.sale_price ?? l.price;
     const estoque = l.last_snapshot?.stock ?? 0;
     return sum + preco * estoque;
@@ -126,11 +153,11 @@ export default function Anuncios() {
           <div>
             <p className="text-sm text-muted-foreground">Valor Total em Estoque (atual)</p>
           </div>
-          <p className="text-2xl font-bold text-green-600">{formatCurrency(totalEstoqueAtual)}</p>
+          <p className="text-2xl font-bold text-green-600">{formatCurrency(totalEstoqueValor)}</p>
         </div>
       )}
 
-      {/* Tabela de anuncios */}
+      {/* ─── Tabela de anuncios com novas colunas ─────────────────────────────── */}
       <div className="rounded-lg border bg-card shadow-sm">
         <div className="px-6 py-4 border-b">
           <h2 className="text-lg font-semibold text-foreground">Todos os Anuncios ({displayListings.length})</h2>
@@ -139,45 +166,28 @@ export default function Anuncios() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="px-6 py-3 text-left font-medium text-muted-foreground">
-                  Anuncio
-                </th>
-                <th className="px-6 py-3 text-left font-medium text-muted-foreground">
-                  Tipo
-                </th>
-                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
-                  Preco
-                </th>
-                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
-                  Visitas
-                </th>
-                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
-                  Vendas hoje
-                </th>
-                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
-                  Conversao
-                </th>
-                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
-                  Estoque
-                </th>
-                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
-                  Valor Estoque
-                </th>
-                <th className="px-6 py-3 text-center font-medium text-muted-foreground">
-                  Acoes
-                </th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Produto</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Tipo</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Pedidos</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Unidades</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Receita (R$)</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Preco Medio</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Conversao</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Estoque</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Dias p/ Zerar</th>
+                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Acoes</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-6 py-8 text-center text-muted-foreground">
                     Carregando...
                   </td>
                 </tr>
               ) : displayListings.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center">
+                  <td colSpan={10} className="px-6 py-12 text-center">
                     <TrendingUp className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
                     <p className="font-medium text-foreground">Nenhum anuncio encontrado</p>
                     <p className="text-sm text-muted-foreground mt-1">
@@ -186,107 +196,153 @@ export default function Anuncios() {
                   </td>
                 </tr>
               ) : (
-                displayListings.map((listing) => (
-                  <tr
-                    key={listing.id}
-                    className="border-b hover:bg-muted/50 transition-colors"
-                  >
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <Link
-                            to={`/anuncios/${listing.mlb_id}`}
-                            className="font-medium text-primary hover:underline line-clamp-1"
-                          >
-                            {listing.title}
-                          </Link>
-                          <HealthBadge score={quickHealthScore(listing)} />
-                        </div>
-                        <p className="text-xs text-muted-foreground">{listing.mlb_id}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={cn(
-                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                          listing.listing_type === "full"
-                            ? "bg-purple-100 text-purple-700"
-                            : listing.listing_type === "premium"
-                            ? "bg-blue-100 text-blue-700"
-                            : "bg-gray-100 text-gray-700",
-                        )}
+                <>
+                  {displayListings.map((listing) => {
+                    const effectivePrice = listing.sale_price ?? listing.price;
+                    const origPrice = listing.original_price ?? (listing.sale_price != null && listing.sale_price < listing.price ? listing.price : null);
+                    const hasDiscount = origPrice != null && Number(origPrice) > Number(effectivePrice);
+                    const snap = listing.last_snapshot;
+                    const pedidos = snap?.orders_count ?? snap?.sales_today ?? 0;
+                    const unidades = snap?.sales_today ?? 0;
+                    const receita = snap?.revenue ?? (unidades * effectivePrice);
+                    const precoMedio = snap?.avg_selling_price ?? (unidades > 0 ? receita / unidades : effectivePrice);
+                    const conversao = snap?.conversion_rate;
+                    const estoque = snap?.stock;
+
+                    return (
+                      <tr
+                        key={listing.id}
+                        className="border-b hover:bg-muted/50 transition-colors"
                       >
-                        {listing.listing_type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      {(() => {
-                        const effectivePrice = listing.sale_price ?? listing.price;
-                        const origPrice = listing.original_price ?? (listing.sale_price != null && listing.sale_price < listing.price ? listing.price : null);
-                        const hasDiscount = origPrice != null && Number(origPrice) > Number(effectivePrice);
-                        return (
-                          <div>
-                            {hasDiscount && (
-                              <p className="text-xs text-muted-foreground line-through">
-                                {formatCurrency(origPrice!)}
-                              </p>
+                        {/* Produto: thumbnail + titulo + health badge */}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            {listing.thumbnail ? (
+                              <img
+                                src={listing.thumbnail}
+                                alt={listing.title}
+                                className="h-10 w-10 rounded object-cover shrink-0 border"
+                              />
+                            ) : (
+                              <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
+                                <Package className="h-4 w-4 text-muted-foreground/50" />
+                              </div>
                             )}
-                            <p className={`font-medium ${hasDiscount ? "text-green-600" : ""}`}>
-                              {formatCurrency(effectivePrice)}
-                            </p>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <Link
+                                  to={`/anuncios/${listing.mlb_id}`}
+                                  className="font-medium text-primary hover:underline line-clamp-1 text-xs leading-tight"
+                                >
+                                  {listing.title}
+                                </Link>
+                                <HealthBadge score={quickHealthScore(listing)} />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs text-muted-foreground">{listing.mlb_id}</p>
+                                {hasDiscount && (
+                                  <span className="text-xs text-muted-foreground line-through">{formatCurrency(origPrice!)}</span>
+                                )}
+                                <span className={`text-xs font-medium ${hasDiscount ? "text-green-600" : ""}`}>
+                                  {formatCurrency(effectivePrice)}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                        );
-                      })()}
+                        </td>
+                        {/* Tipo */}
+                        <td className="px-4 py-3">
+                          <span className={cn(
+                            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                            listing.listing_type === "full"
+                              ? "bg-purple-100 text-purple-700"
+                              : listing.listing_type === "premium"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-gray-100 text-gray-700",
+                          )}>
+                            {listing.listing_type}
+                          </span>
+                        </td>
+                        {/* Pedidos */}
+                        <td className="px-4 py-3 text-right font-medium">
+                          {pedidos > 0 ? pedidos : "-"}
+                        </td>
+                        {/* Unidades */}
+                        <td className="px-4 py-3 text-right font-medium">
+                          {unidades > 0 ? unidades : "-"}
+                        </td>
+                        {/* Receita */}
+                        <td className="px-4 py-3 text-right font-medium text-green-600">
+                          {receita > 0 ? formatCurrency(receita) : "-"}
+                        </td>
+                        {/* Preco medio */}
+                        <td className="px-4 py-3 text-right">
+                          {formatCurrency(precoMedio)}
+                        </td>
+                        {/* Conversao */}
+                        <td className="px-4 py-3 text-right">
+                          {conversao != null ? (
+                            <span className={cn(
+                              "font-medium",
+                              Number(conversao) >= 3 ? "text-green-600" : Number(conversao) >= 1 ? "text-yellow-600" : "text-red-500"
+                            )}>
+                              {formatPercent(Number(conversao))}
+                            </span>
+                          ) : "-"}
+                        </td>
+                        {/* Estoque */}
+                        <td className="px-4 py-3 text-right">
+                          <span className={cn(
+                            (estoque ?? 0) < 10 ? "text-red-600 font-medium" : "",
+                          )}>
+                            {estoque ?? "-"}
+                          </span>
+                        </td>
+                        {/* Dias p/ Zerar */}
+                        <td className="px-4 py-3 text-right">
+                          <DiasBadge dias={listing.dias_para_zerar} />
+                        </td>
+                        {/* Acoes */}
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <Link
+                              to={`/anuncios/${listing.mlb_id}`}
+                              className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors"
+                            >
+                              Detalhes
+                            </Link>
+                            {listing.permalink && (
+                              <a
+                                href={listing.permalink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {/* ── Linha de totais ── */}
+                  <tr className="bg-muted/30 font-bold border-t-2">
+                    <td className="px-4 py-3 text-xs text-muted-foreground font-bold uppercase tracking-wide">
+                      TOTAL ({displayListings.length})
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      {listing.last_snapshot?.visits?.toLocaleString("pt-BR") ?? "-"}
-                    </td>
-                    <td className="px-6 py-4 text-right font-medium">
-                      {listing.last_snapshot?.sales_today ?? "-"}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      {listing.last_snapshot?.conversion_rate
-                        ? formatPercent(listing.last_snapshot.conversion_rate)
-                        : "-"}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span
-                        className={cn(
-                          (listing.last_snapshot?.stock ?? 0) < 10
-                            ? "text-red-600 font-medium"
-                            : "",
-                        )}
-                      >
-                        {listing.last_snapshot?.stock ?? "-"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right font-medium text-foreground">
-                      {listing.last_snapshot?.stock != null
-                        ? formatCurrency((listing.sale_price ?? listing.price) * listing.last_snapshot.stock)
-                        : "-"}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <Link
-                          to={`/anuncios/${listing.mlb_id}`}
-                          className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors"
-                        >
-                          Detalhes
-                        </Link>
-                        {listing.permalink && (
-                          <a
-                            href={listing.permalink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                      </div>
-                    </td>
+                    <td className="px-4 py-3"></td>
+                    <td className="px-4 py-3 text-right">{totalPedidos > 0 ? totalPedidos : "-"}</td>
+                    <td className="px-4 py-3 text-right">{totalUnidades > 0 ? totalUnidades : "-"}</td>
+                    <td className="px-4 py-3 text-right text-green-600">{totalReceita > 0 ? formatCurrency(totalReceita) : "-"}</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(avgPrecoMedio > 0 ? avgPrecoMedio : 0)}</td>
+                    <td className="px-4 py-3 text-right">{formatPercent(avgConversao)}</td>
+                    <td className="px-4 py-3 text-right">{totalEstoque > 0 ? totalEstoque : "-"}</td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">—</td>
+                    <td className="px-4 py-3"></td>
                   </tr>
-                ))
+                </>
               )}
             </tbody>
           </table>

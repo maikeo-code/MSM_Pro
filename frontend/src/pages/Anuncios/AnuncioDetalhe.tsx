@@ -12,11 +12,18 @@ import {
   Link2,
   Link2Off,
   Calculator,
+  BarChart2,
+  DollarSign,
+  Activity,
+  Layers,
 } from "lucide-react";
 import {
   ComposedChart,
+  AreaChart,
+  Area,
   Bar,
   Line,
+  LineChart,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -28,6 +35,9 @@ import {
 import listingsService from "@/services/listingsService";
 import productsService from "@/services/productsService";
 import { formatCurrency, formatDate, formatPercent, cn } from "@/lib/utils";
+
+// ─── Tipos ───────────────────────────────────────────────────────────────────
+type ChartView = "vendas" | "preco" | "conversao" | "completo";
 
 const AlertSeverityColors = {
   critical: "bg-red-50 border-red-200 text-red-900",
@@ -47,6 +57,43 @@ interface ChartDataPoint {
   conversao: number;
   visitas: number;
   preco: number;
+  receita: number;
+  precoMedio: number;
+  pedidos: number;
+}
+
+// ─── Toggle de grafico ────────────────────────────────────────────────────────
+const chartToggleOptions: { key: ChartView; label: string; icon: React.ReactNode }[] = [
+  { key: "vendas", label: "Vendas/dia", icon: <BarChart2 className="h-3.5 w-3.5" /> },
+  { key: "preco", label: "Preco Medio", icon: <DollarSign className="h-3.5 w-3.5" /> },
+  { key: "conversao", label: "Conversao", icon: <Activity className="h-3.5 w-3.5" /> },
+  { key: "completo", label: "Visao Completa", icon: <Layers className="h-3.5 w-3.5" /> },
+];
+
+// ─── Tooltip customizado ──────────────────────────────────────────────────────
+function CustomTooltipVendas({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
+  if (!active || !payload?.length) return null;
+  const data = payload[0];
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-md text-xs space-y-1 min-w-[140px]">
+      <p className="font-semibold text-foreground border-b pb-1 mb-1">{label}</p>
+      <p className="text-muted-foreground">Unidades: <span className="font-medium text-foreground">{data?.value ?? 0}</span></p>
+    </div>
+  );
+}
+
+function CustomTooltipPreco({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string }>; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-md text-xs space-y-1 min-w-[160px]">
+      <p className="font-semibold text-foreground border-b pb-1 mb-1">{label}</p>
+      {payload.map((p) => (
+        <p key={p.name} className="text-muted-foreground">
+          {p.name}: <span className="font-medium text-foreground">{formatCurrency(p.value)}</span>
+        </p>
+      ))}
+    </div>
+  );
 }
 
 export default function AnuncioDetalhe() {
@@ -55,6 +102,7 @@ export default function AnuncioDetalhe() {
   const [days, setDays] = React.useState(30);
   const [simPreco, setSimPreco] = React.useState<string>("");
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
+  const [chartView, setChartView] = React.useState<ChartView>("vendas");
 
   const { data: analysis, isLoading, error } = useQuery({
     queryKey: ["listing-analysis", mlbId, days],
@@ -94,7 +142,7 @@ export default function AnuncioDetalhe() {
     return (
       <div className="p-8">
         <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
-          Erro ao carregar análise. Verifique sua conexão.
+          Erro ao carregar analise. Verifique sua conexao.
         </div>
       </div>
     );
@@ -104,7 +152,7 @@ export default function AnuncioDetalhe() {
     return (
       <div className="p-8">
         <div className="text-center py-12 text-muted-foreground">
-          Carregando análise completa...
+          Carregando analise completa...
         </div>
       </div>
     );
@@ -114,18 +162,24 @@ export default function AnuncioDetalhe() {
     return null;
   }
 
-  // Preparar dados do gráfico
+  // ─── Preparar dados do grafico ──────────────────────────────────────────────
   const chartData: ChartDataPoint[] = analysis.snapshots.map((snap) => {
+    const units = snap.sales_today;
+    const revenue = snap.revenue ?? 0;
+    const avgPrice = snap.avg_selling_price ?? (units > 0 ? revenue / units : parseFloat(snap.price.toString()));
     return {
       date: formatDate(snap.captured_at),
-      vendas: snap.sales_today,
+      vendas: units,
       conversao: snap.conversion_rate ? parseFloat(snap.conversion_rate.toString()) : 0,
       visitas: snap.visits,
       preco: parseFloat(snap.price.toString()),
+      receita: revenue,
+      precoMedio: avgPrice,
+      pedidos: snap.orders_count ?? units,
     };
   });
 
-  // Detectar mudanças de preço para ReferenceLine
+  // Marcar mudancas de preco para ReferenceLine
   const priceChanges = chartData.reduce((acc: string[], point, index) => {
     if (index > 0 && point.preco !== chartData[index - 1].preco) {
       acc.push(point.date);
@@ -133,8 +187,10 @@ export default function AnuncioDetalhe() {
     return acc;
   }, []);
 
-  // Cálculos de KPI
+  // ─── KPIs calculados ────────────────────────────────────────────────────────
   const totalSales = analysis.snapshots.reduce((sum, s) => sum + s.sales_today, 0);
+  const totalReceita = analysis.snapshots.reduce((sum, s) => sum + (s.revenue ?? 0), 0);
+  const totalVisitas = analysis.snapshots.reduce((sum, s) => sum + s.visits, 0);
   const avgConversion = analysis.snapshots.length
     ? analysis.snapshots.reduce((sum, s) => sum + (Number(s.conversion_rate) || 0), 0) /
       analysis.snapshots.length
@@ -143,16 +199,25 @@ export default function AnuncioDetalhe() {
   const lastSnapshot = analysis.snapshots[analysis.snapshots.length - 1];
   const lastStock = lastSnapshot ? lastSnapshot.stock : 0;
 
+  // ─── Metricas extras (TAREFA 5) ─────────────────────────────────────────────
+  const rpv = totalVisitas > 0 ? totalReceita / totalVisitas : null;
+  const totalCancelled = analysis.snapshots.reduce((sum, s) => sum + (s.cancelled_orders ?? 0), 0);
+  const totalOrders = analysis.snapshots.reduce((sum, s) => sum + (s.orders_count ?? s.sales_today), 0);
+  const taxaCancelamento = totalOrders > 0 ? (totalCancelled / totalOrders) * 100 : null;
+
+  // Dias para zerar (usa full_stock do backend)
+  const diasParaZerar = analysis.full_stock.days_until_stockout_7d;
+
   return (
     <div className="p-8 space-y-6">
-      {/* Header */}
+      {/* ─── Header ──────────────────────────────────────────────────────────── */}
       <div className="mb-8">
         <Link
           to="/anuncios"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
         >
           <ArrowLeft className="h-4 w-4" />
-          Voltar para Anúncios
+          Voltar para Anuncios
         </Link>
 
         <div className="flex items-start justify-between">
@@ -176,16 +241,14 @@ export default function AnuncioDetalhe() {
             </div>
 
             <div className="flex items-center gap-4 mt-4">
-              <span
-                className={cn(
-                  "inline-flex items-center rounded-full px-3 py-1 text-sm font-medium",
-                  analysis.listing.listing_type === "full"
-                    ? "bg-purple-100 text-purple-700"
-                    : analysis.listing.listing_type === "premium"
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-gray-100 text-gray-700",
-                )}
-              >
+              <span className={cn(
+                "inline-flex items-center rounded-full px-3 py-1 text-sm font-medium",
+                analysis.listing.listing_type === "full"
+                  ? "bg-purple-100 text-purple-700"
+                  : analysis.listing.listing_type === "premium"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-gray-100 text-gray-700",
+              )}>
                 {analysis.listing.listing_type}
               </span>
 
@@ -220,7 +283,7 @@ export default function AnuncioDetalhe() {
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* ─── KPI Cards ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-4 gap-4">
         <div className="rounded-lg border bg-card p-6">
           <div className="flex items-center justify-between">
@@ -237,7 +300,7 @@ export default function AnuncioDetalhe() {
         <div className="rounded-lg border bg-card p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Conversão Média</p>
+              <p className="text-sm text-muted-foreground">Conversao Media</p>
               <p className="text-2xl font-bold text-foreground mt-2">
                 {formatPercent(avgConversion)}
               </p>
@@ -249,7 +312,7 @@ export default function AnuncioDetalhe() {
         <div className="rounded-lg border bg-card p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Preço Atual</p>
+              <p className="text-sm text-muted-foreground">Preco Atual</p>
               <p className="text-2xl font-bold text-foreground mt-2">
                 {formatCurrency(currentPrice)}
               </p>
@@ -271,7 +334,70 @@ export default function AnuncioDetalhe() {
         </div>
       </div>
 
-      {/* SKU Vinculado */}
+      {/* ─── TAREFA 5: Card de metricas extras ─────────────────────────────── */}
+      <div className="rounded-lg border bg-card p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Activity className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold">Metricas Avancadas</h2>
+        </div>
+        <div className="grid grid-cols-3 gap-6">
+          {/* RPV */}
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">RPV (Receita por Visita)</p>
+            <p className="text-2xl font-bold text-foreground">
+              {rpv != null ? formatCurrency(rpv) : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {totalVisitas > 0 ? `${totalVisitas.toLocaleString("pt-BR")} visitas no periodo` : "Sem visitas no periodo"}
+            </p>
+          </div>
+
+          {/* Taxa de cancelamento */}
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Taxa de Cancelamento</p>
+            <div className="flex items-center gap-2">
+              <p className="text-2xl font-bold text-foreground">
+                {taxaCancelamento != null ? formatPercent(taxaCancelamento) : "—"}
+              </p>
+              {taxaCancelamento != null && taxaCancelamento > 3 && (
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800">
+                  Alta
+                </span>
+              )}
+              {taxaCancelamento != null && taxaCancelamento <= 3 && taxaCancelamento > 0 && (
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800">
+                  Normal
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {totalCancelled > 0 ? `${totalCancelled} cancelados de ${totalOrders} pedidos` : "Sem cancelamentos no periodo"}
+            </p>
+          </div>
+
+          {/* Velocidade de venda / Dias para zerar */}
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Velocidade de Venda</p>
+            <div className="flex items-center gap-2">
+              <p className="text-2xl font-bold text-foreground">
+                {diasParaZerar != null ? `${diasParaZerar}d` : "—"}
+              </p>
+              {diasParaZerar != null && (
+                diasParaZerar > 30
+                  ? <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800">OK</span>
+                  : diasParaZerar >= 7
+                  ? <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800">Atencao</span>
+                  : <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800">Critico</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              para zerar estoque (base: velocidade 7d: {analysis.full_stock.velocity_7d.toFixed(1)} und/dia)
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── SKU Vinculado ─────────────────────────────────────────────────── */}
       <div className="rounded-lg border bg-card p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -351,7 +477,7 @@ export default function AnuncioDetalhe() {
         )}
       </div>
 
-      {/* Calculadora de Margem */}
+      {/* ─── Calculadora de Margem ─────────────────────────────────────────── */}
       <div className="rounded-lg border bg-card p-6">
         <div className="flex items-center gap-2 mb-4">
           <Calculator className="h-5 w-5 text-primary" />
@@ -359,7 +485,6 @@ export default function AnuncioDetalhe() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Input de simulacao */}
           <div className="space-y-4">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-muted-foreground">
@@ -390,7 +515,6 @@ export default function AnuncioDetalhe() {
             </div>
           </div>
 
-          {/* Resultado da margem */}
           <div>
             {margemLoading ? (
               <p className="text-sm text-muted-foreground">Calculando...</p>
@@ -416,27 +540,23 @@ export default function AnuncioDetalhe() {
                 </div>
                 <div className="border-t pt-2 mt-2 flex justify-between">
                   <span className="font-semibold">Margem Bruta</span>
-                  <span
-                    className={cn(
-                      "font-bold text-lg",
-                      Number(margem.margem_bruta) >= 0 ? "text-green-600" : "text-red-600"
-                    )}
-                  >
+                  <span className={cn(
+                    "font-bold text-lg",
+                    Number(margem.margem_bruta) >= 0 ? "text-green-600" : "text-red-600"
+                  )}>
                     {formatCurrency(Number(margem.margem_bruta))}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Margem %</span>
-                  <span
-                    className={cn(
-                      "text-sm font-semibold rounded-full px-2 py-0.5",
-                      Number(margem.margem_pct) >= 20
-                        ? "bg-green-100 text-green-700"
-                        : Number(margem.margem_pct) >= 10
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-red-100 text-red-700"
-                    )}
-                  >
+                  <span className={cn(
+                    "text-sm font-semibold rounded-full px-2 py-0.5",
+                    Number(margem.margem_pct) >= 20
+                      ? "bg-green-100 text-green-700"
+                      : Number(margem.margem_pct) >= 10
+                      ? "bg-yellow-100 text-yellow-700"
+                      : "bg-red-100 text-red-700"
+                  )}>
                     {formatPercent(Number(margem.margem_pct))}
                   </span>
                 </div>
@@ -452,13 +572,13 @@ export default function AnuncioDetalhe() {
         </div>
       </div>
 
-      {/* Health Card */}
+      {/* ─── Health Card ─────────────────────────────────────────────────────── */}
       {health && (
         <div className="rounded-lg border bg-card">
           <div className="px-6 py-4 border-b flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Saúde do Anúncio</h2>
-              <p className="text-sm text-muted-foreground">Score baseado em estoque, conversão e dados do anúncio</p>
+              <h2 className="text-lg font-semibold">Saude do Anuncio</h2>
+              <p className="text-sm text-muted-foreground">Score baseado em estoque, conversao e dados do anuncio</p>
             </div>
             <div className="flex items-center gap-3">
               <div className={`text-3xl font-bold ${
@@ -504,122 +624,245 @@ export default function AnuncioDetalhe() {
         </div>
       )}
 
-      {/* Main Chart */}
+      {/* ─── TAREFA 4: Graficos com toggle ──────────────────────────────────── */}
       <div className="rounded-lg border bg-card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Preco x Conversao x Vendas</h2>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block w-4 h-0.5 bg-blue-500" style={{ borderTop: "2px dashed #3b82f6" }} />
-              Preco
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block w-4 h-0.5 bg-green-500" />
-              Conversao
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block w-4 h-3 rounded-sm bg-orange-400 opacity-70" />
-              Vendas/dia
-            </span>
+        {/* Toggle buttons */}
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold">Historico de Performance</h2>
+          <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-1">
+            {chartToggleOptions.map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setChartView(opt.key)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  chartView === opt.key
+                    ? "bg-background shadow-sm text-foreground border"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {opt.icon}
+                {opt.label}
+              </button>
+            ))}
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={400}>
-          <ComposedChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 12 }}
-              angle={-45}
-              height={80}
-            />
-            {/* Eixo esquerdo: Preço (R$) */}
-            <YAxis
-              yAxisId="left"
-              orientation="left"
-              tickFormatter={(v) => `R$${v.toFixed(0)}`}
-              label={{ value: "Preço (R$)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11 } }}
-            />
-            {/* Eixo direito: Conversão (%) e Visitas */}
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              tickFormatter={(v) => `${v.toFixed(0)}`}
-              label={{ value: "Conversão % / Visitas", angle: 90, position: "insideRight", offset: 10, style: { fontSize: 11 } }}
-            />
-            {/* Eixo oculto exclusivo para barras de Vendas — evita escala R$ em unidades */}
-            <YAxis
-              yAxisId="vendas"
-              orientation="left"
-              hide={true}
-              domain={[0, (dataMax: number) => Math.ceil(dataMax * 2)]}
-            />
-            <Tooltip
-              formatter={(value, name) => {
-                if (name === "Preço Base") return [formatCurrency(Number(value)), "Preço"];
-                if (name === "Conversão %") return [formatPercent(Number(value)), "Conversão"];
-                if (name === "Visitas") return [value, "Visitas"];
-                if (name === "Vendas/dia") return [`${value} und`, "Vendas/dia"];
-                return [value, name];
-              }}
-              labelFormatter={(label) => `Data: ${label}`}
-            />
-            <Legend />
 
-            {/* Marcar mudanças de preço */}
-            {priceChanges.map((date) => (
-              <ReferenceLine
-                key={date}
-                x={date}
-                stroke="#fbbf24"
-                strokeDasharray="3 3"
-                label={{ value: "Mudança", position: "top", fill: "#f59e0b" }}
-              />
-            ))}
+        {/* ── Grafico: Vendas/dia ── */}
+        {chartView === "vendas" && (
+          <>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-4 h-3 rounded-sm bg-blue-500 opacity-80" />
+                Unidades vendidas/dia
+              </span>
+            </div>
+            <ResponsiveContainer width="100%" height={350}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 60 }}>
+                <defs>
+                  <linearGradient id="colorVendas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" className="opacity-40" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} angle={-45} height={80} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip content={<CustomTooltipVendas />} />
+                <Area
+                  type="monotone"
+                  dataKey="vendas"
+                  stroke="#3B82F6"
+                  strokeWidth={2}
+                  fill="url(#colorVendas)"
+                  name="Unidades/dia"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </>
+        )}
 
-            {/* Barras de vendas usam eixo oculto para não distorcer a escala de R$ */}
-            <Bar
-              yAxisId="vendas"
-              dataKey="vendas"
-              fill="#f97316"
-              opacity={0.7}
-              name="Vendas/dia"
-            />
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="conversao"
-              stroke="#22c55e"
-              strokeWidth={2}
-              dot={false}
-              name="Conversão %"
-            />
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="visitas"
-              stroke="#ec4899"
-              strokeWidth={2}
-              dot={false}
-              name="Visitas"
-            />
-            <Line
-              yAxisId="left"
-              type="stepAfter"
-              dataKey="preco"
-              stroke="#3b82f6"
-              strokeWidth={2}
-              dot={false}
-              strokeDasharray="5 5"
-              name="Preço Base"
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
+        {/* ── Grafico: Preco Medio ── */}
+        {chartView === "preco" && (
+          <>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-4 h-0.5 bg-blue-500" />
+                Preco medio de venda (R$)
+              </span>
+            </div>
+            <ResponsiveContainer width="100%" height={350}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 60 }}>
+                <defs>
+                  <linearGradient id="colorPreco" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" className="opacity-40" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} angle={-45} height={80} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `R$${v.toFixed(0)}`} />
+                <Tooltip content={<CustomTooltipPreco />} />
+                <Area
+                  type="monotone"
+                  dataKey="precoMedio"
+                  stroke="#3B82F6"
+                  strokeWidth={2}
+                  fill="url(#colorPreco)"
+                  name="Preco Medio"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </>
+        )}
+
+        {/* ── Grafico: Conversao ── */}
+        {chartView === "conversao" && (
+          <>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-4 h-0.5 bg-green-500" />
+                Conversao diaria (%)
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-4 h-0.5 border-t-2 border-dashed border-orange-400" />
+                Benchmark 3%
+              </span>
+            </div>
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" className="opacity-40" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} angle={-45} height={80} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v.toFixed(1)}%`} />
+                <Tooltip
+                  formatter={(value) => [`${Number(value).toFixed(2)}%`, "Conversao"]}
+                  labelFormatter={(label) => `Data: ${label}`}
+                />
+                <ReferenceLine y={3} stroke="#f97316" strokeDasharray="4 4" label={{ value: "3% benchmark", position: "right", fill: "#f97316", fontSize: 10 }} />
+                <Line
+                  type="monotone"
+                  dataKey="conversao"
+                  stroke="#10B981"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Conversao %"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </>
+        )}
+
+        {/* ── Grafico: Visao Completa (original) ── */}
+        {chartView === "completo" && (
+          <>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-4 h-0.5 bg-blue-500" style={{ borderTop: "2px dashed #3b82f6" }} />
+                Preco
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-4 h-0.5 bg-green-500" />
+                Conversao
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-4 h-3 rounded-sm bg-orange-400 opacity-70" />
+                Vendas/dia
+              </span>
+            </div>
+            <ResponsiveContainer width="100%" height={400}>
+              <ComposedChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12 }}
+                  angle={-45}
+                  height={80}
+                />
+                <YAxis
+                  yAxisId="left"
+                  orientation="left"
+                  tickFormatter={(v) => `R$${v.toFixed(0)}`}
+                  label={{ value: "Preco (R$)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11 } }}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tickFormatter={(v) => `${v.toFixed(0)}`}
+                  label={{ value: "Conversao % / Visitas", angle: 90, position: "insideRight", offset: 10, style: { fontSize: 11 } }}
+                />
+                <YAxis
+                  yAxisId="vendas"
+                  orientation="left"
+                  hide={true}
+                  domain={[0, (dataMax: number) => Math.ceil(dataMax * 2)]}
+                />
+                <Tooltip
+                  formatter={(value, name) => {
+                    if (name === "Preco Base") return [formatCurrency(Number(value)), "Preco"];
+                    if (name === "Conversao %") return [formatPercent(Number(value)), "Conversao"];
+                    if (name === "Visitas") return [value, "Visitas"];
+                    if (name === "Vendas/dia") return [`${value} und`, "Vendas/dia"];
+                    return [value, name];
+                  }}
+                  labelFormatter={(label) => `Data: ${label}`}
+                />
+                <Legend />
+
+                {priceChanges.map((date) => (
+                  <ReferenceLine
+                    key={date}
+                    x={date}
+                    stroke="#fbbf24"
+                    strokeDasharray="3 3"
+                    label={{ value: "Mudanca", position: "top", fill: "#f59e0b" }}
+                  />
+                ))}
+
+                <Bar
+                  yAxisId="vendas"
+                  dataKey="vendas"
+                  fill="#f97316"
+                  opacity={0.7}
+                  name="Vendas/dia"
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="conversao"
+                  stroke="#22c55e"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Conversao %"
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="visitas"
+                  stroke="#ec4899"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Visitas"
+                />
+                <Line
+                  yAxisId="left"
+                  type="stepAfter"
+                  dataKey="preco"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={false}
+                  strokeDasharray="5 5"
+                  name="Preco Base"
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </>
+        )}
       </div>
 
-      {/* Price Bands */}
+      {/* ─── Price Bands ─────────────────────────────────────────────────────── */}
       <div className="rounded-lg border bg-card p-6">
         <h2 className="text-lg font-semibold mb-4">
-          Histograma de Faixas de Preço
+          Histograma de Faixas de Preco
         </h2>
         {analysis.price_bands.length === 0 ? (
           <p className="text-muted-foreground">Sem dados para exibir.</p>
@@ -628,24 +871,12 @@ export default function AnuncioDetalhe() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">
-                    Faixa de Preço
-                  </th>
-                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">
-                    Dias
-                  </th>
-                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">
-                    Vendas/dia
-                  </th>
-                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">
-                    Conversão
-                  </th>
-                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">
-                    Receita
-                  </th>
-                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">
-                    Margem Unit.
-                  </th>
+                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">Faixa de Preco</th>
+                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">Dias</th>
+                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">Vendas/dia</th>
+                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">Conversao</th>
+                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">Receita</th>
+                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">Margem Unit.</th>
                 </tr>
               </thead>
               <tbody>
@@ -698,32 +929,30 @@ export default function AnuncioDetalhe() {
         )}
       </div>
 
-      {/* Stock Projection */}
+      {/* ─── Stock Projection ────────────────────────────────────────────────── */}
       <div className="rounded-lg border bg-card p-6">
-        <h2 className="text-lg font-semibold mb-4">Projeção de Estoque</h2>
+        <h2 className="text-lg font-semibold mb-4">Projecao de Estoque</h2>
         <div className="grid grid-cols-3 gap-6">
           <div>
             <p className="text-3xl font-bold text-foreground">
               {analysis.full_stock.available}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              unidades disponíveis
+              unidades disponiveis
             </p>
           </div>
 
           <div>
-            <div
-              className={cn(
-                "h-2 rounded-full mb-2",
-                analysis.full_stock.status === "critical"
-                  ? "bg-red-500"
-                  : analysis.full_stock.status === "warning"
-                    ? "bg-yellow-500"
-                    : analysis.full_stock.status === "excess"
-                      ? "bg-blue-500"
-                      : "bg-green-500"
-              )}
-            />
+            <div className={cn(
+              "h-2 rounded-full mb-2",
+              analysis.full_stock.status === "critical"
+                ? "bg-red-500"
+                : analysis.full_stock.status === "warning"
+                  ? "bg-yellow-500"
+                  : analysis.full_stock.status === "excess"
+                    ? "bg-blue-500"
+                    : "bg-green-500"
+            )} />
             <p className="text-sm font-medium mb-1">
               {analysis.full_stock.days_until_stockout_7d
                 ? `Ruptura em ~${analysis.full_stock.days_until_stockout_7d} dias`
@@ -736,7 +965,7 @@ export default function AnuncioDetalhe() {
           </div>
 
           <div>
-            <p className="text-sm font-medium mb-2">Projeção 30 dias:</p>
+            <p className="text-sm font-medium mb-2">Projecao 30 dias:</p>
             <p className="text-lg font-semibold text-foreground">
               {analysis.full_stock.days_until_stockout_30d
                 ? `~${analysis.full_stock.days_until_stockout_30d} dias`
@@ -749,10 +978,10 @@ export default function AnuncioDetalhe() {
         </div>
       </div>
 
-      {/* Promotions */}
+      {/* ─── Promotions ──────────────────────────────────────────────────────── */}
       {analysis.promotions.length > 0 && (
         <div className="rounded-lg border bg-card p-6">
-          <h2 className="text-lg font-semibold mb-4">Promoções</h2>
+          <h2 className="text-lg font-semibold mb-4">Promocoes</h2>
           <div className="space-y-4">
             {analysis.promotions.map((promo) => (
               <div key={promo.id} className="border rounded-lg p-4">
@@ -760,16 +989,14 @@ export default function AnuncioDetalhe() {
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="font-medium">{promo.type}</span>
-                      <span
-                        className={cn(
-                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                          promo.status === "active"
-                            ? "bg-green-100 text-green-700"
-                            : promo.status === "programada"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-gray-100 text-gray-700"
-                        )}
-                      >
+                      <span className={cn(
+                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                        promo.status === "active"
+                          ? "bg-green-100 text-green-700"
+                          : promo.status === "programada"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-gray-100 text-gray-700"
+                      )}>
                         {promo.status.toUpperCase()}
                       </span>
                     </div>
@@ -783,7 +1010,7 @@ export default function AnuncioDetalhe() {
                       </span>
                     </p>
                     <p className="text-xs text-muted-foreground mt-2">
-                      {promo.start_date} até {promo.end_date}
+                      {promo.start_date} ate {promo.end_date}
                     </p>
                   </div>
                 </div>
@@ -793,7 +1020,7 @@ export default function AnuncioDetalhe() {
         </div>
       )}
 
-      {/* Alerts */}
+      {/* ─── Alerts ──────────────────────────────────────────────────────────── */}
       {analysis.alerts.length > 0 && (
         <div className="rounded-lg border bg-card p-6">
           <h2 className="text-lg font-semibold mb-4">Alertas Inteligentes</h2>
@@ -806,11 +1033,7 @@ export default function AnuncioDetalhe() {
                   AlertSeverityColors[alert.severity as keyof typeof AlertSeverityColors]
                 )}
               >
-                {
-                  AlertIconMap[
-                    alert.severity as keyof typeof AlertIconMap
-                  ]
-                }
+                {AlertIconMap[alert.severity as keyof typeof AlertIconMap]}
                 <div className="flex-1">
                   <p className="font-medium text-sm">{alert.message}</p>
                 </div>
@@ -820,7 +1043,7 @@ export default function AnuncioDetalhe() {
         </div>
       )}
 
-      {/* Competitor */}
+      {/* ─── Competitor ──────────────────────────────────────────────────────── */}
       {analysis.competitor && (
         <div className="rounded-lg border bg-card p-6">
           <h2 className="text-lg font-semibold mb-4">Concorrente Vinculado</h2>
@@ -828,7 +1051,7 @@ export default function AnuncioDetalhe() {
             <div>
               <p className="font-medium">{analysis.competitor.mlb_id}</p>
               <p className="text-sm text-muted-foreground">
-                Preço: {formatCurrency(analysis.competitor.price)}
+                Preco: {formatCurrency(analysis.competitor.price)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Atualizado em:{" "}

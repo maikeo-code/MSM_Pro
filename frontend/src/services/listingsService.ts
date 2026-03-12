@@ -7,6 +7,15 @@ export interface KpiPeriod {
   anuncios: number;
   valor_estoque: number;
   receita: number;
+  // Novos campos analytics
+  pedidos?: number;
+  receita_total?: number;
+  preco_medio?: number;
+  taxa_cancelamento?: number;
+  vendas_variacao?: number | null;
+  receita_variacao?: number | null;
+  visitas_variacao?: number | null;
+  conversao_variacao?: number | null;
 }
 
 export interface KpiSummary {
@@ -27,6 +36,11 @@ export interface SnapshotOut {
   stock: number;
   conversion_rate: number | null;
   captured_at: string;
+  // Novos campos analytics
+  orders_count?: number;
+  revenue?: number;
+  avg_selling_price?: number;
+  cancelled_orders?: number;
 }
 
 export interface ListingOut {
@@ -46,6 +60,10 @@ export interface ListingOut {
   created_at: string;
   updated_at: string;
   last_snapshot: SnapshotOut | null;
+  // Novos campos analytics
+  dias_para_zerar?: number | null;
+  rpv?: number | null;
+  taxa_cancelamento?: number | null;
 }
 
 export interface ListingCreate {
