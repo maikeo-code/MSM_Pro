@@ -189,7 +189,7 @@ export default function Dashboard() {
                   Tipo
                 </th>
                 <th className="px-6 py-3 text-right font-medium text-muted-foreground">
-                  Preco
+                  Preço
                 </th>
                 <th className="px-6 py-3 text-right font-medium text-muted-foreground">
                   Visitas
@@ -203,18 +203,21 @@ export default function Dashboard() {
                 <th className="px-6 py-3 text-right font-medium text-muted-foreground">
                   Estoque
                 </th>
+                <th className="px-6 py-3 text-right font-medium text-muted-foreground">
+                  Valor Estoque
+                </th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">
                     Carregando...
                   </td>
                 </tr>
               ) : displayListings.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">
                     Nenhum anuncio encontrado. Sincronize para importar do Mercado Livre.
                   </td>
                 </tr>
@@ -246,8 +249,23 @@ export default function Dashboard() {
                         {listing.listing_type}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right font-medium">
-                      {formatCurrency(listing.price)}
+                    <td className="px-6 py-4 text-right">
+                      {(() => {
+                        const realPrice = listing.sale_price ?? listing.price;
+                        const hasDiscount = listing.original_price && listing.original_price > realPrice;
+                        return (
+                          <div>
+                            {hasDiscount && (
+                              <p className="text-xs text-muted-foreground line-through">
+                                {formatCurrency(listing.original_price!)}
+                              </p>
+                            )}
+                            <p className={`font-medium ${hasDiscount ? "text-green-600" : ""}`}>
+                              {formatCurrency(realPrice)}
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-right">
                       {listing.last_snapshot?.visits?.toLocaleString("pt-BR") ?? "-"}
@@ -270,6 +288,11 @@ export default function Dashboard() {
                       >
                         {listing.last_snapshot?.stock ?? "-"}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-right font-medium text-foreground">
+                      {listing.last_snapshot?.stock != null
+                        ? formatCurrency((listing.sale_price ?? listing.price) * listing.last_snapshot.stock)
+                        : "-"}
                     </td>
                   </tr>
                 ))

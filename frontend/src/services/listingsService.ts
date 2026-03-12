@@ -21,6 +21,8 @@ export interface ListingOut {
   title: string;
   listing_type: "classico" | "premium" | "full";
   price: number;
+  original_price: number | null;
+  sale_price: number | null;
   status: string;
   permalink: string | null;
   thumbnail: string | null;

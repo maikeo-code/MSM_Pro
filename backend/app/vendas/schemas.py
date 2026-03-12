@@ -12,6 +12,8 @@ class ListingCreate(BaseModel):
     title: str = Field(min_length=1, max_length=500)
     listing_type: str = Field(default="classico", pattern=r"^(classico|premium|full)$")
     price: Decimal = Field(ge=0, decimal_places=2)
+    original_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    sale_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     permalink: str | None = None
     thumbnail: str | None = None
 
@@ -20,6 +22,8 @@ class ListingUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=500)
     listing_type: str | None = Field(default=None, pattern=r"^(classico|premium|full)$")
     price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    original_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    sale_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     status: str | None = None
     permalink: str | None = None
     thumbnail: str | None = None
@@ -48,6 +52,8 @@ class ListingOut(BaseModel):
     title: str
     listing_type: str
     price: Decimal
+    original_price: Decimal | None = None
+    sale_price: Decimal | None = None
     status: str
     permalink: str | None
     thumbnail: str | None

@@ -39,6 +39,8 @@ class Listing(Base):
         String(20), nullable=False, default="classico"
     )  # classico | premium | full
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    original_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    sale_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     permalink: Mapped[str | None] = mapped_column(Text, nullable=True)
     thumbnail: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -384,6 +384,8 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
             "title": listing.title,
             "listing_type": listing.listing_type,
             "price": listing.price,
+            "original_price": listing.original_price,
+            "sale_price": listing.sale_price,
             "status": listing.status,
             "permalink": listing.permalink,
             "thumbnail": listing.thumbnail,
@@ -858,6 +860,17 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         price = Decimal(str(item.get("price", 0)))
                         stock = item.get("available_quantity", 0)
 
+                        # Extrai original_price e sale_price
+                        original_price_raw = item.get("original_price")
+                        original_price = Decimal(str(original_price_raw)) if original_price_raw else None
+
+                        sale_price_data = item.get("sale_price")
+                        sale_price_val = None
+                        if sale_price_data and isinstance(sale_price_data, dict):
+                            sp_amount = sale_price_data.get("amount")
+                            if sp_amount is not None:
+                                sale_price_val = Decimal(str(sp_amount))
+
                         # Verifica se listing já existe
                         existing = await db.execute(
                             select(Listing).where(Listing.mlb_id == mlb_id)
@@ -867,6 +880,8 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         if listing:
                             listing.title = item.get("title", listing.title)
                             listing.price = price
+                            listing.original_price = original_price
+                            listing.sale_price = sale_price_val
                             listing.status = item.get("status", "active")
                             listing.thumbnail = item.get("thumbnail")
                             listing.permalink = item.get("permalink")
@@ -880,6 +895,8 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                                 title=item.get("title", mlb_id),
                                 listing_type=listing_type,
                                 price=price,
+                                original_price=original_price,
+                                sale_price=sale_price_val,
                                 status=item.get("status", "active"),
                                 thumbnail=item.get("thumbnail"),
                                 permalink=item.get("permalink"),
