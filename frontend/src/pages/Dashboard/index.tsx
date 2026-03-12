@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, TrendingUp, Tag, AlertCircle, RefreshCw } from "lucide-react";
+import { Package, TrendingUp, Tag, AlertCircle, RefreshCw, WifiOff } from "lucide-react";
 import listingsService from "@/services/listingsService";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 
@@ -33,63 +33,15 @@ function cn(...classes: string[]) {
   return classes.filter(Boolean).join(" ");
 }
 
-// Dados mock para enquanto a API está sendo construída
-const MOCK_LISTINGS = [
-  {
-    id: "1",
-    mlb_id: "MLB-1001",
-    title: "Caixa de Som Bluetooth JBL Charge 5",
-    listing_type: "premium" as const,
-    price: "899.90",
-    status: "active",
-    last_snapshot: {
-      visits: 1240,
-      sales_today: 12,
-      stock: 48,
-      conversion_rate: "0.97",
-      price: "899.90",
-    },
-  },
-  {
-    id: "2",
-    mlb_id: "MLB-1002",
-    title: "Fone de Ouvido Sony WH-1000XM5",
-    listing_type: "full" as const,
-    price: "1499.00",
-    status: "active",
-    last_snapshot: {
-      visits: 890,
-      sales_today: 5,
-      stock: 20,
-      conversion_rate: "0.56",
-      price: "1499.00",
-    },
-  },
-  {
-    id: "3",
-    mlb_id: "MLB-1003",
-    title: "Carregador USB-C 65W GaN",
-    listing_type: "classico" as const,
-    price: "149.90",
-    status: "active",
-    last_snapshot: {
-      visits: 3100,
-      sales_today: 43,
-      stock: 312,
-      conversion_rate: "1.39",
-      price: "149.90",
-    },
-  },
-];
-
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
-  const { data: listings, isLoading } = useQuery({
+  const { data: listings, isLoading, isError, error } = useQuery({
     queryKey: ["listings"],
     queryFn: () => listingsService.list(),
+    retry: 2,
   });
 
   const handleSync = async () => {
@@ -106,8 +58,7 @@ export default function Dashboard() {
     }
   };
 
-  // Usa dados reais se disponíveis, senão usa mock
-  const displayListings = listings && listings.length > 0 ? listings : MOCK_LISTINGS;
+  const displayListings = listings ?? [];
 
   const totalListings = displayListings.length;
   const totalSalesToday = displayListings.reduce(
@@ -126,8 +77,6 @@ export default function Dashboard() {
     return convB - convA;
   })[0];
 
-  const isUsingMock = !listings || listings.length === 0;
-
   return (
     <div className="p-8">
       {/* Header */}
@@ -137,12 +86,6 @@ export default function Dashboard() {
           Visao geral dos seus anuncios no Mercado Livre
         </p>
         <div className="mt-3 flex items-center gap-3 flex-wrap">
-          {isUsingMock && (
-            <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-              <AlertCircle className="h-4 w-4" />
-              Exibindo dados de exemplo. Sincronize para ver dados reais.
-            </div>
-          )}
           <button
             onClick={handleSync}
             disabled={syncing}
@@ -156,6 +99,42 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Erro da API */}
+      {isError && (
+        <div className="mb-8 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <WifiOff className="h-5 w-5 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">Erro ao carregar anúncios</p>
+            <p className="mt-1">
+              {(error as Error)?.message ?? "Não foi possível conectar à API."}
+              {" "}Verifique se a conta ML está conectada em{" "}
+              <a href="/configuracoes" className="underline font-medium">Configurações</a>.
+            </p>
+            <button
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["listings"] })}
+              className="mt-2 inline-flex items-center gap-1 text-red-800 underline text-xs font-medium"
+            >
+              <RefreshCw className="h-3 w-3" /> Tentar novamente
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Nenhum anúncio — convite para sincronizar */}
+      {!isLoading && !isError && displayListings.length === 0 && (
+        <div className="mb-8 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+          <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">Nenhum anúncio encontrado</p>
+            <p className="mt-1">
+              Clique em <strong>"Sincronizar ML"</strong> acima para importar seus anúncios do Mercado Livre,
+              ou conecte uma conta ML em{" "}
+              <a href="/configuracoes" className="underline font-medium">Configurações</a>.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
@@ -188,7 +167,7 @@ export default function Dashboard() {
               ? formatPercent(bestConverting.last_snapshot.conversion_rate)
               : "N/A"
           }
-          subtitle={bestConverting?.title?.slice(0, 24) + "..."}
+          subtitle={bestConverting?.title?.slice(0, 24) ? bestConverting.title.slice(0, 24) + "..." : "—"}
           icon={<TrendingUp className="h-5 w-5" />}
           color="text-purple-600"
         />
@@ -236,7 +215,7 @@ export default function Dashboard() {
               ) : displayListings.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
-                    Nenhum anuncio cadastrado ainda.
+                    Nenhum anuncio encontrado. Sincronize para importar do Mercado Livre.
                   </td>
                 </tr>
               ) : (

@@ -15,7 +15,7 @@ export interface SnapshotOut {
 export interface ListingOut {
   id: string;
   user_id: string;
-  product_id: string;
+  product_id: string | null;
   ml_account_id: string;
   mlb_id: string;
   title: string;
