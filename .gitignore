@@ -41,3 +41,8 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Auto-Learning System
+_auto_learning/db/learning.db
+_auto_learning/logs/
+_auto_learning/exports/

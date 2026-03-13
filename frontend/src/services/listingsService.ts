@@ -97,21 +97,27 @@ export interface FunnelData {
   receita: number;
 }
 
-export interface HeatmapDay {
-  day_of_week: number;
+export interface HeatmapCell {
+  day_of_week: number; // 0=seg, 6=dom
+  hour: number;        // 0-23 (0 quando fallback por dia)
   day_name: string;
   count: number;
   avg_per_week: number;
 }
 
 export interface HeatmapData {
-  data: HeatmapDay[];
+  data: HeatmapCell[];
   peak_day: string;
   peak_day_index: number;
+  peak_hour: string;       // ex: "14:00-15:00" (vazio no fallback)
   avg_daily: number;
   total_sales: number;
   period_days: number;
+  has_hourly_data: boolean; // true = Orders (dia+hora), false = fallback snapshots
 }
+
+// Alias para compatibilidade com imports antigos
+export type HeatmapDay = HeatmapCell;
 
 export interface ListingCreate {
   product_id: string;

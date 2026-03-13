@@ -1,12 +1,12 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.concorrencia import service
-from app.concorrencia.schemas import CompetitorCreate, CompetitorOut
+from app.concorrencia.schemas import CompetitorCreate, CompetitorHistoryOut, CompetitorOut
 from app.core.database import get_db
 from app.core.deps import get_current_user
 
@@ -81,3 +81,17 @@ async def remove_competitor(
     Remove um concorrente vinculado.
     """
     await service.remove_competitor(db, current_user.id, competitor_id)
+
+
+@router.get("/{competitor_id}/history", response_model=CompetitorHistoryOut)
+async def get_competitor_history(
+    competitor_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    days: int = Query(default=30, ge=1, le=365, description="Numero de dias de historico"),
+):
+    """
+    Retorna historico de preco e vendas de um concorrente nos ultimos N dias.
+    Util para gerar grafico de preco ao longo do tempo.
+    """
+    return await service.get_competitor_history(db, current_user.id, competitor_id, days)

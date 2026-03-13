@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -5,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.concorrencia.models import Competitor, CompetitorSnapshot
-from app.concorrencia.schemas import CompetitorCreate, CompetitorOut
+from app.concorrencia.schemas import CompetitorCreate, CompetitorHistoryOut, CompetitorOut
 from app.vendas.models import Listing
 
 
@@ -188,3 +189,62 @@ async def remove_competitor(
 
     competitor.is_active = False
     await db.flush()
+
+
+async def get_competitor_history(
+    db: AsyncSession,
+    user_id: UUID,
+    competitor_id: UUID,
+    days: int = 30,
+) -> CompetitorHistoryOut:
+    """
+    Retorna o historico de snapshots de um concorrente nos ultimos N dias.
+    Validacao de ownership via join com Listing.
+    """
+    # Valida que o competitor pertence a um listing do usuario
+    comp_result = await db.execute(
+        select(Competitor)
+        .join(Listing, Competitor.listing_id == Listing.id)
+        .where(
+            Competitor.id == competitor_id,
+            Listing.user_id == user_id,
+        )
+    )
+    competitor = comp_result.scalar_one_or_none()
+    if not competitor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Concorrente nao encontrado ou nao pertence ao usuario",
+        )
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    snaps_result = await db.execute(
+        select(CompetitorSnapshot)
+        .where(
+            CompetitorSnapshot.competitor_id == competitor_id,
+            CompetitorSnapshot.captured_at >= cutoff,
+        )
+        .order_by(CompetitorSnapshot.captured_at.asc())
+    )
+    snapshots = snaps_result.scalars().all()
+
+    from app.concorrencia.schemas import CompetitorHistoryItem
+
+    history = [
+        CompetitorHistoryItem(
+            date=snap.captured_at,
+            price=snap.price,
+            sold_quantity=snap.sold_quantity,
+            sales_delta=snap.sales_delta,
+        )
+        for snap in snapshots
+    ]
+
+    return CompetitorHistoryOut(
+        competitor_id=competitor_id,
+        mlb_id=competitor.mlb_id,
+        title=competitor.title,
+        days=days,
+        history=history,
+    )

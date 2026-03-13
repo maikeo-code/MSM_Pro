@@ -617,6 +617,81 @@ No response de `GET /items/{ITEM_ID}`:
 
 ---
 
+## 15. Reputacao do Vendedor
+
+### GET /users/{SELLER_ID}
+
+Retorna dados completos do usuario ML, incluindo reputacao.
+
+**Campo relevante: `seller_reputation`**
+
+```json
+{
+  "id": 2050442871,
+  "nickname": "MSM_PRIME",
+  "seller_reputation": {
+    "level_id": "5_green",
+    "power_seller_status": "gold",
+    "transactions": {
+      "total": 2545,
+      "completed": 2530,
+      "canceled": 15,
+      "period": "historic",
+      "ratings": {
+        "positive": 0.98,
+        "negative": 0.01,
+        "neutral": 0.01
+      }
+    },
+    "metrics": {
+      "claims": {
+        "rate": 0.0,
+        "value": 0,
+        "period": "60 days"
+      },
+      "delayed_handling_time": {
+        "rate": 0.0246,
+        "value": 3,
+        "period": "60 days"
+      },
+      "cancellations": {
+        "rate": 0.0007,
+        "value": 1,
+        "period": "60 days"
+      },
+      "sales": {
+        "period": "60 days",
+        "completed": 122
+      }
+    }
+  }
+}
+```
+
+**Campos importantes:**
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| `seller_reputation.level_id` | string | Nivel: `"5_green"`, `"4_light_green"`, `"3_yellow"`, `"2_orange"`, `"1_red"` |
+| `seller_reputation.power_seller_status` | string/null | `"gold"`, `"platinum"`, `"silver"`, ou null |
+| `seller_reputation.transactions.total` | int | Total de transacoes historicas |
+| `seller_reputation.transactions.completed` | int | Transacoes concluidas |
+| `seller_reputation.metrics.claims.rate` | float | Taxa de reclamacoes (0.0 a 1.0). Multiplicar por 100 para %. |
+| `seller_reputation.metrics.delayed_handling_time.rate` | float | Taxa de atrasos no envio |
+| `seller_reputation.metrics.cancellations.rate` | float | Taxa de cancelamentos |
+| `seller_reputation.metrics.*.value` | int | Quantidade absoluta de casos no periodo |
+
+**Gotchas:**
+- `rate` vem como decimal (0.0007 = 0.07%). Multiplicar por 100 para exibir como percentual.
+- `mediations` pode nao estar presente como campo separado em todas as contas.
+- `transactions.total` e historico completo, nao apenas 60 dias. Para 60 dias, usar `metrics.sales.completed`.
+- Requer token do proprio vendedor para dados completos.
+
+**Validado com curl:** Pendente validacao com dados reais
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/dados-do-usuario
+**Ultima validacao:** 2026-03-12
+
+---
+
 ## Checklist para novo endpoint
 
 Antes de usar qualquer endpoint novo no projeto:

@@ -12,16 +12,21 @@ import app.produtos.models  # noqa: F401
 import app.vendas.models  # noqa: F401
 import app.concorrencia.models  # noqa: F401
 import app.alertas.models  # noqa: F401
+import app.reputacao.models  # noqa: F401
+import app.ads.models  # noqa: F401
 
 # Importa tasks para que sejam registradas no Celery
 import app.jobs.tasks  # noqa: F401
 
 # Importa routers
+from app.ads.router import router as ads_router
 from app.alertas.router import router as alertas_router
 from app.auth.router import router as auth_router
 from app.concorrencia.router import router as concorrencia_router
 from app.consultor.router import router as consultor_router
+from app.financeiro.router import router as financeiro_router
 from app.produtos.router import router as produtos_router
+from app.reputacao.router import router as reputacao_router
 from app.vendas.router import router as vendas_router
 
 app = FastAPI(
@@ -59,6 +64,9 @@ app.include_router(vendas_router, prefix=API_PREFIX)
 app.include_router(concorrencia_router, prefix=API_PREFIX)
 app.include_router(alertas_router, prefix=API_PREFIX)
 app.include_router(consultor_router, prefix=API_PREFIX)
+app.include_router(reputacao_router, prefix=API_PREFIX)
+app.include_router(ads_router, prefix=API_PREFIX)
+app.include_router(financeiro_router, prefix=API_PREFIX)
 
 
 # --- Health Check ---

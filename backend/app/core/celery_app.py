@@ -76,12 +76,36 @@ celery_app.conf.beat_schedule = {
             "expires": 3600,
         },
     },
+    # Sincroniza reputacao do vendedor as 06:30 BRT (09:30 UTC)
+    "sync-reputation-daily": {
+        "task": "app.jobs.tasks.sync_reputation",
+        "schedule": crontab(hour=9, minute=30),
+        "options": {
+            "expires": 3600,
+        },
+    },
     # Avalia condições de alerta a cada 2 horas
     "evaluate-alerts-bihourly": {
         "task": "app.jobs.tasks.evaluate_alerts",
         "schedule": crontab(minute=0, hour="*/2"),
         "options": {
             "expires": 7200,
+        },
+    },
+    # Sincroniza pedidos individuais a cada 2 horas
+    "sync-orders-every-2h": {
+        "task": "app.jobs.tasks.sync_orders",
+        "schedule": crontab(minute=0, hour="*/2"),
+        "options": {
+            "expires": 7200,
+        },
+    },
+    # Sincroniza campanhas de ads diariamente as 10:00 UTC (07:00 BRT)
+    "sync-ads-daily": {
+        "task": "app.jobs.tasks.sync_ads",
+        "schedule": crontab(minute=0, hour=10),
+        "options": {
+            "expires": 3600,
         },
     },
 }

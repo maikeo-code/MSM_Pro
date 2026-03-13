@@ -1,26 +1,14 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, RefreshCw, WifiOff, TrendingUp, TrendingDown, ShoppingCart, Package, DollarSign, Target, BarChart2, Sparkles, Download, Eye, Search } from "lucide-react";
+import { AlertCircle, RefreshCw, WifiOff, ShoppingCart, Package, DollarSign, Target, BarChart2, Sparkles, Download, Eye, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 import listingsService, { type ListingOut, type FunnelData, type HeatmapData } from "@/services/listingsService";
 import { consultorService, type ConsultorResponse } from "@/services/consultorService";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { ConsultorDrawer } from "@/components/ConsultorDrawer";
 import { DiasBadge } from "@/components/DiasBadge";
-
-// ─── Componente de variacao (seta verde/vermelha) ───────────────────────────
-function Variacao({ value, unit = "%" }: { value?: number | null; unit?: string }) {
-  if (value == null) return null;
-  const isPositive = value >= 0;
-  const Icon = isPositive ? TrendingUp : TrendingDown;
-  const color = isPositive ? "text-green-600" : "text-red-500";
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${color}`}>
-      <Icon className="h-3 w-3" />
-      {Math.abs(value).toFixed(1)}{unit}
-    </span>
-  );
-}
+import { Variacao } from "@/components/Variacao";
+import { exportCSV } from "@/utils/exportCSV";
 
 // ─── KPI Card com variacao ────────────────────────────────────────────────────
 interface KpiCardProps {
@@ -83,85 +71,160 @@ function ConversionFunnel({ data }: { data: FunnelData | undefined }) {
   );
 }
 
-// ─── Export CSV ──────────────────────────────────────────────────────────────
-function exportCSV(listings: ListingOut[]) {
-  const headers = ["MLB", "Titulo", "SKU", "Preco", "Estoque", "Visitas", "Vendas", "Conversao", "Receita", "Participacao", "Score"];
-  const rows = listings.map((l) => {
-    const snap = l.last_snapshot;
-    const effectivePrice = l.sale_price ?? l.price;
-    const unidades = snap?.sales_today ?? 0;
-    const receita = snap?.revenue ?? unidades * effectivePrice;
-    return [
-      l.mlb_id,
-      `"${(l.title || "").replace(/"/g, '""')}"`,
-      l.seller_sku || "",
-      effectivePrice.toFixed(2),
-      snap?.stock ?? 0,
-      snap?.visits ?? 0,
-      unidades,
-      snap?.conversion_rate != null ? Number(snap.conversion_rate).toFixed(2) + "%" : "",
-      receita > 0 ? receita.toFixed(2) : "0",
-      l.participacao_pct != null ? l.participacao_pct.toFixed(1) + "%" : "",
-      l.quality_score ?? "",
-    ].join(",");
-  });
-  const csv = [headers.join(","), ...rows].join("\n");
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `anuncios_${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+// ─── Heatmap de Concentracao de Vendas ───────────────────────────────────────
+
+const DAY_ABBR = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"];
+const DAY_NAMES_FULL = [
+  "Segunda-feira", "Terca-feira", "Quarta-feira",
+  "Quinta-feira", "Sexta-feira", "Sabado", "Domingo",
+];
+
+// Faixas horarias para o grid horario (4 blocos de 6h)
+const HOUR_BANDS = [
+  { label: "Manha", range: "06-12", hours: [6, 7, 8, 9, 10, 11] },
+  { label: "Tarde", range: "12-18", hours: [12, 13, 14, 15, 16, 17] },
+  { label: "Noite", range: "18-24", hours: [18, 19, 20, 21, 22, 23] },
+  { label: "Madrugada", range: "00-06", hours: [0, 1, 2, 3, 4, 5] },
+];
+
+function getHeatColor(ratio: number): string {
+  if (ratio === 0) return "bg-slate-50 text-slate-300 dark:bg-slate-900 dark:text-slate-600";
+  if (ratio < 0.2) return "bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400";
+  if (ratio < 0.4) return "bg-blue-200 text-blue-700 dark:bg-blue-900 dark:text-blue-300";
+  if (ratio < 0.65) return "bg-blue-400 text-white dark:bg-blue-700";
+  return "bg-blue-700 text-white dark:bg-blue-500";
 }
 
-// ─── Heatmap de Concentracao de Vendas ───────────────────────────────────────
-function SalesHeatmap({ data }: { data: HeatmapData | undefined }) {
-  if (!data) return null;
+// ── Grid 7×4 faixas horarias (modo Orders) ───────────────────────────────────
+function HeatmapHourly({ data }: { data: HeatmapData }) {
+  const [tooltip, setTooltip] = useState<string | null>(null);
 
-  const maxCount = Math.max(...data.data.map((d) => d.count), 1);
-
-  function getHeatColor(count: number): string {
-    const ratio = count / maxCount;
-    if (ratio === 0) return "bg-blue-50 text-blue-300";
-    if (ratio < 0.25) return "bg-blue-100 text-blue-600";
-    if (ratio < 0.5) return "bg-blue-200 text-blue-700";
-    if (ratio < 0.75) return "bg-blue-400 text-white";
-    return "bg-blue-600 text-white";
+  // Monta lookup (day, hour) → count
+  const lookup = new Map<string, number>();
+  for (const cell of data.data) {
+    lookup.set(`${cell.day_of_week}-${cell.hour}`, cell.count);
   }
 
-  // Garantir 7 dias na ordem certa (Seg a Dom) usando day_of_week
+  // Max global para escala de cor
+  const maxCount = Math.max(...data.data.map((c) => c.count), 1);
+
+  // Detecta pico (day, hora) para destacar com borda dourada
+  const peakCell = data.data.reduce(
+    (best, c) => (c.count > best.count ? c : best),
+    data.data[0] ?? { day_of_week: 0, hour: 0, count: 0 }
+  );
+
+  return (
+    <div className="space-y-3">
+      {/* Cabecalho: dias da semana */}
+      <div className="grid" style={{ gridTemplateColumns: "80px repeat(7, 1fr)", gap: "4px" }}>
+        <div />
+        {DAY_ABBR.map((abbr, i) => (
+          <div key={i} className={cn("text-center text-xs font-semibold", i === data.peak_day_index ? "text-blue-600" : "text-muted-foreground")}>
+            {abbr}
+          </div>
+        ))}
+      </div>
+
+      {/* Linhas: uma por faixa horaria */}
+      {HOUR_BANDS.map((band) => {
+        // Soma as horas da faixa por dia
+        return (
+          <div key={band.label} className="grid items-center" style={{ gridTemplateColumns: "80px repeat(7, 1fr)", gap: "4px" }}>
+            {/* Label da faixa */}
+            <div className="text-right pr-2">
+              <div className="text-[11px] font-medium text-muted-foreground leading-tight">{band.label}</div>
+              <div className="text-[10px] text-muted-foreground/60">{band.range}h</div>
+            </div>
+            {/* Celulas: 7 dias */}
+            {Array.from({ length: 7 }, (_, dayIdx) => {
+              const bandCount = band.hours.reduce((sum, h) => sum + (lookup.get(`${dayIdx}-${h}`) ?? 0), 0);
+              const ratio = bandCount / maxCount;
+              const isPeak = peakCell.day_of_week === dayIdx && band.hours.includes(peakCell.hour);
+              // Descobre qual hora da faixa tem mais vendas para o tooltip
+              const peakHourInBand = band.hours.reduce(
+                (best, h) => ((lookup.get(`${dayIdx}-${h}`) ?? 0) > (lookup.get(`${dayIdx}-${best}`) ?? 0) ? h : best),
+                band.hours[0]
+              );
+              const tipText = `${DAY_NAMES_FULL[dayIdx]} ${peakHourInBand}h-${peakHourInBand + 1}h: ${bandCount} vendas`;
+
+              return (
+                <div
+                  key={dayIdx}
+                  className={cn(
+                    "rounded-md flex flex-col items-center justify-center py-2 cursor-default transition-all relative",
+                    getHeatColor(ratio),
+                    isPeak && "ring-2 ring-offset-1 ring-yellow-400"
+                  )}
+                  title={tipText}
+                  onMouseEnter={() => setTooltip(tipText)}
+                  onMouseLeave={() => setTooltip(null)}
+                >
+                  {bandCount > 0 && (
+                    <span className="text-xs font-bold leading-none">{bandCount}</span>
+                  )}
+                  {isPeak && (
+                    <span className="text-[9px] font-bold leading-none mt-0.5 text-yellow-400">Pico</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+
+      {/* Tooltip global (fallback para mobile) */}
+      {tooltip && (
+        <div className="text-xs text-center text-muted-foreground bg-muted rounded px-2 py-1">{tooltip}</div>
+      )}
+
+      {/* Rodape */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t">
+        <span>
+          Media diaria:{" "}
+          <span className="font-semibold text-foreground">{data.avg_daily.toFixed(1)}</span>
+        </span>
+        <span>
+          Pico:{" "}
+          <span className="font-semibold text-foreground">{data.peak_day} {data.peak_hour}</span>
+        </span>
+        <span>
+          Total {data.period_days}d:{" "}
+          <span className="font-semibold text-foreground">{data.total_sales}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Grid 7 colunas (modo fallback snapshots) ──────────────────────────────────
+function HeatmapDaily({ data }: { data: HeatmapData }) {
+  const maxCount = Math.max(...data.data.map((d) => d.count), 1);
+
+  // Garantir 7 dias na ordem certa (Seg a Dom)
   const days = Array.from({ length: 7 }, (_, i) => {
     const found = data.data.find((d) => d.day_of_week === i);
-    return (
-      found ?? {
-        day_of_week: i,
-        day_name: ["Segunda-feira", "Terca-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sabado", "Domingo"][i],
-        count: 0,
-        avg_per_week: 0,
-      }
-    );
+    return found ?? { day_of_week: i, hour: 0, day_name: DAY_NAMES_FULL[i], count: 0, avg_per_week: 0 };
   });
-
-  // Abreviacoes para exibicao (3 chars)
-  const dayAbbr = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"];
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-7 gap-2">
         {days.map((day) => {
           const isPeak = day.day_of_week === data.peak_day_index;
+          const ratio = day.count / maxCount;
           return (
             <div key={day.day_of_week} className="flex flex-col items-center gap-1">
-              <span className="text-xs text-muted-foreground font-medium">
-                {dayAbbr[day.day_of_week]}
+              <span className={cn("text-xs font-medium", isPeak ? "text-blue-600" : "text-muted-foreground")}>
+                {DAY_ABBR[day.day_of_week]}
               </span>
               <div
                 className={cn(
                   "w-full rounded-lg flex flex-col items-center justify-center py-3 px-1 transition-all",
-                  getHeatColor(day.count),
+                  getHeatColor(ratio),
                   isPeak && "ring-2 ring-offset-1 ring-blue-500"
                 )}
+                title={`${day.day_name}: ${day.count} vendas`}
               >
                 <span className="text-sm font-bold leading-tight">{day.count}</span>
                 {isPeak && (
@@ -172,9 +235,12 @@ function SalesHeatmap({ data }: { data: HeatmapData | undefined }) {
           );
         })}
       </div>
+      <p className="text-xs text-muted-foreground/70 text-center italic">
+        Dados por hora estarao disponiveis quando houver pedidos sincronizados
+      </p>
       <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t">
         <span>
-          Venda Media Diaria:{" "}
+          Media diaria:{" "}
           <span className="font-semibold text-foreground">{data.avg_daily.toFixed(1)} unidades</span>
         </span>
         <span>
@@ -188,6 +254,12 @@ function SalesHeatmap({ data }: { data: HeatmapData | undefined }) {
       </div>
     </div>
   );
+}
+
+function SalesHeatmap({ data }: { data: HeatmapData | undefined }) {
+  if (!data) return null;
+  if (data.has_hourly_data) return <HeatmapHourly data={data} />;
+  return <HeatmapDaily data={data} />;
 }
 
 const PERIOD_OPTIONS = [
@@ -522,7 +594,9 @@ export default function Dashboard() {
       {/* ─── Heatmap de Concentracao de Vendas ─────────────────────────────────── */}
       <div className="rounded-lg border bg-card shadow-sm mb-6">
         <div className="px-4 py-2 border-b flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">Concentracao de Vendas por Dia da Semana</h2>
+          <h2 className="text-sm font-semibold text-foreground">
+            Concentracao de Vendas{heatmapData?.has_hourly_data ? " por Dia e Hora" : " por Dia da Semana"}
+          </h2>
           <div className="flex gap-1">
             {(["7d", "15d", "30d", "60d"] as const).map((p) => (
               <button

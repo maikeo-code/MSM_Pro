@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Optional
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
@@ -44,8 +45,18 @@ class Listing(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     category_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     seller_sku: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    sale_fee_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2), nullable=True, comment="Taxa real ML em R$ (via API listing_prices)"
+    )
+    sale_fee_pct: Mapped[Decimal | None] = mapped_column(
+        Numeric(8, 6), nullable=True, comment="Taxa real ML em % (via API listing_prices)"
+    )
+    avg_shipping_cost: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 2), nullable=True, comment="Frete medio real extraido das orders"
+    )
     permalink: Mapped[str | None] = mapped_column(Text, nullable=True)
     thumbnail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quality_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -108,3 +119,113 @@ class ListingSnapshot(Base):
 
     def __repr__(self) -> str:
         return f"<ListingSnapshot listing_id={self.listing_id} price={self.price} at={self.captured_at}>"
+
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    ml_order_id: Mapped[str] = mapped_column(
+        String(100), unique=True, nullable=False, index=True,
+        comment="ID do pedido no ML"
+    )
+    ml_account_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("ml_accounts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    listing_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("listings.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    mlb_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    buyer_nickname: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    sale_fee: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Tarifa de venda R$"
+    )
+    shipping_cost: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), nullable=False, default=0, comment="Frete R$"
+    )
+    net_amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Valor liquido a receber"
+    )
+    payment_status: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="pending",
+        comment="approved | pending | refunded"
+    )
+    shipping_status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="to_be_agreed",
+        comment="to_be_agreed | pending | shipped | delivered"
+    )
+    order_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    payment_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    delivery_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Relacionamentos
+    ml_account: Mapped["MLAccount"] = relationship("MLAccount")  # type: ignore[name-defined]
+    listing: Mapped[Optional["Listing"]] = relationship("Listing")
+
+    def __repr__(self) -> str:
+        return f"<Order ml_order_id={self.ml_order_id} mlb_id={self.mlb_id} total={self.total_amount}>"
+
+
+class PriceChangeLog(Base):
+    __tablename__ = "price_change_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    listing_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("listings.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    mlb_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    old_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    new_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    justification: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    source: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="suggestion_apply",
+        comment="Origem: suggestion_apply, manual, promotion, etc."
+    )
+    ml_api_response: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="Resposta bruta da API ML (JSON)"
+    )
+    success: Mapped[bool] = mapped_column(
+        nullable=False, default=True, comment="Se a alteracao foi aceita pela API ML"
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Relacionamentos
+    listing: Mapped["Listing"] = relationship("Listing")
+    user: Mapped["User"] = relationship("User")  # type: ignore[name-defined]
+
+    def __repr__(self) -> str:
+        return f"<PriceChangeLog mlb_id={self.mlb_id} {self.old_price}->{self.new_price}>"

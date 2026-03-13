@@ -8,7 +8,8 @@ from app.core.config import settings
 
 ML_API_BASE = "https://api.mercadolibre.com"
 
-# Rate limit: 1 req/seg
+# Rate limit: 1 req/seg — protegido por Lock para evitar race condition em coroutines concorrentes
+_rate_lock = asyncio.Lock()
 _last_request_time: float = 0.0
 _RATE_LIMIT_DELAY = 1.0  # segundos
 
@@ -44,13 +45,14 @@ class MLClient:
         await self._client.aclose()
 
     async def _rate_limit(self):
-        """Aguarda para respeitar o rate limit de 1 req/seg."""
+        """Aguarda para respeitar o rate limit de 1 req/seg (thread-safe via asyncio.Lock)."""
         global _last_request_time
-        now = time.monotonic()
-        elapsed = now - _last_request_time
-        if elapsed < _RATE_LIMIT_DELAY:
-            await asyncio.sleep(_RATE_LIMIT_DELAY - elapsed)
-        _last_request_time = time.monotonic()
+        async with _rate_lock:
+            now = time.monotonic()
+            elapsed = now - _last_request_time
+            if elapsed < _RATE_LIMIT_DELAY:
+                await asyncio.sleep(_RATE_LIMIT_DELAY - elapsed)
+            _last_request_time = time.monotonic()
 
     async def _request(
         self,
@@ -173,7 +175,7 @@ class MLClient:
 
         date_from = date_type.today() - td(days=days - 1)
         date_from_str = f"{date_from.isoformat()}T00:00:00.000-03:00"
-        date_to = date_from
+        date_to = date_type.today()
         date_to_str = f"{date_to.isoformat()}T23:59:59.000-03:00"
 
         params = {
@@ -403,6 +405,22 @@ class MLClient:
             # Se falhar, retorna dict vazio (fallback para taxa padrão)
             return {"percentage_fee": 0, "fixed_fee": 0, "sale_fee_amount": 0}
 
+    async def get_seller_reputation(self, seller_id: str) -> dict:
+        """
+        Busca dados de reputacao do vendedor.
+        GET /users/{seller_id}
+
+        Retorna o objeto completo do usuario ML, que inclui:
+          - seller_reputation.level_id
+          - seller_reputation.power_seller_status
+          - seller_reputation.transactions (total, completed, canceled)
+          - seller_reputation.metrics (claims, delayed_handling_time, cancellations)
+
+        O campo seller_reputation.metrics contém rates de 0.0 a 1.0
+        (ex: 0.0007 = 0.07%).
+        """
+        return await self._request("GET", f"/users/{seller_id}")
+
     # Métodos auxiliares/legados mantidos para compatibilidade
 
     async def get_listing(self, mlb_id: str) -> dict:
@@ -493,6 +511,87 @@ class MLClient:
                 pass
 
         return result
+
+    async def get_campaigns(self, seller_id: str) -> list[dict]:
+        """
+        Busca campanhas de publicidade de um vendedor.
+        GET /advertising/campaigns?user_id={seller_id}
+        Retorna lista de campanhas com id, name, status, daily_budget.
+        Se falhar (403/404), retorna lista vazia — chamador deve tratar.
+        """
+        try:
+            response = await self._request(
+                "GET",
+                "/advertising/campaigns",
+                params={"user_id": seller_id},
+            )
+            if isinstance(response, list):
+                return response
+            if isinstance(response, dict):
+                return response.get("results", [])
+            return []
+        except MLClientError as e:
+            if e.status_code in (403, 404):
+                return []
+            raise
+
+    async def get_campaign_metrics(
+        self, campaign_id: str, date_from: str, date_to: str
+    ) -> list[dict]:
+        """
+        Busca métricas diárias de uma campanha.
+        GET /advertising/campaigns/{campaign_id}/metrics?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD
+        Retorna lista de dicts com: date, impressions, clicks, spend,
+        attributed_sales, attributed_revenue, organic_sales.
+        Se falhar (403/404), retorna lista vazia.
+        """
+        try:
+            response = await self._request(
+                "GET",
+                f"/advertising/campaigns/{campaign_id}/metrics",
+                params={"date_from": date_from, "date_to": date_to},
+            )
+            if isinstance(response, list):
+                return response
+            if isinstance(response, dict):
+                return response.get("results", [])
+            return []
+        except MLClientError as e:
+            if e.status_code in (403, 404):
+                return []
+            raise
+
+    async def get_orders(
+        self,
+        seller_id: int | str,
+        date_from: str,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> dict:
+        """
+        Busca pedidos do vendedor por data de criacao.
+        GET /orders/search?seller={seller_id}&order.date_created.from={date_from}&sort=date_desc
+
+        Args:
+            seller_id: ID do vendedor no ML
+            date_from: Data de inicio no formato ISO (ex: "2026-03-10T00:00:00.000-03:00")
+            offset: Offset para paginacao
+            limit: Quantidade maxima de resultados (max 50)
+
+        Returns:
+            Dict com "results" (lista de pedidos) e "paging" (total, offset, limit)
+        """
+        return await self._request(
+            "GET",
+            "/orders/search",
+            params={
+                "seller": str(seller_id),
+                "order.date_created.from": date_from,
+                "sort": "date_desc",
+                "offset": offset,
+                "limit": limit,
+            },
+        )
 
     async def close(self):
         """Fecha o cliente HTTP."""

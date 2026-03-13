@@ -6,7 +6,10 @@ import {
   Users,
   Bell,
   Settings,
+  Shield,
   TrendingUp,
+  DollarSign,
+  Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +18,9 @@ const navItems = [
   { to: "/anuncios", label: "Anuncios", icon: Tag },
   { to: "/produtos", label: "Produtos", icon: Package },
   { to: "/concorrencia", label: "Concorrencia", icon: Users },
+  { to: "/reputacao", label: "Reputacao", icon: Shield },
+  { to: "/financeiro", label: "Financeiro", icon: DollarSign },
+  { to: "/publicidade", label: "Publicidade", icon: Megaphone },
   { to: "/alertas", label: "Alertas", icon: Bell },
   { to: "/configuracoes", label: "Configuracoes", icon: Settings },
 ];

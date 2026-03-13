@@ -27,6 +27,24 @@ class CompetitorSnapshotOut(BaseModel):
     price: Decimal
     visits: int
     sales_delta: int
+    sold_quantity: int | None = None
     captured_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class CompetitorHistoryItem(BaseModel):
+    date: datetime
+    price: Decimal
+    sold_quantity: int | None = None
+    sales_delta: int
+
+    model_config = {"from_attributes": True}
+
+
+class CompetitorHistoryOut(BaseModel):
+    competitor_id: UUID
+    mlb_id: str
+    title: str | None
+    days: int
+    history: list[CompetitorHistoryItem]

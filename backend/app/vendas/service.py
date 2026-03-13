@@ -7,6 +7,7 @@ from sqlalchemy import desc, select, cast, Date, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload  # noqa: F401 (available for future use)
 
+from app.core.constants import ML_FEES_FLOAT
 from app.financeiro.service import calcular_margem, calcular_taxa_ml
 from app.produtos.models import Product
 from app.vendas.models import Listing, ListingSnapshot
@@ -344,18 +345,14 @@ def _generate_alerts(
 # ============== FUNÇÕES PRINCIPAIS ==============
 
 
-async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
-    """Lista anúncios com o último snapshot de cada um (single query via subquery)."""
-    # Subquery: max captured_at por listing_id
-    latest_snap_subq = (
-        select(
-            ListingSnapshot.listing_id,
-            func.max(ListingSnapshot.captured_at).label("max_captured_at"),
-        )
-        .group_by(ListingSnapshot.listing_id)
-        .subquery()
-    )
+async def list_listings(db: AsyncSession, user_id: UUID, period: str = "today") -> list[dict]:
+    """Lista anúncios com o último snapshot ou dados agregados por período.
 
+    period: "today" (padrão) | "7d" | "15d" | "30d" | "60d"
+    Quando period != "today", agrega snapshots do período (soma de vendas,
+    receita, visitas; média de conversão; último estoque) e compara com o
+    período anterior equivalente para calcular variação.
+    """
     result = await db.execute(
         select(Listing)
         .where(Listing.user_id == user_id)
@@ -367,8 +364,67 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
         return []
 
     listing_ids = [l.id for l in listings]
+    today_date = date.today()
 
-    # Busca todos os últimos snapshots de uma vez
+    # ── Busca snapshots conforme o período ─────────────────────────────────────
+    period_days_map = {"7d": 7, "15d": 15, "30d": 30, "60d": 60}
+    is_period_mode = period in period_days_map
+    period_days = period_days_map.get(period, 0)
+
+    if is_period_mode:
+        # Período atual: [today - N+1 .. today]
+        date_from = today_date - timedelta(days=period_days - 1)
+        period_snaps_result = await db.execute(
+            select(ListingSnapshot)
+            .where(
+                ListingSnapshot.listing_id.in_(listing_ids),
+                cast(ListingSnapshot.captured_at, Date) >= date_from,
+            )
+            .order_by(ListingSnapshot.listing_id, ListingSnapshot.captured_at.desc())
+        )
+        period_snaps_all = period_snaps_result.scalars().all()
+
+        # Agrupa snapshots do período atual por listing_id
+        period_snaps_by_listing: dict = {}
+        for snap in period_snaps_all:
+            lid = snap.listing_id
+            if lid not in period_snaps_by_listing:
+                period_snaps_by_listing[lid] = []
+            period_snaps_by_listing[lid].append(snap)
+
+        # Período anterior equivalente para variação
+        prev_date_from = date_from - timedelta(days=period_days)
+        prev_date_to = date_from - timedelta(days=1)
+        prev_snaps_result = await db.execute(
+            select(ListingSnapshot)
+            .where(
+                ListingSnapshot.listing_id.in_(listing_ids),
+                cast(ListingSnapshot.captured_at, Date) >= prev_date_from,
+                cast(ListingSnapshot.captured_at, Date) <= prev_date_to,
+            )
+            .order_by(ListingSnapshot.listing_id)
+        )
+        prev_snaps_all = prev_snaps_result.scalars().all()
+        prev_snaps_by_listing: dict = {}
+        for snap in prev_snaps_all:
+            lid = snap.listing_id
+            if lid not in prev_snaps_by_listing:
+                prev_snaps_by_listing[lid] = []
+            prev_snaps_by_listing[lid].append(snap)
+    else:
+        # "today" — usa último snapshot de cada listing
+        period_snaps_by_listing = {}
+        prev_snaps_by_listing = {}
+
+    # ── Último snapshot (sempre necessário para estoque atual, dias_para_zerar) ──
+    latest_snap_subq = (
+        select(
+            ListingSnapshot.listing_id,
+            func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+        )
+        .group_by(ListingSnapshot.listing_id)
+        .subquery()
+    )
     snaps_result = await db.execute(
         select(ListingSnapshot)
         .join(
@@ -382,8 +438,7 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
         snap.listing_id: snap for snap in snaps_result.scalars().all()
     }
 
-    # Busca últimos 7 snapshots por listing para calcular velocidade de vendas
-    # Subquery: rank de snapshots mais recentes por listing_id
+    # ── Últimos 7 snapshots para velocidade de vendas / dias_para_zerar ──────
     cutoff_7d = datetime.now(timezone.utc) - timedelta(days=7)
     snaps_7d_result = await db.execute(
         select(ListingSnapshot)
@@ -393,7 +448,6 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
         )
         .order_by(ListingSnapshot.listing_id, ListingSnapshot.captured_at.desc())
     )
-    # Agrupa por listing_id (até 7 snapshots por listing)
     snaps_7d_by_listing: dict = {}
     for snap in snaps_7d_result.scalars().all():
         lid = snap.listing_id
@@ -402,63 +456,178 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
         if len(snaps_7d_by_listing[lid]) < 7:
             snaps_7d_by_listing[lid].append(snap)
 
+    # ── Snapshots de ontem (variação hoje vs ontem, modo "today") ─────────────
+    yesterday_date = today_date - timedelta(days=1)
+    yesterday_snap_subq = (
+        select(
+            ListingSnapshot.listing_id,
+            func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+        )
+        .where(
+            ListingSnapshot.listing_id.in_(listing_ids),
+            cast(ListingSnapshot.captured_at, Date) == yesterday_date,
+        )
+        .group_by(ListingSnapshot.listing_id)
+        .subquery()
+    )
+    yesterday_result = await db.execute(
+        select(ListingSnapshot)
+        .join(
+            yesterday_snap_subq,
+            (ListingSnapshot.listing_id == yesterday_snap_subq.c.listing_id)
+            & (ListingSnapshot.captured_at == yesterday_snap_subq.c.max_captured_at),
+        )
+        .where(ListingSnapshot.listing_id.in_(listing_ids))
+    )
+    yesterday_snaps_by_listing = {
+        snap.listing_id: snap for snap in yesterday_result.scalars().all()
+    }
+
+    # ── Função auxiliar para agregar uma lista de snapshots ─────────────────
+    def _aggregate_snaps(snaps: list) -> dict:
+        """Retorna dict com campos agregados de uma lista de snapshots."""
+        total_sales = sum(s.sales_today or 0 for s in snaps)
+        total_visits = sum(s.visits or 0 for s in snaps)
+        total_revenue = sum(float(s.revenue or 0) for s in snaps)
+        total_orders = sum(s.orders_count or 0 for s in snaps)
+        total_cancelled = sum(s.cancelled_orders or 0 for s in snaps)
+        total_cancelled_rev = sum(float(s.cancelled_revenue or 0) for s in snaps)
+        total_returns = sum(s.returns_count or 0 for s in snaps)
+        total_returns_rev = sum(float(s.returns_revenue or 0) for s in snaps)
+        avg_conversion = round((total_sales / total_visits * 100), 2) if total_visits > 0 else 0.0
+        avg_selling_price = round(total_revenue / total_sales, 2) if total_sales > 0 else 0.0
+        # Último estoque (snapshot mais recente)
+        latest = max(snaps, key=lambda s: s.captured_at)
+        return {
+            "sales_today": total_sales,
+            "visits": total_visits,
+            "revenue": total_revenue,
+            "orders_count": total_orders,
+            "stock": latest.stock,
+            "price": latest.price,
+            "questions": sum(s.questions or 0 for s in snaps),
+            "conversion_rate": Decimal(str(avg_conversion)),
+            "avg_selling_price": avg_selling_price,
+            "cancelled_orders": total_cancelled,
+            "cancelled_revenue": total_cancelled_rev,
+            "returns_count": total_returns,
+            "returns_revenue": total_returns_rev,
+            "captured_at": latest.captured_at,
+            "id": latest.id,
+            "listing_id": latest.listing_id,
+        }
+
+    # ── Proxy leve para expor dict como atributos (compatível com Pydantic from_attributes) ──
+    class _SnapProxy:
+        def __init__(self, d: dict):
+            self.__dict__.update(d)
+
+    # ── Monta output ─────────────────────────────────────────────────────────
     output = []
     for listing in listings:
         last_snap = snaps_by_listing.get(listing.id)
         recent_snaps = snaps_7d_by_listing.get(listing.id, [])
 
-        # Calcula dias_para_zerar
+        # Determina snapshot efetivo baseado no modo
+        if is_period_mode:
+            p_snaps = period_snaps_by_listing.get(listing.id, [])
+            if p_snaps:
+                effective_snap_dict = _aggregate_snaps(p_snaps)
+            else:
+                effective_snap_dict = None
+            # Período anterior para variação
+            prev_snaps = prev_snaps_by_listing.get(listing.id, [])
+            if prev_snaps:
+                prev_agg = _aggregate_snaps(prev_snaps)
+            else:
+                prev_agg = None
+        else:
+            effective_snap_dict = None  # usa last_snap diretamente
+            prev_agg = None
+
+        # O snapshot a usar para cálculos da tabela
+        if is_period_mode and effective_snap_dict:
+            eff_snap = _SnapProxy(effective_snap_dict)
+        else:
+            eff_snap = last_snap
+
+        # Calcula dias_para_zerar (sempre baseado em últimos 7 dias reais)
         dias_para_zerar: int | None = None
         if recent_snaps and last_snap and last_snap.stock and last_snap.stock > 0:
             avg_sales = sum(s.sales_today for s in recent_snaps) / len(recent_snaps)
             if avg_sales > 0:
                 dias_para_zerar = int(last_snap.stock / avg_sales)
 
-        # Calcula rpv (receita por visita) — usa revenue real se disponível, senão price * sales_today
+        # rpv
         rpv: float | None = None
-        if last_snap and last_snap.visits and last_snap.visits > 0:
-            receita_snap = float(last_snap.revenue) if last_snap.revenue else (
-                float(last_snap.price) * last_snap.sales_today
+        if eff_snap and getattr(eff_snap, "visits", 0) and getattr(eff_snap, "visits", 0) > 0:
+            receita_snap = float(getattr(eff_snap, "revenue", 0) or 0) or (
+                float(getattr(eff_snap, "price", 0)) * (getattr(eff_snap, "sales_today", 0) or 0)
             )
             if receita_snap > 0:
-                rpv = round(receita_snap / last_snap.visits, 4)
+                rpv = round(receita_snap / getattr(eff_snap, "visits", 1), 4)
 
-        # Calcula taxa_cancelamento do último snapshot
+        # taxa_cancelamento
         taxa_cancelamento: float | None = None
-        if last_snap:
-            pedidos = last_snap.orders_count or 0
-            cancelados = last_snap.cancelled_orders or 0
+        if eff_snap:
+            pedidos = getattr(eff_snap, "orders_count", 0) or 0
+            cancelados = getattr(eff_snap, "cancelled_orders", 0) or 0
             total = pedidos + cancelados
             if total > 0:
                 taxa_cancelamento = round(cancelados / total * 100, 2)
 
-        # ITEM 1: avg_price_per_sale = receita / pedidos (diferente de receita / unidades)
+        # avg_price_per_sale
         avg_price_per_sale: float | None = None
-        if last_snap and last_snap.orders_count and last_snap.orders_count > 0:
-            snap_revenue = float(last_snap.revenue) if last_snap.revenue else 0.0
+        if eff_snap and (getattr(eff_snap, "orders_count", 0) or 0) > 0:
+            snap_revenue = float(getattr(eff_snap, "revenue", 0) or 0)
             if snap_revenue > 0:
-                avg_price_per_sale = round(snap_revenue / last_snap.orders_count, 2)
+                avg_price_per_sale = round(snap_revenue / getattr(eff_snap, "orders_count", 1), 2)
 
-        # ITEM 5: vendas_concluidas = revenue - cancelled_revenue - returns_revenue
+        # vendas_concluidas
         vendas_concluidas: float | None = None
-        if last_snap and last_snap.revenue is not None:
-            cancelled_rev = float(last_snap.cancelled_revenue or 0)
-            returns_rev = float(last_snap.returns_revenue or 0)
-            vendas_concluidas = round(float(last_snap.revenue) - cancelled_rev - returns_rev, 2)
+        if eff_snap and getattr(eff_snap, "revenue", None) is not None:
+            cancelled_rev = float(getattr(eff_snap, "cancelled_revenue", 0) or 0)
+            returns_rev = float(getattr(eff_snap, "returns_revenue", 0) or 0)
+            vendas_concluidas = round(float(getattr(eff_snap, "revenue", 0)) - cancelled_rev - returns_rev, 2)
 
-        # ITEM 6: voce_recebe = preço efetivo - taxa ML
+        # voce_recebe
         voce_recebe: float | None = None
         if listing.price and float(listing.price) > 0:
-            # Usar preço efetivo de venda (com desconto se houver)
             preco = float(listing.sale_price or listing.price)
-            # Taxa real varia por categoria (10-19%). Valores confirmados via prints reais:
-            # Clássico ~11.5%, Premium ~17% (inclui parcelamento)
-            taxa_map = {"classico": 0.115, "premium": 0.17, "full": 0.17}
-            taxa_pct = taxa_map.get(listing.listing_type, 0.16)
+            if listing.sale_fee_pct and float(listing.sale_fee_pct) > 0:
+                taxa_pct = float(listing.sale_fee_pct)
+            else:
+                taxa_pct = ML_FEES_FLOAT.get(listing.listing_type, 0.17)
             taxa_valor = preco * taxa_pct
-            # TODO: buscar taxa real via API listing_prices quando tivermos cache por categoria
-            # TODO: frete real via API shipping_options quando tivermos dimensões
-            voce_recebe = round(preco - taxa_valor, 2)
+            frete = float(listing.avg_shipping_cost or 0)
+            voce_recebe = round(preco - taxa_valor - frete, 2)
+
+        # Variação
+        vendas_var: float | None = None
+        receita_var: float | None = None
+        if is_period_mode and effective_snap_dict and prev_agg:
+            curr_sales = effective_snap_dict["sales_today"]
+            prev_sales = prev_agg["sales_today"]
+            if prev_sales > 0:
+                vendas_var = round(((curr_sales - prev_sales) / prev_sales) * 100, 1)
+            curr_rev = effective_snap_dict["revenue"]
+            prev_rev = prev_agg["revenue"]
+            if prev_rev > 0:
+                receita_var = round(((curr_rev - prev_rev) / prev_rev) * 100, 1)
+        elif not is_period_mode and last_snap:
+            yesterday_snap = yesterday_snaps_by_listing.get(listing.id)
+            if yesterday_snap:
+                today_sales = last_snap.sales_today or 0
+                yest_sales = yesterday_snap.sales_today or 0
+                if yest_sales > 0:
+                    vendas_var = round(((today_sales - yest_sales) / yest_sales) * 100, 1)
+                today_rev = float(last_snap.revenue or 0)
+                yest_rev = float(yesterday_snap.revenue or 0)
+                if yest_rev > 0:
+                    receita_var = round(((today_rev - yest_rev) / yest_rev) * 100, 1)
+
+        # Monta o snapshot que será serializado
+        snap_for_output = eff_snap if (is_period_mode and effective_snap_dict) else last_snap
 
         listing_dict = {
             "id": listing.id,
@@ -474,11 +643,15 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
             "status": listing.status,
             "category_id": listing.category_id,
             "seller_sku": listing.seller_sku,
+            "sale_fee_amount": float(listing.sale_fee_amount) if listing.sale_fee_amount else None,
+            "sale_fee_pct": float(listing.sale_fee_pct) if listing.sale_fee_pct else None,
+            "avg_shipping_cost": float(listing.avg_shipping_cost) if listing.avg_shipping_cost else None,
             "permalink": listing.permalink,
             "thumbnail": listing.thumbnail,
+            "quality_score": listing.quality_score,
             "created_at": listing.created_at,
             "updated_at": listing.updated_at,
-            "last_snapshot": last_snap,
+            "last_snapshot": snap_for_output,
             "dias_para_zerar": dias_para_zerar,
             "rpv": rpv,
             "taxa_cancelamento": taxa_cancelamento,
@@ -486,25 +659,91 @@ async def list_listings(db: AsyncSession, user_id: UUID) -> list[dict]:
             "participacao_pct": None,
             "vendas_concluidas": vendas_concluidas,
             "voce_recebe": voce_recebe,
+            "vendas_variacao": vendas_var,
+            "receita_variacao": receita_var,
         }
         output.append(listing_dict)
 
-    # ITEM 2: participacao_pct — calculado após montar output completo (precisa do total)
-    total_revenue_all = sum(
-        float(item["last_snapshot"].revenue)
-        for item in output
-        if item["last_snapshot"] and item["last_snapshot"].revenue
-    )
-    for item in output:
+    # participacao_pct — calculado após montar output completo
+    def _get_revenue(item: dict) -> float:
         snap = item["last_snapshot"]
-        if snap and snap.revenue and total_revenue_all > 0:
-            item["participacao_pct"] = round(
-                float(snap.revenue) / total_revenue_all * 100, 2
-            )
+        if snap is None:
+            return 0.0
+        rev = getattr(snap, "revenue", None)
+        if rev is None and isinstance(snap, dict):
+            rev = snap.get("revenue")
+        return float(rev) if rev else 0.0
+
+    total_revenue_all = sum(_get_revenue(item) for item in output)
+    for item in output:
+        rev = _get_revenue(item)
+        if rev > 0 and total_revenue_all > 0:
+            item["participacao_pct"] = round(rev / total_revenue_all * 100, 2)
         else:
             item["participacao_pct"] = None
 
     return output
+
+
+async def get_funnel_analytics(db: AsyncSession, user_id: UUID, period_days: int = 7) -> dict:
+    """
+    FEATURE 2: Funil de conversão — agrega visitas, vendas, conversão e receita
+    de todos os anúncios do usuário no período selecionado.
+    """
+    # Busca listing_ids do usuário
+    listings_result = await db.execute(
+        select(Listing.id).where(Listing.user_id == user_id)
+    )
+    listing_ids = [row[0] for row in listings_result.fetchall()]
+
+    if not listing_ids:
+        return {"visitas": 0, "vendas": 0, "conversao": 0.0, "receita": 0.0}
+
+    today_dt = date.today()
+    date_from = today_dt - timedelta(days=period_days - 1)
+
+    # Subquery: último snapshot de cada listing em cada dia do intervalo
+    latest_per_day = (
+        select(
+            ListingSnapshot.listing_id,
+            cast(ListingSnapshot.captured_at, Date).label("snap_date"),
+            func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+        )
+        .where(
+            ListingSnapshot.listing_id.in_(listing_ids),
+            cast(ListingSnapshot.captured_at, Date) >= date_from,
+            cast(ListingSnapshot.captured_at, Date) <= today_dt,
+        )
+        .group_by(ListingSnapshot.listing_id, cast(ListingSnapshot.captured_at, Date))
+        .subquery()
+    )
+
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(ListingSnapshot.visits), 0).label("visitas"),
+            func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label("vendas"),
+            func.coalesce(func.sum(ListingSnapshot.revenue), 0).label("receita"),
+        )
+        .join(
+            latest_per_day,
+            (ListingSnapshot.listing_id == latest_per_day.c.listing_id)
+            & (ListingSnapshot.captured_at == latest_per_day.c.max_captured_at),
+        )
+        .where(ListingSnapshot.listing_id.in_(listing_ids))
+    )
+    row = result.fetchone()
+
+    visitas = int(row.visitas) if row else 0
+    vendas = int(row.vendas) if row else 0
+    receita = float(row.receita) if row else 0.0
+    conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
+
+    return {
+        "visitas": visitas,
+        "vendas": vendas,
+        "conversao": conversao,
+        "receita": receita,
+    }
 
 
 async def get_listing(db: AsyncSession, mlb_id: str, user_id: UUID) -> Listing:
@@ -640,6 +879,30 @@ async def link_sku_to_listing(
         "updated_at": listing.updated_at,
         "last_snapshot": None,
     }
+
+
+async def _fetch_ads_for_listing(db: AsyncSession, listing) -> dict:
+    """
+    Busca dados de publicidade do anúncio via ML API.
+    Usa get_item_ads() do MLClient com o token da conta ML vinculada ao listing.
+    Retorna {} graciosamente se não tiver token, permissão (403) ou dado.
+    """
+    try:
+        from app.auth.models import MLAccount
+        from app.mercadolivre.client import MLClient
+
+        result = await db.execute(
+            select(MLAccount).where(MLAccount.id == listing.ml_account_id)
+        )
+        ml_account = result.scalar_one_or_none()
+        if not ml_account or not ml_account.access_token:
+            return {}
+
+        async with MLClient(ml_account.access_token) as ml_client:
+            ads_data = await ml_client.get_item_ads(listing.mlb_id)
+            return ads_data or {}
+    except Exception:
+        return {}
 
 
 async def get_listing_analysis(
@@ -785,7 +1048,7 @@ async def get_listing_analysis(
         "price_bands": price_bands,
         "full_stock": stock_projection,
         "promotions": [],  # TODO: integrar com ML API quando tiver token
-        "ads": {},  # TODO: integrar com ML API quando tiver token
+        "ads": await _fetch_ads_for_listing(db, listing),
         "competitor": {
             "mlb_id": competitor.mlb_id,
             "price": float(competitor_price),
@@ -812,6 +1075,117 @@ async def update_listing_price(
         "mlb_id": listing.mlb_id,
         "new_price": float(new_price),
         "updated_at": listing.updated_at.isoformat(),
+    }
+
+
+async def apply_price_suggestion(
+    db: AsyncSession,
+    mlb_id: str,
+    user_id: UUID,
+    new_price: float,
+    justification: str,
+) -> dict:
+    """
+    Aplica sugestão de preço: altera na API do ML e salva log no banco.
+    Respeita regra original_price/sale_price:
+    - PUT /items/{id} com {"price": new_price} altera o preço base.
+    - Se houver promoção ativa (original_price != null), alterar preço pode desativar a promoção.
+    - O response da API retorna o item atualizado com price, original_price e sale_price.
+    """
+    import json
+
+    from app.auth.models import MLAccount
+    from app.mercadolivre.client import MLClient, MLClientError
+    from app.vendas.models import PriceChangeLog
+
+    listing = await get_listing(db, mlb_id, user_id)
+    old_price = float(listing.price)
+
+    # Buscar token ML da conta associada ao listing
+    acc_result = await db.execute(
+        select(MLAccount).where(MLAccount.id == listing.ml_account_id)
+    )
+    ml_account = acc_result.scalar_one_or_none()
+    if not ml_account or not ml_account.access_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Conta ML não encontrada ou sem token válido",
+        )
+
+    # Chamar API ML para alterar preço
+    ml_api_success = False
+    ml_api_response_raw = None
+    ml_price_returned = None
+    ml_original_price = None
+    ml_sale_price = None
+    error_msg = None
+
+    try:
+        async with MLClient(ml_account.access_token) as client:
+            ml_response = await client.update_item_price(listing.mlb_id, new_price)
+            ml_api_response_raw = json.dumps(ml_response, default=str)[:5000]
+            ml_api_success = True
+
+            # Extrair preços retornados pela API
+            ml_price_returned = ml_response.get("price")
+            ml_original_price = ml_response.get("original_price")
+            # sale_price pode ser objeto ou null
+            sp = ml_response.get("sale_price")
+            if isinstance(sp, dict):
+                ml_sale_price = sp.get("amount")
+            elif isinstance(sp, (int, float)):
+                ml_sale_price = sp
+
+    except MLClientError as e:
+        error_msg = str(e)
+        ml_api_response_raw = error_msg[:5000]
+
+    # Atualizar listing local se API respondeu OK
+    if ml_api_success:
+        listing.price = Decimal(str(new_price))
+        if ml_original_price is not None:
+            listing.original_price = Decimal(str(ml_original_price))
+        else:
+            listing.original_price = None
+        if ml_sale_price is not None:
+            listing.sale_price = Decimal(str(ml_sale_price))
+        else:
+            listing.sale_price = None
+
+    # Salvar log de ação no PostgreSQL
+    log = PriceChangeLog(
+        listing_id=listing.id,
+        user_id=user_id,
+        mlb_id=listing.mlb_id,
+        old_price=Decimal(str(old_price)),
+        new_price=Decimal(str(new_price)),
+        justification=justification,
+        source="suggestion_apply",
+        ml_api_response=ml_api_response_raw,
+        success=ml_api_success,
+        error_message=error_msg,
+    )
+    db.add(log)
+    await db.flush()
+    await db.refresh(log)
+
+    if not ml_api_success:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"API ML rejeitou alteração: {error_msg}",
+        )
+
+    return {
+        "mlb_id": listing.mlb_id,
+        "old_price": old_price,
+        "new_price": new_price,
+        "justification": justification,
+        "ml_api_success": ml_api_success,
+        "ml_api_price_returned": ml_price_returned,
+        "original_price": ml_original_price,
+        "sale_price": ml_sale_price,
+        "log_id": str(log.id),
+        "applied_at": log.created_at.isoformat(),
     }
 
 
@@ -1094,119 +1468,179 @@ def _calculate_health_score(
     listing,
     snapshots: list[dict],
     product=None,
+    competitor_price: float | None = None,
 ) -> dict:
     """
-    Calcula score de saúde do anúncio (0-100).
-    Cada critério tem peso diferente.
+    Calcula score de qualidade do anúncio (0-100) baseado na Missão 3 do ML.
+
+    Critérios (total = 100 pts):
+    - Título: comprimento >60 chars = +10pts
+    - Imagens: tem thumbnail = +15pts (proxy para >5 fotos)
+    - Preço competitivo (vs concorrente se disponível) = +10pts
+    - Frete grátis (premium ou full) = +10pts
+    - Fulfillment (Full) = +10pts
+    - Conversão >3% = +10pts
+    - Estoque >10 = +10pts
+    - Vendas recentes (últimos 3 dias >0) = +10pts
+    - Anúncio ativo = +5pts
+    - Custo do SKU cadastrado = +10pts
     """
     score = 0
     checks = []
 
-    # Critério 1: Tem thumbnail/foto (10 pts)
-    has_thumb = bool(listing.thumbnail) if hasattr(listing, 'thumbnail') else bool(getattr(listing, 'thumbnail', None))
-    if has_thumb:
+    # 1. Título: comprimento >60 chars = +10pts
+    title = getattr(listing, 'title', '') or ''
+    title_len = len(title)
+    if title_len > 60:
         score += 10
-        checks.append({"item": "Imagem principal", "ok": True, "points": 10, "max": 10})
+        checks.append({"item": "Título otimizado", "ok": True, "points": 10, "max": 10, "detail": f"{title_len} caracteres"})
     else:
-        checks.append({"item": "Imagem principal", "ok": False, "points": 0, "max": 10, "action": "Adicione uma foto de qualidade ao anúncio"})
+        checks.append({"item": "Título otimizado", "ok": False, "points": 0, "max": 10, "action": f"Título com {title_len} chars. Ideal: >60 chars com palavras-chave", "detail": f"{title_len} caracteres"})
 
-    # Critério 2: Tem link de permalink (5 pts)
-    has_link = bool(listing.permalink) if hasattr(listing, 'permalink') else False
-    if has_link:
-        score += 5
-        checks.append({"item": "Link do anúncio", "ok": True, "points": 5, "max": 5})
-    else:
-        checks.append({"item": "Link do anúncio", "ok": False, "points": 0, "max": 5, "action": "Preencha o permalink do anúncio"})
-
-    # Critério 3: Custo do SKU cadastrado (15 pts)
-    has_cost = product is not None and product.cost and float(product.cost) > 0
-    if has_cost:
+    # 2. Imagens: tem thumbnail = +15pts
+    has_thumb = bool(getattr(listing, 'thumbnail', None))
+    if has_thumb:
         score += 15
-        checks.append({"item": "Custo do SKU", "ok": True, "points": 15, "max": 15})
+        checks.append({"item": "Imagens do anúncio", "ok": True, "points": 15, "max": 15})
     else:
-        checks.append({"item": "Custo do SKU", "ok": False, "points": 0, "max": 15, "action": "Cadastre o custo do produto para calcular margens reais"})
+        checks.append({"item": "Imagens do anúncio", "ok": False, "points": 0, "max": 15, "action": "Adicione fotos de qualidade ao anúncio (ideal: >5 fotos)"})
 
-    # Critério 4: Estoque cobrindo pelo menos 14 dias (20 pts)
-    if snapshots:
-        last_snap = snapshots[-1]
-        stock = last_snap.get("stock", 0)
-        recent_sales = [s.get("sales_today", 0) for s in snapshots[-7:]]
-        velocity = sum(recent_sales) / max(1, len(recent_sales))
-        days_coverage = stock / max(0.1, velocity)
-        if days_coverage >= 30:
-            score += 20
-            checks.append({"item": "Cobertura de estoque", "ok": True, "points": 20, "max": 20, "detail": f"{days_coverage:.0f} dias"})
-        elif days_coverage >= 14:
+    # 3. Preço competitivo (vs concorrente) = +10pts
+    current_price = float(getattr(listing, 'sale_price', None) or getattr(listing, 'price', 0) or 0)
+    if competitor_price and current_price > 0:
+        if current_price <= competitor_price * 1.05:
             score += 10
-            checks.append({"item": "Cobertura de estoque", "ok": True, "points": 10, "max": 20, "detail": f"{days_coverage:.0f} dias (ideal: 30+)"})
+            checks.append({"item": "Preço competitivo", "ok": True, "points": 10, "max": 10, "detail": f"R$ {current_price:.0f} vs concorrente R$ {competitor_price:.0f}"})
         else:
-            checks.append({"item": "Cobertura de estoque", "ok": False, "points": 0, "max": 20, "action": f"Estoque para {days_coverage:.0f} dias. Reabasteça logo!", "detail": f"{days_coverage:.0f} dias"})
+            diff_pct = ((current_price - competitor_price) / competitor_price) * 100
+            checks.append({"item": "Preço competitivo", "ok": False, "points": 0, "max": 10, "action": f"Preço {diff_pct:.0f}% acima do concorrente", "detail": f"R$ {current_price:.0f} vs R$ {competitor_price:.0f}"})
+    elif current_price > 0:
+        score += 5
+        checks.append({"item": "Preço competitivo", "ok": True, "points": 5, "max": 10, "detail": "Sem concorrente vinculado para comparar"})
     else:
-        checks.append({"item": "Cobertura de estoque", "ok": False, "points": 0, "max": 20, "action": "Sem dados de estoque ainda"})
+        checks.append({"item": "Preço competitivo", "ok": False, "points": 0, "max": 10, "action": "Vincule um concorrente para comparar preços"})
 
-    # Critério 5: Conversão acima de 1% nos últimos 7 dias (25 pts)
+    # 4. Frete grátis (premium ou full) = +10pts
+    listing_type = getattr(listing, 'listing_type', 'classico') or 'classico'
+    if listing_type in ('premium', 'full'):
+        score += 10
+        checks.append({"item": "Frete grátis", "ok": True, "points": 10, "max": 10})
+    else:
+        checks.append({"item": "Frete grátis", "ok": False, "points": 0, "max": 10, "action": "Migre para Premium ou Full para oferecer frete grátis"})
+
+    # 5. Fulfillment (Full) = +10pts
+    if listing_type == 'full':
+        score += 10
+        checks.append({"item": "Fulfillment (Full)", "ok": True, "points": 10, "max": 10})
+    else:
+        checks.append({"item": "Fulfillment (Full)", "ok": False, "points": 0, "max": 10, "action": "Envie estoque ao Full para entregas mais rápidas"})
+
+    # 6. Conversão >3% nos últimos 7 dias = +10pts
     if snapshots and len(snapshots) >= 3:
         recent = snapshots[-7:] if len(snapshots) >= 7 else snapshots
         total_visits = sum(s.get("visits", 0) for s in recent)
         total_sales = sum(s.get("sales_today", 0) for s in recent)
         conversion = (total_sales / max(1, total_visits)) * 100
         if conversion >= 3:
-            score += 25
-            checks.append({"item": "Taxa de conversão", "ok": True, "points": 25, "max": 25, "detail": f"{conversion:.1f}%"})
+            score += 10
+            checks.append({"item": "Conversão (>3%)", "ok": True, "points": 10, "max": 10, "detail": f"{conversion:.1f}%"})
         elif conversion >= 1:
-            score += 15
-            checks.append({"item": "Taxa de conversão", "ok": True, "points": 15, "max": 25, "detail": f"{conversion:.1f}% (ideal: 3%+)"})
+            score += 5
+            checks.append({"item": "Conversão (>3%)", "ok": True, "points": 5, "max": 10, "detail": f"{conversion:.1f}% (ideal: 3%+)"})
         else:
-            checks.append({"item": "Taxa de conversão", "ok": False, "points": 0, "max": 25, "action": f"Conversão de {conversion:.1f}%. Revise título, fotos e preço.", "detail": f"{conversion:.1f}%"})
+            checks.append({"item": "Conversão (>3%)", "ok": False, "points": 0, "max": 10, "action": f"Conversão de {conversion:.1f}%. Revise título, fotos e preço.", "detail": f"{conversion:.1f}%"})
     else:
-        checks.append({"item": "Taxa de conversão", "ok": False, "points": 0, "max": 25, "action": "Sem dados suficientes de vendas"})
+        checks.append({"item": "Conversão (>3%)", "ok": False, "points": 0, "max": 10, "action": "Sem dados suficientes de vendas"})
 
-    # Critério 6: Sem zero vendas nos últimos 3 dias (15 pts)
+    # 7. Estoque >10 unidades = +10pts
+    if snapshots:
+        last_snap = snapshots[-1]
+        stock = last_snap.get("stock", 0)
+        if stock > 10:
+            score += 10
+            checks.append({"item": "Estoque (>10 un.)", "ok": True, "points": 10, "max": 10, "detail": f"{stock} unidades"})
+        else:
+            checks.append({"item": "Estoque (>10 un.)", "ok": False, "points": 0, "max": 10, "action": f"Apenas {stock} unidades. Reabasteça!", "detail": f"{stock} unidades"})
+    else:
+        checks.append({"item": "Estoque (>10 un.)", "ok": False, "points": 0, "max": 10, "action": "Sem dados de estoque ainda"})
+
+    # 8. Vendas recentes (últimos 3 dias >0) = +10pts
     if snapshots and len(snapshots) >= 3:
         last_3 = snapshots[-3:]
         total_recent = sum(s.get("sales_today", 0) for s in last_3)
         if total_recent > 0:
-            score += 15
-            checks.append({"item": "Vendas recentes", "ok": True, "points": 15, "max": 15, "detail": f"{total_recent} vendas nos últimos 3 dias"})
+            score += 10
+            checks.append({"item": "Vendas recentes", "ok": True, "points": 10, "max": 10, "detail": f"{total_recent} vendas nos últimos 3 dias"})
         else:
-            checks.append({"item": "Vendas recentes", "ok": False, "points": 0, "max": 15, "action": "0 vendas nos últimos 3 dias. Verifique preço e visibilidade."})
+            checks.append({"item": "Vendas recentes", "ok": False, "points": 0, "max": 10, "action": "0 vendas nos últimos 3 dias. Verifique preço e visibilidade."})
     else:
-        checks.append({"item": "Vendas recentes", "ok": False, "points": 0, "max": 15, "action": "Sem dados de vendas ainda"})
+        checks.append({"item": "Vendas recentes", "ok": False, "points": 0, "max": 10, "action": "Sem dados de vendas ainda"})
 
-    # Critério 7: Anúncio ativo (10 pts)
+    # 9. Anúncio ativo = +5pts
     is_active = getattr(listing, 'status', 'active') == 'active'
     if is_active:
-        score += 10
-        checks.append({"item": "Status do anúncio", "ok": True, "points": 10, "max": 10})
+        score += 5
+        checks.append({"item": "Status ativo", "ok": True, "points": 5, "max": 5})
     else:
-        checks.append({"item": "Status do anúncio", "ok": False, "points": 0, "max": 10, "action": "Anúncio pausado ou inativo"})
+        checks.append({"item": "Status ativo", "ok": False, "points": 0, "max": 5, "action": "Anúncio pausado ou inativo"})
+
+    # 10. Custo do SKU cadastrado = +10pts
+    has_cost = product is not None and product.cost and float(product.cost) > 0
+    if has_cost:
+        score += 10
+        checks.append({"item": "Custo do SKU", "ok": True, "points": 10, "max": 10})
+    else:
+        checks.append({"item": "Custo do SKU", "ok": False, "points": 0, "max": 10, "action": "Cadastre o custo para calcular margens reais"})
 
     # Classifica o score
     if score >= 80:
-        status = "excellent"
+        health_status = "excellent"
         label = "Excelente"
         color = "green"
     elif score >= 60:
-        status = "good"
+        health_status = "good"
         label = "Bom"
         color = "yellow"
     elif score >= 40:
-        status = "warning"
+        health_status = "warning"
         label = "Atenção"
         color = "orange"
     else:
-        status = "critical"
+        health_status = "critical"
         label = "Crítico"
         color = "red"
 
     return {
         "score": score,
         "max_score": 100,
-        "status": status,
+        "status": health_status,
         "label": label,
         "color": color,
         "checks": checks,
     }
+
+
+def calculate_quality_score_quick(listing) -> int:
+    """
+    Calcula quality_score rápido sem snapshots (para usar durante sync).
+    Baseado apenas nos atributos do listing.
+    """
+    score = 0
+    title = getattr(listing, 'title', '') or ''
+    if len(title) > 60:
+        score += 10
+    if getattr(listing, 'thumbnail', None):
+        score += 15
+    listing_type = getattr(listing, 'listing_type', 'classico') or 'classico'
+    if listing_type in ('premium', 'full'):
+        score += 10  # frete grátis
+    if listing_type == 'full':
+        score += 10  # fulfillment
+    if getattr(listing, 'status', 'active') == 'active':
+        score += 5
+    if float(getattr(listing, 'price', 0) or 0) > 0:
+        score += 5  # preço parcial (sem concorrente)
+    return min(100, score)
 
 
 async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
@@ -1319,6 +1753,24 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         # Usar secure_thumbnail (HTTPS) quando disponível
                         thumbnail = item.get("secure_thumbnail") or item.get("thumbnail")
 
+                        # Busca taxa real via API listing_prices
+                        sale_fee_amount = None
+                        sale_fee_pct = None
+                        if category_id and listing_type_raw:
+                            try:
+                                fees_data = await client.get_listing_fees(
+                                    price=float(price),
+                                    category_id=category_id,
+                                    listing_type_id=listing_type_raw,
+                                )
+                                if fees_data.get("sale_fee_amount"):
+                                    sale_fee_amount = Decimal(str(fees_data["sale_fee_amount"]))
+                                pct_fee = fees_data.get("percentage_fee")
+                                if pct_fee and pct_fee > 0:
+                                    sale_fee_pct = Decimal(str(pct_fee / 100))
+                            except Exception:
+                                pass  # fallback para taxa fixa
+
                         if listing:
                             listing.title = item.get("title", listing.title)
                             listing.price = price
@@ -1329,6 +1781,12 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                             listing.permalink = item.get("permalink")
                             listing.category_id = category_id
                             listing.seller_sku = seller_sku
+                            if sale_fee_amount is not None:
+                                listing.sale_fee_amount = sale_fee_amount
+                            if sale_fee_pct is not None:
+                                listing.sale_fee_pct = sale_fee_pct
+                            # Calcula quality_score durante sync
+                            listing.quality_score = calculate_quality_score_quick(listing)
                             await db.flush()
                             updated += 1
                         else:
@@ -1346,7 +1804,11 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                                 permalink=item.get("permalink"),
                                 category_id=category_id,
                                 seller_sku=seller_sku,
+                                sale_fee_amount=sale_fee_amount,
+                                sale_fee_pct=sale_fee_pct,
                             )
+                            # Calcula quality_score para novo listing
+                            listing.quality_score = calculate_quality_score_quick(listing)
                             db.add(listing)
                             await db.flush()
                             created += 1
@@ -1465,3 +1927,165 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
         "errors": errors,
         "message": f"Sync concluído: {created} novos, {updated} atualizados.",
     }
+
+
+# ============== Heatmap de Vendas ==============
+
+_DAY_NAMES = [
+    "Segunda-feira",
+    "Terca-feira",
+    "Quarta-feira",
+    "Quinta-feira",
+    "Sexta-feira",
+    "Sabado",
+    "Domingo",
+]
+
+
+async def get_sales_heatmap(
+    db: AsyncSession,
+    user_id: UUID,
+    period_days: int = 30,
+) -> dict:
+    """
+    Retorna heatmap de vendas nos ultimos N dias.
+
+    Estrategia:
+    1. Tenta usar tabela Order (granularidade dia+hora) via extract('dow') e extract('hour')
+    2. Se nao houver Orders suficientes (< 3 registros), faz FALLBACK para ListingSnapshots por dia
+
+    Retorno: HeatmapOut com has_hourly_data indicando qual estrategia foi usada.
+    Dia da semana padronizado: 0=segunda, 6=domingo (Python weekday()).
+    """
+    from app.vendas.models import Order
+    from app.vendas.schemas import HeatmapCell, HeatmapOut
+    from app.auth.models import MLAccount  # noqa: F401
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=period_days)
+
+    # ── 1. Tentar estrategia Orders (dia+hora) ───────────────────────────────
+    # Agrupa por (dow_postgres, hour) usando extract. PostgreSQL DOW: 0=domingo, 6=sabado
+    # Convertemos para Python weekday (0=segunda) logo apos.
+    order_agg_result = await db.execute(
+        select(
+            func.extract("dow", Order.order_date).label("pg_dow"),
+            func.extract("hour", Order.order_date).label("hour"),
+            func.count(Order.id).label("cnt"),
+        )
+        .join(MLAccount, Order.ml_account_id == MLAccount.id)
+        .where(
+            MLAccount.user_id == user_id,
+            Order.order_date >= cutoff,
+            Order.payment_status == "approved",
+        )
+        .group_by("pg_dow", "hour")
+    )
+    order_rows = order_agg_result.fetchall()
+
+    has_hourly_data = len(order_rows) >= 3
+
+    if has_hourly_data:
+        # ── Estrategia Orders (7×24 grid) ───────────────────────────────────
+        # Converte PG DOW (0=dom) para Python weekday (0=seg)
+        # pg_dow 0(dom)→6, 1(seg)→0, 2(ter)→1 ... 6(sab)→5
+        grid: dict[tuple[int, int], int] = {}  # (py_weekday, hour) → count
+        total_orders_hourly = 0
+
+        for row in order_rows:
+            pg_dow = int(row.pg_dow)
+            hour = int(row.hour)
+            # pg_dow 0=domingo → py_weekday 6; pg_dow 1=segunda → 0; etc
+            py_weekday = (pg_dow - 1) % 7
+            cnt = int(row.cnt)
+            grid[(py_weekday, hour)] = grid.get((py_weekday, hour), 0) + cnt
+            total_orders_hourly += cnt
+
+        avg_daily_hourly = total_orders_hourly / period_days if period_days > 0 else 0.0
+
+        # Encontra pico (dia, hora)
+        if grid:
+            peak_key = max(grid, key=lambda k: grid[k])
+            peak_day_idx = peak_key[0]
+            peak_hour_val = peak_key[1]
+        else:
+            peak_day_idx, peak_hour_val = 0, 0
+
+        peak_hour_str = f"{peak_hour_val:02d}:00-{(peak_hour_val + 1):02d}:00"
+
+        # Monta celulas — uma por combinacao (dia, hora) presente; inclui zeros
+        cells = []
+        for day_idx in range(7):
+            for hour in range(24):
+                cnt = grid.get((day_idx, hour), 0)
+                cells.append(
+                    HeatmapCell(
+                        day_of_week=day_idx,
+                        hour=hour,
+                        day_name=_DAY_NAMES[day_idx],
+                        count=cnt,
+                        avg_per_week=0.0,
+                    )
+                )
+
+        return HeatmapOut(
+            period_days=period_days,
+            total_sales=total_orders_hourly,
+            avg_daily=round(avg_daily_hourly, 2),
+            peak_day=_DAY_NAMES[peak_day_idx],
+            peak_day_index=peak_day_idx,
+            peak_hour=peak_hour_str,
+            has_hourly_data=True,
+            data=cells,
+        ).model_dump()
+
+    # ── 2. FALLBACK: ListingSnapshots por dia ────────────────────────────────
+    snaps_result = await db.execute(
+        select(ListingSnapshot)
+        .join(Listing, ListingSnapshot.listing_id == Listing.id)
+        .where(
+            Listing.user_id == user_id,
+            ListingSnapshot.captured_at >= cutoff,
+        )
+    )
+    snapshots = snaps_result.scalars().all()
+
+    counts_by_day: dict[int, int] = {i: 0 for i in range(7)}
+
+    for snap in snapshots:
+        dt = snap.captured_at
+        day_idx = dt.weekday()  # 0=segunda, 6=domingo
+        sales = (
+            (snap.orders_count or 0)
+            if (snap.orders_count is not None and snap.orders_count > 0)
+            else (snap.sales_today or 0)
+        )
+        counts_by_day[day_idx] += sales
+
+    total_sales = sum(counts_by_day.values())
+    avg_daily = total_sales / period_days if period_days > 0 else 0.0
+    peak_day_idx = max(counts_by_day, key=lambda d: counts_by_day[d])
+    num_weeks = max(1, period_days / 7)
+
+    cells = []
+    for day_idx in range(7):
+        total_for_day = counts_by_day[day_idx]
+        cells.append(
+            HeatmapCell(
+                day_of_week=day_idx,
+                hour=0,
+                day_name=_DAY_NAMES[day_idx],
+                count=total_for_day,
+                avg_per_week=round(total_for_day / num_weeks, 2),
+            )
+        )
+
+    return HeatmapOut(
+        period_days=period_days,
+        total_sales=total_sales,
+        avg_daily=round(avg_daily, 2),
+        peak_day=_DAY_NAMES[peak_day_idx],
+        peak_day_index=peak_day_idx,
+        peak_hour="",
+        has_hourly_data=False,
+        data=cells,
+    ).model_dump()

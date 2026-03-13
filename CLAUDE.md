@@ -546,3 +546,30 @@ O usuario autoriza todas as acoes sem confirmacao — nao perguntar antes de exe
 | Fila | Redis + Celery (Railway) |
 | Doc ML Brasil | https://developers.mercadolivre.com.br/pt_br/api-docs-pt-br |
 | Doc ML Visitas | https://developers.mercadolivre.com.br/pt_br/recurso-visits |
+
+
+---
+
+## AUTO-LEARNING SYSTEM
+
+> **IMPORTANTE**: Este projeto possui um sistema de auto-aprendizado instalado.
+> Todos os arquivos do sistema ficam EXCLUSIVAMENTE em `_auto_learning/`.
+> O sistema NÃO modifica código do projeto. Apenas lê para analisar.
+
+### Localização
+- Pasta principal: `_auto_learning/`
+- Banco de dados: `_auto_learning/db/learning.db`
+- Agentes: `_auto_learning/agents/`
+- Logs: `_auto_learning/logs/`
+- Planos: `_auto_learning/planos/`
+- Documentação gerada: `_auto_learning/docs/`
+
+### Como ativar o loop de aprendizado
+Leia o arquivo `_auto_learning/INSTRUCOES_IA.md` para instruções completas.
+
+### Regras do sistema de auto-learning
+1. **NUNCA modifique** arquivos fora de `_auto_learning/`
+2. **SEMPRE registre** feedbacks, sucessos e falhas no banco SQLite
+3. **SEMPRE confronte** respostas antes de aceitar
+4. **Planos e docs** são gerados APENAS dentro de `_auto_learning/`
+5. O código do projeto é READ-ONLY para este sistema

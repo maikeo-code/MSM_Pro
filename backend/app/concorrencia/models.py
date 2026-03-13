@@ -54,6 +54,10 @@ class CompetitorSnapshot(Base):
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     visits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     sales_delta: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sold_quantity: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=0,
+        comment="sold_quantity acumulado do item ML no momento do snapshot"
+    )
     captured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )

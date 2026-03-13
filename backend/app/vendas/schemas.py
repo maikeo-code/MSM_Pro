@@ -68,6 +68,9 @@ class ListingOut(BaseModel):
     status: str
     category_id: str | None = None
     seller_sku: str | None = None
+    sale_fee_amount: float | None = None  # taxa real ML em R$
+    sale_fee_pct: float | None = None  # taxa real ML em %
+    avg_shipping_cost: float | None = None  # frete medio real
     permalink: str | None
     thumbnail: str | None
     created_at: datetime
@@ -80,7 +83,11 @@ class ListingOut(BaseModel):
     avg_price_per_sale: float | None = None  # revenue / orders_count
     participacao_pct: float | None = None  # % do total de receita
     vendas_concluidas: float | None = None  # revenue - cancelled_revenue - returns_revenue
-    voce_recebe: float | None = None  # preço - taxa ML - frete estimado
+    voce_recebe: float | None = None  # preco - taxa ML real - frete real
+    quality_score: int | None = None  # score de qualidade 0-100
+    # Variação por anúncio (hoje vs ontem)
+    vendas_variacao: float | None = None
+    receita_variacao: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -215,8 +222,85 @@ class LinkSkuIn(BaseModel):
     product_id: UUID | None = None
 
 
+class FunnelOut(BaseModel):
+    visitas: int = 0
+    vendas: int = 0
+    conversao: float = 0.0
+    receita: float = 0.0
+
+
 class CreatePromotionIn(BaseModel):
     discount_pct: float = Field(ge=5, le=60)
     start_date: str
     end_date: str
     promotion_id: str | None = None
+
+
+# ============== Schemas para Heatmap de Vendas ==============
+
+
+class HeatmapCell(BaseModel):
+    day_of_week: int  # 0=segunda ... 6=domingo
+    hour: int  # 0-23 (0 quando fallback por dia)
+    day_name: str
+    count: int  # numero de vendas nessa celula (dia+hora ou so dia no fallback)
+    avg_per_week: float  # media semanal para esse dia (fallback) ou 0 no hourly
+
+
+class HeatmapOut(BaseModel):
+    period_days: int
+    total_sales: int
+    avg_daily: float
+    peak_day: str  # ex: "Quarta-feira"
+    peak_day_index: int  # 0-6
+    peak_hour: str  # ex: "14:00-15:00" (vazio no fallback)
+    has_hourly_data: bool  # True se usou Orders, False se fallback snapshots
+    data: list[HeatmapCell]
+
+
+# ============== Schemas para Orders ==============
+
+
+class SuggestionApplyIn(BaseModel):
+    new_price: float = Field(gt=0, description="Novo preco a aplicar no anuncio")
+    justification: str = Field(
+        default="", max_length=1000, description="Motivo da alteracao de preco"
+    )
+
+
+class SuggestionApplyOut(BaseModel):
+    mlb_id: str
+    old_price: float
+    new_price: float
+    justification: str
+    ml_api_success: bool
+    ml_api_price_returned: float | None = None
+    original_price: float | None = None
+    sale_price: float | None = None
+    log_id: UUID
+    applied_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class OrderOut(BaseModel):
+    id: UUID
+    ml_order_id: str
+    ml_account_id: UUID
+    listing_id: UUID | None = None
+    mlb_id: str
+    buyer_nickname: str
+    quantity: int
+    unit_price: Decimal
+    total_amount: Decimal
+    sale_fee: Decimal
+    shipping_cost: Decimal
+    net_amount: Decimal
+    payment_status: str
+    shipping_status: str
+    order_date: datetime
+    payment_date: datetime | None = None
+    delivery_date: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
