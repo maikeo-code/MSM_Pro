@@ -1112,6 +1112,24 @@ async def apply_price_suggestion(
             detail="Conta ML não encontrada ou sem token válido",
         )
 
+    # Auto-refresh do token se expirado
+    from app.auth.service import refresh_ml_token
+
+    if ml_account.token_expires_at and ml_account.token_expires_at <= datetime.now(timezone.utc):
+        try:
+            token_data = await refresh_ml_token(ml_account)
+            ml_account.access_token = token_data["access_token"]
+            ml_account.refresh_token = token_data.get("refresh_token", ml_account.refresh_token)
+            ml_account.token_expires_at = datetime.now(timezone.utc) + timedelta(
+                seconds=token_data.get("expires_in", 21600)
+            )
+            await db.flush()
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Falha ao renovar token ML: {e}",
+            )
+
     # Chamar API ML para alterar preço
     ml_api_success = False
     ml_api_response_raw = None
