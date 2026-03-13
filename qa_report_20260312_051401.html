@@ -1,0 +1,99 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório QA - MSM_Pro</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #333; text-align: center; border-bottom: 3px solid #2196F3; padding-bottom: 10px; }
+        h2 { color: #555; margin-top: 30px; border-left: 4px solid #2196F3; padding-left: 10px; }
+        .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 20px 0; }
+        .summary-item { background: #f9f9f9; padding: 15px; border-radius: 4px; text-align: center; }
+        .summary-item.passed { border-left: 4px solid #4CAF50; }
+        .summary-item.failed { border-left: 4px solid #f44336; }
+        .summary-item.total { border-left: 4px solid #2196F3; }
+        .summary-item.server { border-left: 4px solid #FF9800; }
+        .summary-item h3 { margin: 0 0 10px 0; color: #666; font-size: 12px; text-transform: uppercase; }
+        .summary-item .number { font-size: 32px; font-weight: bold; color: #333; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th { background: #2196F3; color: white; padding: 12px; text-align: left; font-weight: bold; }
+        td { padding: 10px 12px; border-bottom: 1px solid #ddd; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .badge.discount { background: #4CAF50; color: white; }
+        .badge.no-discount { background: #9E9E9E; color: white; }
+        .price-original { text-decoration: line-through; color: #999; }
+        .price-current { color: #4CAF50; font-weight: bold; }
+        .error-list { background: #ffebee; border-left: 4px solid #f44336; padding: 15px; margin: 10px 0; border-radius: 4px; }
+        .error-list li { color: #c62828; margin: 5px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #888; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Relatório de Testes QA - MSM_Pro</h1>
+        <p style="text-align: center; color: #888;">Desconto de Preços • 12/03/2026 05:14:01</p>
+        
+        <div class="summary">
+            <div class="summary-item total">
+                <h3>Testes Executados</h3>
+                <div class="number">7</div>
+            </div>
+            <div class="summary-item passed">
+                <h3>Aprovados</h3>
+                <div class="number" style="color: #4CAF50;">5</div>
+            </div>
+            <div class="summary-item failed">
+                <h3>Falhados</h3>
+                <div class="number" style="color: #f44336;">1</div>
+            </div>
+            <div class="summary-item server">
+                <h3>Servidor</h3>
+                <div style="font-size: 14px;">✗ Offline</div>
+                <div style="font-size: 11px; color: #666; margin-top: 5px;">Produção (Railway)</div>
+            </div>
+        </div>
+        
+        <h2>Análise de Descontos por Anúncio</h2>
+        <p>Total: <strong>2</strong> com desconto | <strong>1</strong> sem desconto</p>
+        
+        <h3>Anúncios com Desconto (2)</h3>
+        <table><tr><th>MLB ID</th><th>Título</th><th>Desconto</th><th>Preço Original</th><th>Preço Final</th><th>Validação</th></tr>
+                <tr>
+                    <td><strong>MLB123456789</strong></td>
+                    <td>Exemplo de Produto com Desconto - 30% OFF</td>
+                    <td><strong style="color: #4CAF50;">-30.0%</strong></td>
+                    <td><span class="price-original">R$ 100.00</span></td>
+                    <td><span class="price-current">R$ 70.00</span></td>
+                    <td><span style='color: #4CAF50;'>✓ OK</span></td>
+                </tr>
+                
+                <tr>
+                    <td><strong>MLB555666777</strong></td>
+                    <td>Produto com Desconto 15% - Liquidação</td>
+                    <td><strong style="color: #4CAF50;">-15.0%</strong></td>
+                    <td><span class="price-original">R$ 100.00</span></td>
+                    <td><span class="price-current">R$ 85.00</span></td>
+                    <td><span style='color: #4CAF50;'>✓ OK</span></td>
+                </tr>
+                </table>
+        <h3>Anúncios sem Desconto (1)</h3>
+        <table><tr><th>MLB ID</th><th>Título</th><th>Preço</th><th>Original Price Field</th></tr>
+                <tr>
+                    <td><strong>MLB987654321</strong></td>
+                    <td>Produto sem Desconto - Preço Normal</td>
+                    <td>R$ 150.00</td>
+                    <td>Vazio</td>
+                </tr>
+                </table>
+        <div class="footer">
+            <p>Relatório gerado em 12/03/2026 às 05:14:01</p>
+            <p>Teste executado com dados simulados (mock)</p>
+        </div>
+    </div>
+</body>
+</html>
+        

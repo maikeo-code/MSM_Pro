@@ -18,7 +18,7 @@ export interface KpiPeriod {
   cancelamentos_valor?: number;
   devolucoes_valor?: number;
   devolucoes_qtd?: number;
-  // Variações
+  // Variacoes
   vendas_variacao?: number | null;
   receita_variacao?: number | null;
   visitas_variacao?: number | null;
@@ -83,6 +83,34 @@ export interface ListingOut {
   seller_sku?: string | null;
   category_id?: string | null;
   voce_recebe?: number | null;
+  // Quality score (0-100) calculado no backend
+  quality_score?: number | null;
+  // Variacao por anuncio (hoje vs ontem)
+  vendas_variacao?: number | null;
+  receita_variacao?: number | null;
+}
+
+export interface FunnelData {
+  visitas: number;
+  vendas: number;
+  conversao: number;
+  receita: number;
+}
+
+export interface HeatmapDay {
+  day_of_week: number;
+  day_name: string;
+  count: number;
+  avg_per_week: number;
+}
+
+export interface HeatmapData {
+  data: HeatmapDay[];
+  peak_day: string;
+  peak_day_index: number;
+  avg_daily: number;
+  total_sales: number;
+  period_days: number;
 }
 
 export interface ListingCreate {
@@ -217,8 +245,10 @@ export interface CreatePromotionPayload {
 }
 
 const listingsService = {
-  async list(): Promise<ListingOut[]> {
-    const { data } = await api.get<ListingOut[]>("/listings/");
+  async list(period: string = "today"): Promise<ListingOut[]> {
+    const { data } = await api.get<ListingOut[]>("/listings/", {
+      params: period !== "today" ? { period } : undefined,
+    });
     return data;
   },
 
@@ -282,9 +312,23 @@ const listingsService = {
     return data;
   },
 
+  async getFunnel(period: string = "7d"): Promise<FunnelData> {
+    const { data } = await api.get<FunnelData>("/listings/analytics/funnel", {
+      params: { period },
+    });
+    return data;
+  },
+
   async linkSku(mlbId: string, productId: string | null): Promise<ListingOut> {
     const { data } = await api.patch<ListingOut>(`/listings/${mlbId}/sku`, {
       product_id: productId,
+    });
+    return data;
+  },
+
+  async getHeatmap(period = "30d"): Promise<HeatmapData> {
+    const { data } = await api.get<HeatmapData>("/listings/analytics/heatmap", {
+      params: { period },
     });
     return data;
   },

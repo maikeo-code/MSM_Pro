@@ -1,144 +1,12 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, RefreshCw, WifiOff, TrendingUp, TrendingDown, ShoppingCart, Package, DollarSign, Target, BarChart2, Sparkles, X, Loader2 } from "lucide-react";
+import { AlertCircle, RefreshCw, WifiOff, TrendingUp, TrendingDown, ShoppingCart, Package, DollarSign, Target, BarChart2, Sparkles, Download, Eye, Search } from "lucide-react";
 import { Link } from "react-router-dom";
-import listingsService from "@/services/listingsService";
+import listingsService, { type ListingOut, type FunnelData, type HeatmapData } from "@/services/listingsService";
 import { consultorService, type ConsultorResponse } from "@/services/consultorService";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
-
-// ─── Render simples de markdown: **bold**, listas (- item), paragrafos ────────
-function RenderAnalise({ texto }: { texto: string }) {
-  const paragrafos = texto.split(/\n\n+/);
-  return (
-    <div className="space-y-3 text-sm leading-relaxed text-gray-700">
-      {paragrafos.map((paragrafo, i) => {
-        const linhas = paragrafo.split("\n");
-        const ehLista = linhas.every((l) => l.trim().startsWith("- ") || l.trim() === "");
-        if (ehLista && linhas.some((l) => l.trim().startsWith("- "))) {
-          return (
-            <ul key={i} className="list-none space-y-1 pl-0">
-              {linhas.filter((l) => l.trim().startsWith("- ")).map((item, j) => {
-                const conteudo = item.replace(/^-\s+/, "");
-                return (
-                  <li key={j} className="flex items-start gap-2">
-                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
-                    <span dangerouslySetInnerHTML={{ __html: conteudo.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>") }} />
-                  </li>
-                );
-              })}
-            </ul>
-          );
-        }
-        const html = paragrafo.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-        return (
-          <p key={i} dangerouslySetInnerHTML={{ __html: html }} />
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Drawer do Consultor IA ───────────────────────────────────────────────────
-interface ConsultorDrawerProps {
-  aberto: boolean;
-  onFechar: () => void;
-  loading: boolean;
-  resultado: ConsultorResponse | null;
-  erro: string | null;
-}
-
-function ConsultorDrawer({ aberto, onFechar, loading, resultado, erro }: ConsultorDrawerProps) {
-  return (
-    <>
-      {/* Overlay */}
-      <div
-        className={cn(
-          "fixed inset-0 z-40 bg-black/30 backdrop-blur-sm transition-opacity duration-300",
-          aberto ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-        )}
-        onClick={onFechar}
-      />
-
-      {/* Drawer */}
-      <div
-        className={cn(
-          "fixed inset-y-0 right-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out",
-          "w-full sm:w-[480px]",
-          aberto ? "translate-x-0" : "translate-x-full"
-        )}
-      >
-        {/* Header do drawer */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-white" />
-            <h2 className="text-base font-semibold text-white">Consultor IA</h2>
-          </div>
-          <button
-            onClick={onFechar}
-            className="rounded-md p-1.5 text-white/70 hover:text-white hover:bg-white/20 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Corpo */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {loading && (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <div className="relative">
-                <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
-                <div className="absolute inset-0 rounded-full bg-blue-50" style={{ zIndex: -1 }} />
-              </div>
-              <p className="text-sm text-gray-500 font-medium">Analisando seus anuncios...</p>
-              <p className="text-xs text-gray-400 text-center max-w-xs">
-                A IA esta processando seus dados de vendas, estoque e conversao para gerar insights personalizados.
-              </p>
-            </div>
-          )}
-
-          {erro && !loading && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              <p className="font-semibold mb-1">Erro ao gerar analise</p>
-              <p>{erro}</p>
-            </div>
-          )}
-
-          {resultado && !loading && (
-            <div className="space-y-4">
-              <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-3">
-                <p className="text-xs text-blue-600 font-medium uppercase tracking-wide">Analise gerada</p>
-              </div>
-              <RenderAnalise texto={resultado.analise} />
-            </div>
-          )}
-
-          {!loading && !erro && !resultado && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-              <Sparkles className="h-10 w-10 text-blue-200" />
-              <p className="text-sm text-gray-500">Clique em "Analisar" para gerar insights com IA</p>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        {resultado && !loading && (
-          <div className="border-t border-gray-200 px-6 py-3 bg-gray-50">
-            <p className="text-xs text-gray-500">
-              {resultado.anuncios_analisados} anuncios analisados &bull;{" "}
-              {new Date(resultado.gerado_em).toLocaleString("pt-BR", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </p>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
+import { ConsultorDrawer } from "@/components/ConsultorDrawer";
+import { DiasBadge } from "@/components/DiasBadge";
 
 // ─── Componente de variacao (seta verde/vermelha) ───────────────────────────
 function Variacao({ value, unit = "%" }: { value?: number | null; unit?: string }) {
@@ -176,24 +44,167 @@ function KpiCard({ label, value, variacao, icon, varUnit = "%" }: KpiCardProps) 
   );
 }
 
-// ─── Badge de dias para zerar estoque ────────────────────────────────────────
-function DiasBadge({ dias }: { dias?: number | null }) {
-  if (dias == null) {
-    return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-gray-100 text-gray-500">—</span>;
-  }
-  if (dias > 30) {
-    return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800">{dias}d</span>;
-  }
-  if (dias >= 7) {
-    return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800">{dias}d</span>;
-  }
-  return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800">{dias}d</span>;
+// ─── Funil de Conversao Visual ──────────────────────────────────────────────
+function ConversionFunnel({ data }: { data: FunnelData | undefined }) {
+  if (!data) return null;
+  const { visitas, vendas, conversao, receita } = data;
+  const maxVal = Math.max(visitas, 1);
+
+  const steps = [
+    { label: "Visitas", value: visitas, format: (v: number) => v.toLocaleString("pt-BR"), color: "bg-blue-500" },
+    { label: "Vendas", value: vendas, format: (v: number) => v.toLocaleString("pt-BR"), color: "bg-green-500" },
+    { label: "Receita", value: receita, format: (v: number) => formatCurrency(v), color: "bg-emerald-600" },
+  ];
+
+  return (
+    <div className="space-y-3">
+      {steps.map((step, i) => {
+        const widthPct = i === 0 ? 100 : Math.max(5, (step.value / maxVal) * 100);
+        return (
+          <div key={step.label} className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium text-foreground">{step.label}</span>
+              <span className="font-semibold text-foreground">{step.format(step.value)}</span>
+            </div>
+            <div className="h-6 w-full rounded bg-muted overflow-hidden">
+              <div
+                className={cn("h-full rounded transition-all duration-700", step.color)}
+                style={{ width: `${widthPct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+      <div className="pt-2 border-t text-sm flex items-center justify-between">
+        <span className="text-muted-foreground">Conversao</span>
+        <span className="font-bold text-foreground">{conversao.toFixed(2)}%</span>
+      </div>
+    </div>
+  );
 }
+
+// ─── Export CSV ──────────────────────────────────────────────────────────────
+function exportCSV(listings: ListingOut[]) {
+  const headers = ["MLB", "Titulo", "SKU", "Preco", "Estoque", "Visitas", "Vendas", "Conversao", "Receita", "Participacao", "Score"];
+  const rows = listings.map((l) => {
+    const snap = l.last_snapshot;
+    const effectivePrice = l.sale_price ?? l.price;
+    const unidades = snap?.sales_today ?? 0;
+    const receita = snap?.revenue ?? unidades * effectivePrice;
+    return [
+      l.mlb_id,
+      `"${(l.title || "").replace(/"/g, '""')}"`,
+      l.seller_sku || "",
+      effectivePrice.toFixed(2),
+      snap?.stock ?? 0,
+      snap?.visits ?? 0,
+      unidades,
+      snap?.conversion_rate != null ? Number(snap.conversion_rate).toFixed(2) + "%" : "",
+      receita > 0 ? receita.toFixed(2) : "0",
+      l.participacao_pct != null ? l.participacao_pct.toFixed(1) + "%" : "",
+      l.quality_score ?? "",
+    ].join(",");
+  });
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `anuncios_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Heatmap de Concentracao de Vendas ───────────────────────────────────────
+function SalesHeatmap({ data }: { data: HeatmapData | undefined }) {
+  if (!data) return null;
+
+  const maxCount = Math.max(...data.data.map((d) => d.count), 1);
+
+  function getHeatColor(count: number): string {
+    const ratio = count / maxCount;
+    if (ratio === 0) return "bg-blue-50 text-blue-300";
+    if (ratio < 0.25) return "bg-blue-100 text-blue-600";
+    if (ratio < 0.5) return "bg-blue-200 text-blue-700";
+    if (ratio < 0.75) return "bg-blue-400 text-white";
+    return "bg-blue-600 text-white";
+  }
+
+  // Garantir 7 dias na ordem certa (Seg a Dom) usando day_of_week
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const found = data.data.find((d) => d.day_of_week === i);
+    return (
+      found ?? {
+        day_of_week: i,
+        day_name: ["Segunda-feira", "Terca-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sabado", "Domingo"][i],
+        count: 0,
+        avg_per_week: 0,
+      }
+    );
+  });
+
+  // Abreviacoes para exibicao (3 chars)
+  const dayAbbr = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-7 gap-2">
+        {days.map((day) => {
+          const isPeak = day.day_of_week === data.peak_day_index;
+          return (
+            <div key={day.day_of_week} className="flex flex-col items-center gap-1">
+              <span className="text-xs text-muted-foreground font-medium">
+                {dayAbbr[day.day_of_week]}
+              </span>
+              <div
+                className={cn(
+                  "w-full rounded-lg flex flex-col items-center justify-center py-3 px-1 transition-all",
+                  getHeatColor(day.count),
+                  isPeak && "ring-2 ring-offset-1 ring-blue-500"
+                )}
+              >
+                <span className="text-sm font-bold leading-tight">{day.count}</span>
+                {isPeak && (
+                  <span className="text-[10px] font-semibold mt-0.5 leading-tight">Pico</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t">
+        <span>
+          Venda Media Diaria:{" "}
+          <span className="font-semibold text-foreground">{data.avg_daily.toFixed(1)} unidades</span>
+        </span>
+        <span>
+          Dia mais forte:{" "}
+          <span className="font-semibold text-foreground">{data.peak_day}</span>
+        </span>
+        <span>
+          Total {data.period_days}d:{" "}
+          <span className="font-semibold text-foreground">{data.total_sales}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+const PERIOD_OPTIONS = [
+  { value: "today", label: "Hoje" },
+  { value: "7d", label: "7 dias" },
+  { value: "15d", label: "15 dias" },
+  { value: "30d", label: "30 dias" },
+  { value: "60d", label: "60 dias" },
+] as const;
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [funnelPeriod, setFunnelPeriod] = useState<string>("7d");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [tablePeriod, setTablePeriod] = useState<string>("today");
 
   // ─── Consultor IA ────────────────────────────────────────────────────────────
   const [consultorAberto, setConsultorAberto] = useState(false);
@@ -217,14 +228,28 @@ export default function Dashboard() {
   };
 
   const { data: listings, isLoading, isError, error } = useQuery({
-    queryKey: ["listings"],
-    queryFn: () => listingsService.list(),
+    queryKey: ["listings", tablePeriod],
+    queryFn: () => listingsService.list(tablePeriod),
     retry: 2,
   });
 
   const { data: kpi } = useQuery({
     queryKey: ["kpi-summary"],
     queryFn: () => listingsService.getKpiSummary(),
+    retry: 2,
+  });
+
+  const { data: funnelData } = useQuery({
+    queryKey: ["funnel", funnelPeriod],
+    queryFn: () => listingsService.getFunnel(funnelPeriod),
+    retry: 2,
+  });
+
+  const [heatmapPeriod, setHeatmapPeriod] = useState("30d");
+
+  const { data: heatmapData } = useQuery({
+    queryKey: ["heatmap", heatmapPeriod],
+    queryFn: () => listingsService.getHeatmap(heatmapPeriod),
     retry: 2,
   });
 
@@ -236,8 +261,9 @@ export default function Dashboard() {
       setSyncMsg(result.message);
       queryClient.invalidateQueries({ queryKey: ["listings"] });
       queryClient.invalidateQueries({ queryKey: ["kpi-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["funnel"] });
     } catch {
-      setSyncMsg("Erro ao sincronizar. Verifique se a conta ML está conectada.");
+      setSyncMsg("Erro ao sincronizar. Verifique se a conta ML esta conectada.");
     } finally {
       setSyncing(false);
     }
@@ -252,25 +278,40 @@ export default function Dashboard() {
     return salesB - salesA;
   });
 
-  // Totais calculados da tabela
-  const totalPedidos = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.orders_count ?? l.last_snapshot?.sales_today ?? 0), 0);
-  const totalUnidades = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.sales_today ?? 0), 0);
-  const totalReceita = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.revenue ?? 0), 0);
-  const totalEstoque = displayListings.reduce((sum, l) => sum + (l.last_snapshot?.stock ?? 0), 0);
-  const totalEstoqueValor = displayListings.reduce((sum, l) => {
+  // Filtro de busca client-side (titulo, mlb_id, seller_sku)
+  const filteredListings = searchTerm.trim()
+    ? sortedListings.filter((l) => {
+        const term = searchTerm.toLowerCase();
+        return (
+          (l.title || "").toLowerCase().includes(term) ||
+          (l.mlb_id || "").toLowerCase().includes(term) ||
+          (l.seller_sku || "").toLowerCase().includes(term)
+        );
+      })
+    : sortedListings;
+
+  // Totais calculados da tabela (usam filteredListings para refletir busca)
+  const totalPedidos = filteredListings.reduce((sum, l) => sum + (l.last_snapshot?.orders_count ?? l.last_snapshot?.sales_today ?? 0), 0);
+  const totalUnidades = filteredListings.reduce((sum, l) => sum + (l.last_snapshot?.sales_today ?? 0), 0);
+  const totalReceita = filteredListings.reduce((sum, l) => sum + (l.last_snapshot?.revenue ?? 0), 0);
+  const totalEstoque = filteredListings.reduce((sum, l) => sum + (l.last_snapshot?.stock ?? 0), 0);
+  const totalEstoqueValor = filteredListings.reduce((sum, l) => {
     const preco = l.sale_price ?? l.price;
     const estoque = l.last_snapshot?.stock ?? 0;
     return sum + preco * estoque;
   }, 0);
 
-  const totalVisitas = sortedListings.reduce((sum, l) => sum + (l.last_snapshot?.visits ?? 0), 0);
+  const totalVisitas = filteredListings.reduce((sum, l) => sum + (l.last_snapshot?.visits ?? 0), 0);
   const avgConversao = totalVisitas > 0 ? (totalUnidades / totalVisitas) * 100 : 0;
   const avgPrecoMedio = totalUnidades > 0 ? totalReceita / totalUnidades : 0;
-  // Preço médio por venda (receita / pedidos — diferente de receita / unidades)
+  // Preco medio por venda (receita / pedidos)
   const avgPrecoMedioPorVenda = totalPedidos > 0 ? totalReceita / totalPedidos : 0;
 
   // Dados KPI para cards (usa periodo "hoje" ou soma dos listings)
   const kpiHoje = kpi?.hoje;
+
+  // colSpan count: Produto + Pedidos + Unidades + Receita + VoceRecebe + Preco/Un + Preco/Venda + Participacao + Visitas + Conversao + Estoque + DiasZerar + Acoes = 13
+  const totalCols = 13;
 
   return (
     <div className="p-8">
@@ -306,6 +347,16 @@ export default function Dashboard() {
             <Sparkles className="h-4 w-4" />
             Consultor IA
           </button>
+
+          {displayListings.length > 0 && (
+            <button
+              onClick={() => exportCSV(sortedListings)}
+              className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Baixar Relatorio
+            </button>
+          )}
 
           {consultorResultado && (
             <button
@@ -344,7 +395,7 @@ export default function Dashboard() {
       )}
 
       {/* Nenhum anuncio */}
-      {!isLoading && !isError && displayListings.length === 0 && (
+      {!isLoading && !isError && displayListings.length === 0 && !searchTerm && (
         <div className="mb-8 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
           <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
           <div>
@@ -392,50 +443,111 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* ─── Tabela KPI por periodo ───────────────────────────────────────────── */}
-      <div className="rounded-lg border bg-card shadow-sm mb-6">
-        <div className="px-4 py-2 border-b">
-          <h2 className="text-sm font-semibold text-foreground">Resumo por Periodo</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Periodo</th>
-                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Anuncios</th>
-                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Vendas</th>
-                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Visitas</th>
-                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Conversao</th>
-                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Receita</th>
-                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Valor Estoque</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { label: "Hoje", data: kpi?.hoje },
-                { label: "Ontem", data: kpi?.ontem },
-                { label: "Anteontem", data: kpi?.anteontem },
-                { label: "7 dias", data: kpi?.["7dias"] },
-                { label: "30 dias", data: kpi?.["30dias"] },
-              ].map(({ label, data }) => (
-                <tr key={label} className="border-b hover:bg-muted/50">
-                  <td className="px-4 py-2 font-medium text-foreground">{label}</td>
-                  <td className="px-4 py-2 text-right text-foreground">{data?.anuncios ?? "-"}</td>
-                  <td className="px-4 py-2 text-right font-medium text-foreground">{data?.vendas ?? "-"}</td>
-                  <td className="px-4 py-2 text-right text-foreground">{data?.visitas?.toLocaleString("pt-BR") ?? "-"}</td>
-                  <td className="px-4 py-2 text-right text-foreground">
-                    {data?.conversao != null ? `${data.conversao.toFixed(2)}%` : "-"}
-                  </td>
-                  <td className="px-4 py-2 text-right font-medium text-green-600">
-                    {data?.receita != null && data.receita > 0 ? formatCurrency(data.receita) : "-"}
-                  </td>
-                  <td className="px-4 py-2 text-right font-medium text-foreground">
-                    {data?.valor_estoque != null ? formatCurrency(data.valor_estoque) : "-"}
-                  </td>
-                </tr>
+      {/* ─── Funil de Conversao + Tabela KPI por periodo (lado a lado) ─────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* Funil de Conversao */}
+        <div className="rounded-lg border bg-card shadow-sm">
+          <div className="px-4 py-2 border-b flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-foreground">Funil de Conversao</h2>
+            <div className="flex gap-1">
+              {(["7d", "15d", "30d", "60d"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setFunnelPeriod(p)}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-xs font-medium transition-colors",
+                    funnelPeriod === p
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {p}
+                </button>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </div>
+          <div className="p-4">
+            <ConversionFunnel data={funnelData} />
+          </div>
+        </div>
+
+        {/* Tabela KPI por periodo */}
+        <div className="rounded-lg border bg-card shadow-sm lg:col-span-2">
+          <div className="px-4 py-2 border-b">
+            <h2 className="text-sm font-semibold text-foreground">Resumo por Periodo</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">Periodo</th>
+                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">Anuncios</th>
+                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">Vendas</th>
+                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">Visitas</th>
+                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">Conversao</th>
+                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">Receita</th>
+                  <th className="px-4 py-2 text-right font-medium text-muted-foreground">Valor Estoque</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { label: "Hoje", data: kpi?.hoje },
+                  { label: "Ontem", data: kpi?.ontem },
+                  { label: "Anteontem", data: kpi?.anteontem },
+                  { label: "7 dias", data: kpi?.["7dias"] },
+                  { label: "30 dias", data: kpi?.["30dias"] },
+                ].map(({ label, data }) => (
+                  <tr key={label} className="border-b hover:bg-muted/50">
+                    <td className="px-4 py-2 font-medium text-foreground">{label}</td>
+                    <td className="px-4 py-2 text-right text-foreground">{data?.anuncios ?? "-"}</td>
+                    <td className="px-4 py-2 text-right font-medium text-foreground">{data?.vendas ?? "-"}</td>
+                    <td className="px-4 py-2 text-right text-foreground">{data?.visitas?.toLocaleString("pt-BR") ?? "-"}</td>
+                    <td className="px-4 py-2 text-right text-foreground">
+                      {data?.conversao != null ? `${data.conversao.toFixed(2)}%` : "-"}
+                    </td>
+                    <td className="px-4 py-2 text-right font-medium text-green-600">
+                      {data?.receita != null && data.receita > 0 ? formatCurrency(data.receita) : "-"}
+                    </td>
+                    <td className="px-4 py-2 text-right font-medium text-foreground">
+                      {data?.valor_estoque != null ? formatCurrency(data.valor_estoque) : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Heatmap de Concentracao de Vendas ─────────────────────────────────── */}
+      <div className="rounded-lg border bg-card shadow-sm mb-6">
+        <div className="px-4 py-2 border-b flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-foreground">Concentracao de Vendas por Dia da Semana</h2>
+          <div className="flex gap-1">
+            {(["7d", "15d", "30d", "60d"] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setHeatmapPeriod(p)}
+                className={cn(
+                  "px-2 py-0.5 rounded text-xs font-medium transition-colors",
+                  heatmapPeriod === p
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="p-4">
+          {!heatmapData ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Carregando dados de concentracao de vendas...
+            </p>
+          ) : (
+            <SalesHeatmap data={heatmapData} />
+          )}
         </div>
       </div>
 
@@ -444,16 +556,56 @@ export default function Dashboard() {
         <div className="rounded-lg border bg-card shadow-sm mb-6 px-6 py-4 flex items-center justify-between">
           <div>
             <p className="text-sm text-muted-foreground">Valor Total em Estoque (atual)</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Soma de todos os anuncios ativos × estoque × preco com desconto</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Soma de todos os anuncios ativos x estoque x preco com desconto</p>
           </div>
           <p className="text-2xl font-bold text-green-600">{formatCurrency(totalEstoqueValor)}</p>
         </div>
       )}
 
+      {/* ─── Filtro de periodo ──────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 mb-4 bg-muted/50 rounded-lg p-1 w-fit">
+        {PERIOD_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => setTablePeriod(opt.value)}
+            className={cn(
+              "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+              tablePeriod === opt.value
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       {/* ─── Tabela de anuncios estilo UpSeller ──────────────────────────────── */}
       <div className="rounded-lg border bg-card shadow-sm">
-        <div className="px-6 py-4 border-b">
-          <h2 className="text-lg font-semibold text-foreground">Anuncios Ativos</h2>
+        <div className="px-6 py-4 border-b flex items-center justify-between gap-4">
+          <h2 className="text-lg font-semibold text-foreground shrink-0">Anuncios Ativos</h2>
+          <div className="flex items-center gap-3 flex-1 justify-end">
+            {/* Campo de busca */}
+            <div className="relative max-w-xs w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Buscar por titulo, MLB ou SKU..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+              />
+            </div>
+            {displayListings.length > 0 && (
+              <button
+                onClick={() => exportCSV(filteredListings)}
+                className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors shrink-0"
+              >
+                <Download className="h-3.5 w-3.5" />
+                CSV
+              </button>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -463,10 +615,11 @@ export default function Dashboard() {
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Pedidos</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Unidades</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Receita (R$)</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Você Recebe</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Voce Recebe</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Preco/Unidade</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Preco/Venda</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Participacao</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Visitas</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Conversao</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Estoque</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Dias p/ Zerar</th>
@@ -476,28 +629,28 @@ export default function Dashboard() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={totalCols} className="px-6 py-8 text-center text-muted-foreground">
                     Carregando...
                   </td>
                 </tr>
-              ) : displayListings.length === 0 ? (
+              ) : filteredListings.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-muted-foreground">
-                    Nenhum anuncio encontrado. Sincronize para importar do Mercado Livre.
+                  <td colSpan={totalCols} className="px-6 py-8 text-center text-muted-foreground">
+                    {searchTerm ? `Nenhum anuncio encontrado para "${searchTerm}".` : "Nenhum anuncio encontrado. Sincronize para importar do Mercado Livre."}
                   </td>
                 </tr>
               ) : (
                 <>
-                  {sortedListings.map((listing) => {
+                  {filteredListings.map((listing) => {
                     const effectivePrice = listing.sale_price ?? listing.price;
                     const snap = listing.last_snapshot;
                     const pedidos = snap?.orders_count ?? snap?.sales_today ?? 0;
                     const unidades = snap?.sales_today ?? 0;
                     const receita = snap?.revenue ?? (unidades * effectivePrice);
                     const precoMedio = snap?.avg_selling_price ?? (unidades > 0 ? receita / unidades : effectivePrice);
-                    // Preço médio por VENDA (receita / pedidos — 1 pedido pode ter N unidades)
                     const precoMedioPorVenda = listing.avg_price_per_sale ?? (pedidos > 0 ? receita / pedidos : null);
                     const participacao = listing.participacao_pct;
+                    const visitas = snap?.visits ?? 0;
                     const conversao = snap?.conversion_rate;
                     const estoque = snap?.stock;
                     const diasParaZerar = listing.dias_para_zerar;
@@ -527,21 +680,30 @@ export default function Dashboard() {
                               </p>
                               <p className="text-xs text-muted-foreground mt-0.5 font-mono">
                                 {listing.mlb_id}
-                                {listing.seller_sku && ` · SKU: ${listing.seller_sku}`}
+                                {listing.seller_sku && ` . SKU: ${listing.seller_sku}`}
                               </p>
                             </div>
                           </div>
                         </td>
+                        {/* Pedidos */}
                         <td className="px-4 py-3 text-right font-medium">
                           {pedidos > 0 ? pedidos : "-"}
                         </td>
-                        <td className="px-4 py-3 text-right font-medium">
-                          {unidades > 0 ? unidades : "-"}
+                        {/* Unidades + variacao */}
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="font-medium">{unidades > 0 ? unidades : "-"}</span>
+                            <Variacao value={listing.vendas_variacao} />
+                          </div>
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-green-600">
-                          {receita > 0 ? formatCurrency(receita) : "-"}
+                        {/* Receita + variacao */}
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="font-medium text-green-600">{receita > 0 ? formatCurrency(receita) : "-"}</span>
+                            <Variacao value={listing.receita_variacao} />
+                          </div>
                         </td>
-                        {/* Você Recebe */}
+                        {/* Voce Recebe */}
                         <td className="px-4 py-3 text-right font-semibold text-green-600">
                           {listing.voce_recebe != null ? formatCurrency(listing.voce_recebe) : "-"}
                         </td>
@@ -549,13 +711,13 @@ export default function Dashboard() {
                         <td className="px-4 py-3 text-right">
                           {formatCurrency(precoMedio)}
                         </td>
-                        {/* ITEM 1: Preco/Venda */}
+                        {/* Preco/Venda */}
                         <td className="px-4 py-3 text-right">
                           {precoMedioPorVenda != null ? (
                             <span className="text-blue-700 font-medium">{formatCurrency(precoMedioPorVenda)}</span>
                           ) : "-"}
                         </td>
-                        {/* ITEM 2: Participacao % */}
+                        {/* Participacao % */}
                         <td className="px-4 py-3 text-right">
                           {participacao != null ? (
                             <div className="flex flex-col items-end gap-0.5">
@@ -577,6 +739,14 @@ export default function Dashboard() {
                             </div>
                           ) : "-"}
                         </td>
+                        {/* Visitas */}
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Eye className="h-3 w-3 text-muted-foreground/50" />
+                            <span>{visitas > 0 ? visitas.toLocaleString("pt-BR") : "-"}</span>
+                          </div>
+                        </td>
+                        {/* Conversao */}
                         <td className="px-4 py-3 text-right">
                           {conversao != null ? (
                             <span className={cn(
@@ -587,6 +757,7 @@ export default function Dashboard() {
                             </span>
                           ) : "-"}
                         </td>
+                        {/* Estoque */}
                         <td className="px-4 py-3 text-right">
                           <span className={cn(
                             (estoque ?? 0) < 10 ? "text-red-600 font-medium" : "text-foreground"
@@ -594,9 +765,11 @@ export default function Dashboard() {
                             {estoque ?? "-"}
                           </span>
                         </td>
+                        {/* Dias p/ Zerar */}
                         <td className="px-4 py-3 text-right">
                           <DiasBadge dias={diasParaZerar} />
                         </td>
+                        {/* Acoes */}
                         <td className="px-4 py-3 text-center">
                           <Link
                             to={`/anuncios/${listing.mlb_id}`}
@@ -612,18 +785,19 @@ export default function Dashboard() {
                   {/* ── Linha de totais ── */}
                   <tr className="bg-muted/30 font-bold border-t-2">
                     <td className="px-4 py-3 text-xs text-muted-foreground font-bold uppercase tracking-wide">
-                      TOTAL ({displayListings.length} anuncios)
+                      TOTAL ({filteredListings.length} anuncios)
                     </td>
                     <td className="px-4 py-3 text-right">{totalPedidos > 0 ? totalPedidos : "-"}</td>
                     <td className="px-4 py-3 text-right">{totalUnidades > 0 ? totalUnidades : "-"}</td>
                     <td className="px-4 py-3 text-right text-green-600">{totalReceita > 0 ? formatCurrency(totalReceita) : "-"}</td>
-                    <td className="px-4 py-3 text-right text-green-600">—</td>
+                    <td className="px-4 py-3 text-right text-green-600">--</td>
                     <td className="px-4 py-3 text-right">{formatCurrency(avgPrecoMedio > 0 ? avgPrecoMedio : 0)}</td>
                     <td className="px-4 py-3 text-right text-blue-700">{avgPrecoMedioPorVenda > 0 ? formatCurrency(avgPrecoMedioPorVenda) : "-"}</td>
                     <td className="px-4 py-3 text-right text-muted-foreground">100%</td>
+                    <td className="px-4 py-3 text-right">{totalVisitas > 0 ? totalVisitas.toLocaleString("pt-BR") : "-"}</td>
                     <td className="px-4 py-3 text-right">{formatPercent(avgConversao)}</td>
                     <td className="px-4 py-3 text-right">{totalEstoque > 0 ? totalEstoque : "-"}</td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">—</td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">--</td>
                     <td className="px-4 py-3"></td>
                   </tr>
                 </>

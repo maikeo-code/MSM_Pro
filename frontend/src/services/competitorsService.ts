@@ -14,6 +14,21 @@ export interface CompetitorCreate {
   competitor_mlb_id: string;
 }
 
+export interface CompetitorHistoryItem {
+  date: string;
+  price: number;
+  sold_quantity: number | null;
+  sales_delta: number;
+}
+
+export interface CompetitorHistory {
+  competitor_id: string;
+  mlb_id: string;
+  title: string | null;
+  days: number;
+  history: CompetitorHistoryItem[];
+}
+
 const competitorsService = {
   async list(): Promise<CompetitorOut[]> {
     const { data } = await api.get<CompetitorOut[]>("/competitors/");
@@ -32,6 +47,13 @@ const competitorsService = {
 
   async remove(id: string): Promise<void> {
     await api.delete(`/competitors/${id}`);
+  },
+
+  async getHistory(competitorId: string, days = 30): Promise<CompetitorHistory> {
+    const { data } = await api.get<CompetitorHistory>(`/competitors/${competitorId}/history`, {
+      params: { days },
+    });
+    return data;
   },
 };
 

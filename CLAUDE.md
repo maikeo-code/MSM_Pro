@@ -475,6 +475,13 @@ CELERY_RESULT_BACKEND=redis://localhost:6379/2
 - `/dev` — implementa features no codigo
 - `/qa` — verifica e testa o codigo
 - `/insights` — sugere melhorias com base em ferramentas similares
+- `/ml-api` — especialista na API do ML. Valida endpoints, campos e formatos antes de implementar.
+
+### Regra de uso do agente ml-api (OBRIGATORIO)
+**ANTES de criar ou modificar qualquer chamada a API do Mercado Livre:**
+1. Consultar `docs/ml_api_reference.md` (fonte da verdade)
+2. Se endpoint nao esta documentado: chamar agente `ml-api` para pesquisar, testar e documentar
+3. So implementar apos validacao
 
 ### Regra de uso de subagentes (OBRIGATORIO)
 | Situacao | Agentes a usar |
@@ -483,6 +490,7 @@ CELERY_RESULT_BACKEND=redis://localhost:6379/2
 | Backend + frontend ao mesmo tempo | 1 `dev` backend + 1 `dev` frontend em paralelo |
 | Implementar feature + verificar | 1 `dev` implementando + 1 `qa` verificando |
 | Sessao longa com muitas tarefas | 2x `dev` (dividir por modulo) + 1 `qa` no final |
+| Qualquer integracao com API ML | `ml-api` valida primeiro + `dev` implementa depois |
 
 **Limite: maximo 3 agentes simultaneos** — mais causa conflito de arquivos.
 **Modelo padrao: Sonnet 4.6** para agentes (custo-beneficio). Opus 4.6 para tarefas complexas.

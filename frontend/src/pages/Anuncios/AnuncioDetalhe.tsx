@@ -17,8 +17,6 @@ import {
   Activity,
   Layers,
   Sparkles,
-  X,
-  Loader2,
 } from "lucide-react";
 import { consultorService, type ConsultorResponse } from "@/services/consultorService";
 import {
@@ -38,127 +36,9 @@ import {
 } from "recharts";
 import listingsService from "@/services/listingsService";
 import productsService from "@/services/productsService";
+import competitorsService from "@/services/competitorsService";
 import { formatCurrency, formatDate, formatPercent, cn } from "@/lib/utils";
-
-// ─── Render simples de markdown para o Consultor IA ──────────────────────────
-function RenderAnalise({ texto }: { texto: string }) {
-  const paragrafos = texto.split(/\n\n+/);
-  return (
-    <div className="space-y-3 text-sm leading-relaxed text-gray-700">
-      {paragrafos.map((paragrafo, i) => {
-        const linhas = paragrafo.split("\n");
-        const ehLista = linhas.every((l) => l.trim().startsWith("- ") || l.trim() === "");
-        if (ehLista && linhas.some((l) => l.trim().startsWith("- "))) {
-          return (
-            <ul key={i} className="list-none space-y-1 pl-0">
-              {linhas.filter((l) => l.trim().startsWith("- ")).map((item, j) => {
-                const conteudo = item.replace(/^-\s+/, "");
-                return (
-                  <li key={j} className="flex items-start gap-2">
-                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
-                    <span dangerouslySetInnerHTML={{ __html: conteudo.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>") }} />
-                  </li>
-                );
-              })}
-            </ul>
-          );
-        }
-        const html = paragrafo.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-        return <p key={i} dangerouslySetInnerHTML={{ __html: html }} />;
-      })}
-    </div>
-  );
-}
-
-// ─── Drawer do Consultor IA (inline) ─────────────────────────────────────────
-interface ConsultorDrawerProps {
-  aberto: boolean;
-  onFechar: () => void;
-  loading: boolean;
-  resultado: ConsultorResponse | null;
-  erro: string | null;
-}
-
-function ConsultorDrawer({ aberto, onFechar, loading, resultado, erro }: ConsultorDrawerProps) {
-  return (
-    <>
-      <div
-        className={cn(
-          "fixed inset-0 z-40 bg-black/30 backdrop-blur-sm transition-opacity duration-300",
-          aberto ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-        )}
-        onClick={onFechar}
-      />
-      <div
-        className={cn(
-          "fixed inset-y-0 right-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out",
-          "w-full sm:w-[480px]",
-          aberto ? "translate-x-0" : "translate-x-full"
-        )}
-      >
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-white" />
-            <h2 className="text-base font-semibold text-white">Consultor IA — Analise do Anuncio</h2>
-          </div>
-          <button
-            onClick={onFechar}
-            className="rounded-md p-1.5 text-white/70 hover:text-white hover:bg-white/20 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {loading && (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
-              <p className="text-sm text-gray-500 font-medium">Analisando este anuncio...</p>
-              <p className="text-xs text-gray-400 text-center max-w-xs">
-                A IA esta processando o historico de vendas, conversao e estoque deste anuncio.
-              </p>
-            </div>
-          )}
-          {erro && !loading && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              <p className="font-semibold mb-1">Erro ao gerar analise</p>
-              <p>{erro}</p>
-            </div>
-          )}
-          {resultado && !loading && (
-            <div className="space-y-4">
-              <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-3">
-                <p className="text-xs text-blue-600 font-medium uppercase tracking-wide">Analise do anuncio</p>
-              </div>
-              <RenderAnalise texto={resultado.analise} />
-            </div>
-          )}
-          {!loading && !erro && !resultado && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-              <Sparkles className="h-10 w-10 text-blue-200" />
-              <p className="text-sm text-gray-500">A analise sera gerada automaticamente</p>
-            </div>
-          )}
-        </div>
-
-        {resultado && !loading && (
-          <div className="border-t border-gray-200 px-6 py-3 bg-gray-50">
-            <p className="text-xs text-gray-500">
-              {resultado.anuncios_analisados} anuncio(s) analisado(s) &bull;{" "}
-              {new Date(resultado.gerado_em).toLocaleString("pt-BR", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </p>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
+import { ConsultorDrawer } from "@/components/ConsultorDrawer";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 type ChartView = "vendas" | "preco" | "conversao" | "completo";
@@ -283,6 +163,30 @@ export default function AnuncioDetalhe() {
     },
   });
 
+  // Buscar listing_id interno para poder consultar competitors
+  const listingIdInterno = analysis?.snapshots?.[0]?.listing_id ?? null;
+
+  const { data: competitorsList } = useQuery({
+    queryKey: ["competitors-by-listing", listingIdInterno],
+    queryFn: () => competitorsService.listByListing(listingIdInterno!),
+    enabled: !!listingIdInterno && !!analysis?.competitor,
+  });
+
+  // Encontrar o competitor_id interno pelo mlb_id do competitor
+  const competitorId = React.useMemo(() => {
+    if (!competitorsList || !analysis?.competitor) return null;
+    const found = competitorsList.find(
+      (c) => c.mlb_id === analysis.competitor?.mlb_id
+    );
+    return found?.id ?? null;
+  }, [competitorsList, analysis?.competitor]);
+
+  const { data: competitorHistory } = useQuery({
+    queryKey: ["competitor-history", competitorId, days],
+    queryFn: () => competitorsService.getHistory(competitorId!, days),
+    enabled: !!competitorId,
+  });
+
   if (error) {
     return (
       <div className="p-8">
@@ -371,6 +275,8 @@ export default function AnuncioDetalhe() {
         loading={consultorLoading}
         resultado={consultorResultado}
         erro={consultorErro}
+        titulo="Consultor IA — Analise do Anuncio"
+        subtituloAnalise="Analise do anuncio"
       />
 
       {/* ─── Header ──────────────────────────────────────────────────────────── */}
@@ -1237,22 +1143,23 @@ export default function AnuncioDetalhe() {
 
       {/* ─── Competitor ──────────────────────────────────────────────────────── */}
       {analysis.competitor && (
-        <div className="rounded-lg border bg-card p-6">
-          <h2 className="text-lg font-semibold mb-4">Concorrente Vinculado</h2>
+        <div className="rounded-lg border bg-card p-6 space-y-6">
+          {/* Resumo estático do concorrente */}
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium">{analysis.competitor.mlb_id}</p>
+              <h2 className="text-lg font-semibold mb-1">Concorrente Vinculado</h2>
+              <p className="font-medium text-muted-foreground">{analysis.competitor.mlb_id}</p>
               <p className="text-sm text-muted-foreground">
-                Preco: {formatCurrency(analysis.competitor.price)}
+                Preco atual: <span className="font-semibold text-foreground">{formatCurrency(analysis.competitor.price)}</span>
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Atualizado em:{" "}
-                {new Date(analysis.competitor.last_updated).toLocaleDateString()}
+                {new Date(analysis.competitor.last_updated).toLocaleDateString("pt-BR")}
               </p>
             </div>
             <div className="text-right">
               {analysis.listing.price > analysis.competitor.price ? (
-                <div>
+                <div className="space-y-1">
                   <p className="text-sm font-medium text-red-600">
                     {(
                       ((analysis.listing.price - analysis.competitor.price) /
@@ -1261,9 +1168,10 @@ export default function AnuncioDetalhe() {
                     ).toFixed(1)}
                     % mais caro
                   </p>
+                  <p className="text-xs text-muted-foreground">que o concorrente</p>
                 </div>
               ) : (
-                <div>
+                <div className="space-y-1">
                   <p className="text-sm font-medium text-green-600">
                     {(
                       ((analysis.competitor.price - analysis.listing.price) /
@@ -1272,9 +1180,132 @@ export default function AnuncioDetalhe() {
                     ).toFixed(1)}
                     % mais barato
                   </p>
+                  <p className="text-xs text-muted-foreground">que o concorrente</p>
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Grafico historico de preco: meu vs concorrente */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <BarChart2 className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">Historico de Preco — Meu vs Concorrente</h3>
+            </div>
+
+            {!competitorId ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                Carregando dados do concorrente...
+              </p>
+            ) : !competitorHistory || competitorHistory.history.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                Sem historico de preco disponivel para este concorrente. Os dados sao coletados diariamente pelo Celery.
+              </p>
+            ) : (() => {
+                // Merge: combina historico do concorrente com snapshots do meu listing por data
+                const myPriceByDate: Record<string, number> = {};
+                analysis.snapshots.forEach((snap) => {
+                  const dateKey = snap.captured_at.slice(0, 10);
+                  myPriceByDate[dateKey] = Number(snap.price);
+                });
+
+                const mergedData = competitorHistory.history.map((item) => {
+                  const dateKey = (item.date as string).slice(0, 10);
+                  return {
+                    date: dateKey,
+                    competitor_price: Number(item.price),
+                    my_price: myPriceByDate[dateKey] ?? null,
+                  };
+                });
+
+                const fmtCurrency = (v: number) =>
+                  new Intl.NumberFormat("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  }).format(v);
+
+                const fmtDate = (v: string) => {
+                  const d = new Date(v + "T00:00:00");
+                  return isNaN(d.getTime())
+                    ? v
+                    : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+                };
+
+                return (
+                  <>
+                    <div className="flex items-center gap-6 text-xs text-muted-foreground mb-3">
+                      <span className="flex items-center gap-1.5">
+                        <span className="inline-block w-4 h-0.5 bg-blue-500" />
+                        Meu Preco
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="inline-block w-4 h-0.5 bg-red-500" />
+                        Concorrente ({competitorHistory.mlb_id})
+                      </span>
+                    </div>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <LineChart
+                        data={mergedData}
+                        margin={{ top: 10, right: 20, left: 0, bottom: 60 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" className="opacity-40" />
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 11 }}
+                          angle={-45}
+                          height={80}
+                          tickFormatter={fmtDate}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(v: number) =>
+                            new Intl.NumberFormat("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                              maximumFractionDigits: 0,
+                            }).format(v)
+                          }
+                        />
+                        <Tooltip
+                          formatter={(value: unknown, name: string) => [
+                            value != null ? fmtCurrency(Number(value)) : "—",
+                            name,
+                          ]}
+                          labelFormatter={(label: string) => {
+                            const d = new Date(label + "T00:00:00");
+                            return isNaN(d.getTime())
+                              ? label
+                              : d.toLocaleDateString("pt-BR", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                });
+                          }}
+                        />
+                        <Legend />
+                        <Line
+                          type="stepAfter"
+                          dataKey="my_price"
+                          stroke="#3B82F6"
+                          strokeWidth={2}
+                          dot={false}
+                          name="Meu Preco"
+                          connectNulls={false}
+                        />
+                        <Line
+                          type="stepAfter"
+                          dataKey="competitor_price"
+                          stroke="#EF4444"
+                          strokeWidth={2}
+                          dot={false}
+                          name="Concorrente"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </>
+                );
+              })()
+            }
           </div>
         </div>
       )}
