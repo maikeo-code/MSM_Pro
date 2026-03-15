@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { mkdirSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DB_PATH = join(__dirname, '../../../data/learning.db');
+const DB_PATH = join(__dirname, '../../data/learning.db');
 
 mkdirSync(dirname(DB_PATH), { recursive: true });
 
@@ -43,6 +43,9 @@ export function initLearningDb() {
       created_at            TEXT    DEFAULT (datetime('now'))
     );
 
+    CREATE INDEX IF NOT EXISTS idx_pairs_contact   ON response_pairs(contact_name);
+    CREATE INDEX IF NOT EXISTS idx_pairs_timestamp ON response_pairs(created_at);
+
     CREATE TABLE IF NOT EXISTS contact_styles (
       id                   INTEGER PRIMARY KEY AUTOINCREMENT,
       contact_name         TEXT    UNIQUE NOT NULL,
@@ -57,6 +60,8 @@ export function initLearningDb() {
       total_interactions   INTEGER DEFAULT 0,
       last_updated         TEXT    DEFAULT (datetime('now'))
     );
+
+    CREATE INDEX IF NOT EXISTS idx_styles_contact ON contact_styles(contact_name);
 
     CREATE TABLE IF NOT EXISTS user_vocabulary (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,

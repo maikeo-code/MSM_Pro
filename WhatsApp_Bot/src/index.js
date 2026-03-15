@@ -13,6 +13,7 @@ import { initLearningDb, getFeedbackStats } from './learning/learningDb.js';
 import { showAllProfiles, getLearningProgress } from './learning/contactProfile.js';
 import { runFullAnalysis } from './learning/styleAnalyzer.js';
 import { onAutoAnalysis } from './learning/collector.js';
+import { getPendingSuggestions, removeSuggestion, pendingCount } from './handlers/suggestionQueue.js';
 
 const LOGO = `
 ${chalk.green('╔══════════════════════════════════════╗')}
@@ -51,23 +52,107 @@ async function showStatus() {
 }
 
 async function showMenu() {
+  const pending = pendingCount();
+  const replyLabel = pending > 0
+    ? chalk.bold.green(`✉  Responder sugestao (${pending} pendente${pending > 1 ? 's' : ''})`)
+    : chalk.gray('✉  Responder sugestao (nenhuma pendente)');
+
+  const choices = [
+    { name: `${chalk.green('▶')} Ver status`, value: 'status' },
+    { name: replyLabel, value: 'reply', disabled: pending === 0 ? '(sem sugestoes)' : false },
+    { name: `${chalk.bold.cyan('📬')} Escanear nao lidas (resumo + sugestoes)`, value: 'unread' },
+    { name: `${chalk.blue('💬')} Ver mensagens de hoje`, value: 'messages' },
+    { name: `${chalk.yellow('🔄')} Mudar modo (atual: ${currentMode})`, value: 'mode' },
+    { name: `${chalk.magenta('📋')} Gerar resumo do dia`, value: 'summary' },
+    { name: `${chalk.white('🧠')} Ver aprendizado (perfis)`, value: 'learning' },
+    { name: `${chalk.white('🔄')} Analisar estilo agora`, value: 'analyze' },
+    { name: `${chalk.red('✖')} Sair`, value: 'exit' },
+  ];
+
   const { action } = await inquirer.prompt([{
     type: 'list',
     name: 'action',
     message: 'O que deseja fazer?',
-    choices: [
-      { name: `${chalk.green('▶')} Ver status`, value: 'status' },
-      { name: `${chalk.bold.cyan('📬')} Escanear nao lidas (resumo + sugestoes)`, value: 'unread' },
-      { name: `${chalk.blue('💬')} Ver mensagens de hoje`, value: 'messages' },
-      { name: `${chalk.yellow('🔄')} Mudar modo (atual: ${currentMode})`, value: 'mode' },
-      { name: `${chalk.magenta('📋')} Gerar resumo do dia`, value: 'summary' },
-      { name: `${chalk.white('🧠')} Ver aprendizado (perfis)`, value: 'learning' },
-      { name: `${chalk.white('🔄')} Analisar estilo agora`, value: 'analyze' },
-      { name: `${chalk.red('✖')} Sair`, value: 'exit' },
-    ],
+    choices,
   }]);
 
   return action;
+}
+
+/**
+ * Interactive flow to reply using a pending suggestion.
+ * User picks a contact, then picks a suggestion (or types custom text).
+ */
+async function handleReply() {
+  const pending = getPendingSuggestions();
+  if (pending.length === 0) {
+    console.log(chalk.yellow('\nNenhuma sugestao pendente.\n'));
+    return;
+  }
+
+  // If only one contact, skip the contact selection step
+  let entry;
+  if (pending.length === 1) {
+    entry = pending[0];
+  } else {
+    const { chatId } = await inquirer.prompt([{
+      type: 'list',
+      name: 'chatId',
+      message: 'Para qual contato deseja responder?',
+      choices: pending.map(p => ({
+        name: `${p.contactName} — "${p.incomingMsg.substring(0, 50)}"`,
+        value: p.chatId,
+      })),
+    }]);
+    entry = pending.find(p => p.chatId === chatId);
+  }
+
+  console.log('\n' + chalk.bold(`Mensagem de ${entry.contactName}:`));
+  console.log(chalk.gray(`  "${entry.incomingMsg}"\n`));
+
+  // Build choices: numbered suggestions + custom option
+  const choices = entry.suggestions.map((s, i) => ({
+    name: `${i + 1}. [${s.label}] ${s.text}`,
+    value: String(i),
+  }));
+  choices.push({ name: chalk.cyan('✏  Escrever resposta personalizada'), value: 'custom' });
+  choices.push({ name: chalk.gray('↩  Ignorar (voltar ao menu)'), value: 'skip' });
+
+  const { pick } = await inquirer.prompt([{
+    type: 'list',
+    name: 'pick',
+    message: 'Qual resposta enviar?',
+    choices,
+  }]);
+
+  if (pick === 'skip') {
+    return;
+  }
+
+  let textToSend;
+  if (pick === 'custom') {
+    const { custom } = await inquirer.prompt([{
+      type: 'input',
+      name: 'custom',
+      message: 'Digite sua resposta:',
+    }]);
+    if (!custom || !custom.trim()) {
+      console.log(chalk.yellow('Resposta vazia — cancelado.\n'));
+      return;
+    }
+    textToSend = custom.trim();
+  } else {
+    textToSend = entry.suggestions[Number(pick)].text;
+  }
+
+  // Send the message
+  try {
+    await whatsappClient.sendMessage(entry.chatId, textToSend);
+    console.log(chalk.green(`\n✓ Mensagem enviada para ${entry.contactName}: "${textToSend.substring(0, 60)}"\n`));
+    removeSuggestion(entry.chatId);
+  } catch (err) {
+    console.error(chalk.red(`Erro ao enviar mensagem: ${err.message}`));
+  }
 }
 
 async function showTodayMessages() {
@@ -222,6 +307,9 @@ async function main() {
       switch (action) {
         case 'status':
           await showStatus();
+          break;
+        case 'reply':
+          await handleReply();
           break;
         case 'unread':
           await scanUnreadMessages(whatsappClient);

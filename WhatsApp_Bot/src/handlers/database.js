@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { mkdirSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DB_PATH = join(__dirname, '../../../data/messages.db');
+const DB_PATH = join(__dirname, '../../data/messages.db');
 
 // Ensure the data directory exists before opening the database
 mkdirSync(dirname(DB_PATH), { recursive: true });
@@ -34,12 +34,18 @@ export function initDb() {
       group_name   TEXT
     );
 
+    CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_messages_contact   ON messages(contact_name);
+    CREATE INDEX IF NOT EXISTS idx_messages_chat      ON messages(chat_id);
+
     CREATE TABLE IF NOT EXISTS summaries (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       date       TEXT    NOT NULL UNIQUE,
       content    TEXT    NOT NULL,
       created_at INTEGER NOT NULL
     );
+
+    CREATE INDEX IF NOT EXISTS idx_summaries_date ON summaries(date);
   `);
 
   return db;
@@ -108,9 +114,14 @@ export function saveMessage({
  * @returns {object[]}
  */
 export function getMessagesToday() {
-  const startOfDay = new Date();
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  const startTs = Math.floor(startOfDay.getTime() / 1000);
+  // Calculate start of day in BRT (UTC-3) so messages between 00:00-02:59 BRT
+  // are not misclassified as belonging to the previous UTC day.
+  const now = new Date();
+  const brtOffset = -3 * 60; // BRT = UTC-3, in minutes
+  const brtNow = new Date(now.getTime() + (brtOffset + now.getTimezoneOffset()) * 60000);
+  brtNow.setHours(0, 0, 0, 0);
+  const startOfDayBRT = new Date(brtNow.getTime() - (brtOffset + now.getTimezoneOffset()) * 60000);
+  const startTs = Math.floor(startOfDayBRT.getTime() / 1000);
 
   return getDb()
     .prepare(

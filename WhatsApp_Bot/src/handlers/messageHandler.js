@@ -1,8 +1,10 @@
+import chalk from 'chalk';
 import { settings } from '../config/settings.js';
 import { generateResponse, classifyMessage, suggestResponse } from '../ai/claude.js';
 import { saveMessage, getMessagesByContact } from './database.js';
 import { registerIncoming, registerOutgoing, registerSuggestions, evaluateSuggestionFeedback } from '../learning/collector.js';
 import { getStyleContext } from '../learning/styleAnalyzer.js';
+import { addSuggestion } from './suggestionQueue.js';
 
 /**
  * Handle a single incoming WhatsApp message.
@@ -144,6 +146,9 @@ export async function handleIncomingMessage(msg, { mode, whatsappClient } = {}) 
         // Register suggestions for feedback tracking
         registerSuggestions(from, contactName, body, suggestions);
 
+        // Store in the queue so user can send from the menu
+        addSuggestion(from, contactName, body, suggestions);
+
         console.log('\n─────────────────────────────────────────');
         console.log(`Nova msg de ${contactName}${isGroup ? ` (${groupName})` : ''}:`);
         console.log(`  "${body}"`);
@@ -153,6 +158,7 @@ export async function handleIncomingMessage(msg, { mode, whatsappClient } = {}) 
           console.log(`  ${i + 1}. [${s.label}] ${s.text}`);
         });
 
+        console.log(chalk.yellow('  Use o menu "Responder sugestao" para enviar.'));
         console.log('─────────────────────────────────────────\n');
       }
     } catch (err) {

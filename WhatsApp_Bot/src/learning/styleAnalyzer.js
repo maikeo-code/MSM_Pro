@@ -1,5 +1,5 @@
 import { settings } from '../config/settings.js';
-import Anthropic from '@anthropic-ai/sdk';
+import { getClient } from '../ai/claude.js';
 import {
   getResponsePairs,
   getAllResponsePairs,
@@ -9,7 +9,6 @@ import {
   getTopVocabulary,
 } from './learningDb.js';
 
-const client = new Anthropic({ apiKey: settings.anthropicApiKey });
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
 
 /**
@@ -33,7 +32,7 @@ export async function analyzeContactStyle(contactName) {
   ).join('\n---\n');
 
   try {
-    const response = await client.messages.create({
+    const response = await getClient().messages.create({
       model: HAIKU_MODEL,
       max_tokens: 800,
       messages: [{
@@ -98,7 +97,7 @@ export async function analyzeGlobalVocabulary() {
   const responses = allPairs.map(p => p.user_response).join('\n');
 
   try {
-    const response = await client.messages.create({
+    const response = await getClient().messages.create({
       model: HAIKU_MODEL,
       max_tokens: 600,
       messages: [{

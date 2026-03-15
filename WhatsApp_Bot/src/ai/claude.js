@@ -7,10 +7,20 @@ import {
   SUGGEST_PROMPT,
 } from './prompts.js';
 
-const client = new Anthropic({ apiKey: settings.anthropicApiKey });
-
 // Haiku model used for cheap classification calls
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
+
+// Lazy singleton — client is only created on first use, after API key validation in index.js
+let _client = null;
+export function getClient() {
+  if (!_client) {
+    if (!settings.anthropicApiKey) {
+      throw new Error('ANTHROPIC_API_KEY nao configurada');
+    }
+    _client = new Anthropic({ apiKey: settings.anthropicApiKey });
+  }
+  return _client;
+}
 
 /**
  * Builds a messages array from conversation context and the new incoming message.
@@ -58,7 +68,7 @@ export async function generateResponse(context, message, contactName, styleConte
     }
     const messages = buildMessages(context, message, contactName);
 
-    const response = await client.messages.create({
+    const response = await getClient().messages.create({
       model: settings.aiModel,
       max_tokens: settings.maxTokens,
       system: systemPrompt,
@@ -82,7 +92,7 @@ export async function generateSummary(conversations) {
   try {
     const prompt = SUMMARY_PROMPT(conversations);
 
-    const response = await client.messages.create({
+    const response = await getClient().messages.create({
       model: settings.aiModel,
       max_tokens: 2000,
       messages: [{ role: 'user', content: prompt }],
@@ -107,7 +117,7 @@ export async function classifyMessage(message, contactName) {
   try {
     const prompt = CLASSIFY_PROMPT(contactName, message);
 
-    const response = await client.messages.create({
+    const response = await getClient().messages.create({
       model: HAIKU_MODEL,
       max_tokens: 150,
       messages: [{ role: 'user', content: prompt }],
@@ -143,7 +153,7 @@ export async function suggestResponse(context, message, contactName, styleContex
       prompt += `\n\nIMPORTANTE - Baseie as sugestoes no estilo real do usuario:\n${styleContext}`;
     }
 
-    const response = await client.messages.create({
+    const response = await getClient().messages.create({
       model: settings.aiModel,
       max_tokens: 600,
       messages: [{ role: 'user', content: prompt }],
