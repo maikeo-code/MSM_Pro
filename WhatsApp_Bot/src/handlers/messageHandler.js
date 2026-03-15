@@ -1,7 +1,7 @@
 import { settings } from '../config/settings.js';
 import { generateResponse, classifyMessage, suggestResponse } from '../ai/claude.js';
 import { saveMessage, getMessagesByContact } from './database.js';
-import { registerIncoming, registerOutgoing } from '../learning/collector.js';
+import { registerIncoming, registerOutgoing, registerSuggestions, evaluateSuggestionFeedback } from '../learning/collector.js';
 import { getStyleContext } from '../learning/styleAnalyzer.js';
 
 /**
@@ -49,6 +49,8 @@ export async function handleIncomingMessage(msg, { mode, whatsappClient } = {}) 
   if (msg.fromMe === true) {
     if (body) {
       registerOutgoing(from, contactName, body);
+      // Evaluate if user used/modified/ignored our suggestions
+      evaluateSuggestionFeedback(from, body);
       saveMessage({ chatId: from, contactName, body, fromMe: true, timestamp: msg.timestamp ?? Math.floor(Date.now() / 1000), category: null, isGroup, groupName });
     }
     return { handled: false, mode: activeMode, contact: contactName };
@@ -151,6 +153,9 @@ export async function handleIncomingMessage(msg, { mode, whatsappClient } = {}) 
       const suggestions = await suggestResponse(contextMsgs, body, contactName, styleContext);
 
       if (suggestions && suggestions.length > 0) {
+        // Register suggestions for feedback tracking
+        registerSuggestions(from, contactName, body, suggestions);
+
         console.log('\n─────────────────────────────────────────');
         console.log(`Nova msg de ${contactName}${isGroup ? ` (${groupName})` : ''}:`);
         console.log(`  "${body}"`);

@@ -76,6 +76,18 @@ export function initLearningDb() {
       accuracy_score        REAL    DEFAULT 0.0,
       UNIQUE(date)
     );
+
+    CREATE TABLE IF NOT EXISTS suggestion_feedback (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      contact_name      TEXT    NOT NULL,
+      contact_id        TEXT,
+      incoming_msg      TEXT    NOT NULL,
+      suggested_texts   TEXT,
+      user_response     TEXT,
+      outcome           TEXT    NOT NULL,
+      similarity_score  REAL    DEFAULT 0.0,
+      created_at        TEXT    DEFAULT (datetime('now'))
+    );
   `);
 
   return db;
@@ -352,4 +364,71 @@ export function getMetrics(date) {
       .prepare(`SELECT * FROM learning_metrics WHERE date = ?`)
       .get(date) ?? null
   );
+}
+
+/**
+ * Save feedback about a suggestion (was it used, modified, or ignored?).
+ *
+ * @param {object} params
+ * @param {string}   params.contactName
+ * @param {string}   [params.contactId]
+ * @param {string}   params.incomingMsg
+ * @param {string[]} [params.suggestedTexts] - The suggestions the bot offered
+ * @param {string}   [params.userResponse]   - What the user actually sent
+ * @param {string}   params.outcome          - 'used' | 'modified' | 'ignored' | 'own_response'
+ * @param {number}   [params.similarityScore] - 0.0 to 1.0 (how close was the suggestion)
+ */
+export function saveSuggestionFeedback({
+  contactName,
+  contactId = null,
+  incomingMsg,
+  suggestedTexts = [],
+  userResponse = null,
+  outcome,
+  similarityScore = 0.0,
+}) {
+  const stmt = getDb().prepare(`
+    INSERT INTO suggestion_feedback
+      (contact_name, contact_id, incoming_msg, suggested_texts,
+       user_response, outcome, similarity_score)
+    VALUES
+      (@contactName, @contactId, @incomingMsg, @suggestedTexts,
+       @userResponse, @outcome, @similarityScore)
+  `);
+
+  stmt.run({
+    contactName,
+    contactId,
+    incomingMsg,
+    suggestedTexts: JSON.stringify(suggestedTexts),
+    userResponse,
+    outcome,
+    similarityScore,
+  });
+}
+
+/**
+ * Get feedback stats: how often suggestions are used vs ignored.
+ *
+ * @returns {{ total: number, used: number, modified: number, ignored: number, ownResponse: number, accuracy: number }}
+ */
+export function getFeedbackStats() {
+  const rows = getDb()
+    .prepare(`SELECT outcome, COUNT(*) as count FROM suggestion_feedback GROUP BY outcome`)
+    .all();
+
+  const stats = { total: 0, used: 0, modified: 0, ignored: 0, ownResponse: 0 };
+  for (const row of rows) {
+    stats.total += row.count;
+    if (row.outcome === 'used') stats.used = row.count;
+    if (row.outcome === 'modified') stats.modified = row.count;
+    if (row.outcome === 'ignored') stats.ignored = row.count;
+    if (row.outcome === 'own_response') stats.ownResponse = row.count;
+  }
+
+  stats.accuracy = stats.total > 0
+    ? Math.round(((stats.used + stats.modified * 0.5) / stats.total) * 100)
+    : 0;
+
+  return stats;
 }

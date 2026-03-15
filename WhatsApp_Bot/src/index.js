@@ -9,9 +9,10 @@ import { handleIncomingMessage } from './handlers/messageHandler.js';
 import { initDb, getMessagesToday } from './handlers/database.js';
 import { generateDailySummary, scheduleSummary } from './summaries/dailySummary.js';
 import { scanUnreadMessages } from './handlers/unreadScanner.js';
-import { initLearningDb } from './learning/learningDb.js';
+import { initLearningDb, getFeedbackStats } from './learning/learningDb.js';
 import { showAllProfiles, getLearningProgress } from './learning/contactProfile.js';
 import { runFullAnalysis } from './learning/styleAnalyzer.js';
+import { onAutoAnalysis } from './learning/collector.js';
 
 const LOGO = `
 ${chalk.green('╔══════════════════════════════════════╗')}
@@ -37,6 +38,14 @@ async function showStatus() {
   const bar = '█'.repeat(Math.floor(progress.percentage / 10)) + '░'.repeat(10 - Math.floor(progress.percentage / 10));
   console.log(`${chalk.cyan('Aprendizado:')} [${bar}] ${progress.percentage}% — ${progress.description}`);
   console.log(`${chalk.cyan('Respostas aprendidas:')} ${progress.totalPairs}`);
+
+  // Show suggestion feedback stats
+  const feedback = getFeedbackStats();
+  if (feedback.total > 0) {
+    console.log(`${chalk.cyan('Sugestoes:')} ${feedback.total} total | ${chalk.green(feedback.used + ' usadas')} | ${chalk.yellow(feedback.modified + ' modificadas')} | ${chalk.gray(feedback.ownResponse + ' proprias')}`);
+    console.log(`${chalk.cyan('Precisao IA:')} ${feedback.accuracy}%`);
+  }
+
   console.log(`${chalk.cyan('Hora atual:')} ${dayjs().format('HH:mm:ss')}`);
   console.log('');
 }
@@ -152,6 +161,15 @@ async function main() {
   initDb();
   initLearningDb();
   dbSpinner.succeed('Bancos de dados prontos (mensagens + aprendizado)');
+
+  // Register auto-analysis callback (triggers after every 20 new learned pairs)
+  onAutoAnalysis(async () => {
+    const result = await runFullAnalysis();
+    console.log(
+      chalk.magenta('[Auto-Aprendizado]') + ' ' +
+      chalk.green(`${result.contactsAnalyzed} perfis atualizados automaticamente`)
+    );
+  });
 
   // Connect WhatsApp
   const waSpinner = ora('Conectando ao WhatsApp...').start();
