@@ -1,0 +1,252 @@
+from rich.console import Console
+
+from insta_app.core.rate_limiter import RateLimiter
+
+try:
+    from instagrapi import Client
+except ImportError:
+    Console().print(
+        "[bold red]Erro:[/bold red] instagrapi nao instalado. "
+        "Execute: pip install instagrapi"
+    )
+    raise
+
+console = Console()
+
+_ACTION = "like"
+
+
+class LikeManager:
+    def __init__(self, client: Client, rate_limiter: RateLimiter) -> None:
+        """
+        Gerencia curtidas de forma segura e com rate limiting.
+
+        Args:
+            client: instagrapi.Client ja autenticado.
+            rate_limiter: instancia de RateLimiter para controlar cadencia.
+        """
+        self._client = client
+        self._rate_limiter = rate_limiter
+
+    # ------------------------------------------------------------------
+    # Metodos publicos
+    # ------------------------------------------------------------------
+
+    def like_new_followers_posts(self, max_posts_per_user: int = 3) -> dict:
+        """
+        Busca novos seguidores e curte os ultimos N posts de cada um.
+
+        Args:
+            max_posts_per_user: numero maximo de posts para curtir por usuario.
+
+        Returns:
+            {"users_processed": int, "likes_given": int, "errors": int}
+        """
+        from insta_app.features.monitoring import FollowerMonitor
+
+        monitor = FollowerMonitor(self._client, data_dir="data")
+        new_followers = monitor.get_new_followers()
+
+        users_processed = 0
+        likes_given = 0
+        errors = 0
+
+        if not new_followers:
+            console.print("[yellow]Nenhum novo seguidor encontrado para curtir posts.[/yellow]")
+            return {"users_processed": 0, "likes_given": 0, "errors": 0}
+
+        console.print(
+            f"[cyan]Curtindo posts de {len(new_followers)} novo(s) seguidor(es)...[/cyan]"
+        )
+
+        for user in new_followers:
+            user_id = int(user.pk)
+            username = user.username
+
+            if user.is_private:
+                console.print(f"[dim]@{username} tem perfil privado — pulando.[/dim]")
+                continue
+
+            try:
+                medias = self._client.user_medias(user_id, amount=max_posts_per_user)
+            except Exception as exc:
+                console.print(f"[yellow]Erro ao buscar posts de @{username}:[/yellow] {exc}")
+                errors += 1
+                continue
+
+            user_likes = 0
+            for media in medias:
+                if not self._rate_limiter.can_perform(_ACTION):
+                    console.print("[yellow]Limite de curtidas atingido. Pausando.[/yellow]")
+                    break
+
+                self._rate_limiter.wait_for_action(_ACTION)
+
+                try:
+                    self._client.media_like(media.pk)
+                    self._rate_limiter.record_action(_ACTION)
+                    user_likes += 1
+                    likes_given += 1
+                    console.print(
+                        f"[green]Curtida:[/green] post {media.pk} de @{username}"
+                    )
+                except Exception as exc:
+                    console.print(
+                        f"[red]Erro ao curtir post {media.pk} de @{username}:[/red] {exc}"
+                    )
+                    errors += 1
+
+            if user_likes > 0:
+                users_processed += 1
+
+        return {
+            "users_processed": users_processed,
+            "likes_given": likes_given,
+            "errors": errors,
+        }
+
+    def like_user_posts(self, username: str, amount: int = 3) -> dict:
+        """
+        Curte os ultimos N posts de um usuario especifico.
+
+        Args:
+            username: nome de usuario do Instagram (sem @).
+            amount: numero de posts para curtir.
+
+        Returns:
+            {"username": str, "likes_given": int, "errors": int}
+        """
+        username = username.lstrip("@")
+        likes_given = 0
+        errors = 0
+
+        try:
+            user_info = self._client.user_info_by_username(username)
+            user_id = int(user_info.pk)
+        except Exception as exc:
+            console.print(f"[red]Erro ao buscar usuario @{username}:[/red] {exc}")
+            return {"username": username, "likes_given": 0, "errors": 1}
+
+        if user_info.is_private:
+            console.print(f"[yellow]@{username} tem perfil privado — impossivel ver posts.[/yellow]")
+            return {"username": username, "likes_given": 0, "errors": 0}
+
+        try:
+            medias = self._client.user_medias(user_id, amount=amount)
+        except Exception as exc:
+            console.print(f"[red]Erro ao buscar posts de @{username}:[/red] {exc}")
+            return {"username": username, "likes_given": 0, "errors": 1}
+
+        console.print(
+            f"[cyan]Curtindo {len(medias)} post(s) de @{username}...[/cyan]"
+        )
+
+        for media in medias:
+            if not self._rate_limiter.can_perform(_ACTION):
+                console.print("[yellow]Limite de curtidas atingido. Pausando.[/yellow]")
+                break
+
+            self._rate_limiter.wait_for_action(_ACTION)
+
+            try:
+                self._client.media_like(media.pk)
+                self._rate_limiter.record_action(_ACTION)
+                likes_given += 1
+                console.print(f"[green]Curtida:[/green] post {media.pk} de @{username}")
+            except Exception as exc:
+                console.print(
+                    f"[red]Erro ao curtir post {media.pk} de @{username}:[/red] {exc}"
+                )
+                errors += 1
+
+        return {"username": username, "likes_given": likes_given, "errors": errors}
+
+    def like_list_posts(self, usernames: list[str], max_posts_per_user: int = 3) -> dict:
+        """
+        Curte posts de uma lista de usernames.
+
+        Args:
+            usernames: lista de nomes de usuario (com ou sem @).
+            max_posts_per_user: numero maximo de posts por usuario.
+
+        Returns:
+            {"users_processed": int, "likes_given": int, "errors": int}
+        """
+        users_processed = 0
+        total_likes = 0
+        total_errors = 0
+
+        console.print(
+            f"[cyan]Curtindo posts de {len(usernames)} usuario(s)...[/cyan]"
+        )
+
+        for username in usernames:
+            result = self.like_user_posts(username, amount=max_posts_per_user)
+            if result["likes_given"] > 0:
+                users_processed += 1
+            total_likes += result["likes_given"]
+            total_errors += result["errors"]
+
+        return {
+            "users_processed": users_processed,
+            "likes_given": total_likes,
+            "errors": total_errors,
+        }
+
+    def like_commenters_posts(self, amount: int = 3) -> dict:
+        """
+        Busca seus posts recentes, identifica comentaristas e curte posts deles.
+
+        Args:
+            amount: numero de posts para curtir por comentarista.
+
+        Returns:
+            {"commenters_found": int, "likes_given": int, "errors": int}
+        """
+        commenters_found = 0
+        likes_given = 0
+        errors = 0
+
+        console.print("[dim]Buscando seus posts recentes...[/dim]")
+
+        try:
+            my_medias = self._client.user_medias(self._client.user_id, amount=10)
+        except Exception as exc:
+            console.print(f"[red]Erro ao buscar seus posts:[/red] {exc}")
+            return {"commenters_found": 0, "likes_given": 0, "errors": 1}
+
+        seen_commenter_ids: set[int] = set()
+
+        for media in my_medias:
+            console.print(f"[dim]Buscando comentaristas do post {media.pk}...[/dim]")
+            try:
+                comments = self._client.media_comments(media.pk)
+            except Exception as exc:
+                console.print(f"[yellow]Erro ao buscar comentarios do post {media.pk}:[/yellow] {exc}")
+                errors += 1
+                continue
+
+            for comment in comments:
+                commenter_id = int(comment.user.pk)
+                commenter_username = comment.user.username
+
+                # Nao curtir seus proprios posts de volta e nao repetir commentaristas
+                if commenter_id == int(self._client.user_id):
+                    continue
+                if commenter_id in seen_commenter_ids:
+                    continue
+
+                seen_commenter_ids.add(commenter_id)
+                commenters_found += 1
+
+                console.print(f"[cyan]Curtindo posts de comentarista @{commenter_username}...[/cyan]")
+
+                result = self.like_user_posts(commenter_username, amount=amount)
+                likes_given += result["likes_given"]
+                errors += result["errors"]
+
+        return {
+            "commenters_found": commenters_found,
+            "likes_given": likes_given,
+            "errors": errors,
+        }
