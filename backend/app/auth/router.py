@@ -136,6 +136,33 @@ async def list_ml_accounts(
     return result.scalars().all()
 
 
+@router.get("/ml/accounts/{account_id}/token")
+async def get_ml_account_token(
+    account_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Retorna o access_token ML de uma conta (para uso com MCP server)."""
+    result = await db.execute(
+        select(MLAccount).where(
+            MLAccount.id == account_id,
+            MLAccount.user_id == current_user.id,
+            MLAccount.is_active == True,  # noqa: E712
+        )
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conta não encontrada")
+    if not account.access_token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token ML não disponível. Reconecte a conta.")
+    return {
+        "access_token": account.access_token,
+        "nickname": account.nickname,
+        "ml_user_id": account.ml_user_id,
+        "expires_at": account.token_expires_at.isoformat() if account.token_expires_at else None,
+    }
+
+
 @router.delete("/ml/accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_ml_account(
     account_id: UUID,
