@@ -42,6 +42,16 @@ class WhatsAppClient extends EventEmitter {
       }
     });
 
+    // Capture outgoing messages (user's own responses) for learning
+    this.client.on('message_create', (msg) => {
+      if (msg.fromMe) {
+        this.emit('message_create', msg);
+        if (typeof this.messageCallback === 'function') {
+          this.messageCallback(msg);
+        }
+      }
+    });
+
     this.client.on('disconnected', (reason) => {
       this.isReady = false;
       console.log('WhatsApp desconectado:', reason);

@@ -50,9 +50,12 @@ function buildMessages(context, message, contactName) {
  * @param {string} contactName - Name of the sender
  * @returns {Promise<string|null>} The reply text, or null on error
  */
-export async function generateResponse(context, message, contactName) {
+export async function generateResponse(context, message, contactName, styleContext = '') {
   try {
-    const systemPrompt = SYSTEM_PROMPT(settings.myName);
+    let systemPrompt = SYSTEM_PROMPT(settings.myName);
+    if (styleContext) {
+      systemPrompt += `\n\nIMPORTANTE - Use o estilo aprendido do usuario:\n${styleContext}`;
+    }
     const messages = buildMessages(context, message, contactName);
 
     const response = await client.messages.create({
@@ -133,9 +136,12 @@ export async function classifyMessage(message, contactName) {
  * @param {string} contactName - Name of the sender
  * @returns {Promise<Array<{label: string, text: string}>|null>} Suggestion array, or null on error
  */
-export async function suggestResponse(context, message, contactName) {
+export async function suggestResponse(context, message, contactName, styleContext = '') {
   try {
-    const prompt = SUGGEST_PROMPT(contactName, context, message);
+    let prompt = SUGGEST_PROMPT(contactName, context, message);
+    if (styleContext) {
+      prompt += `\n\nIMPORTANTE - Baseie as sugestoes no estilo real do usuario:\n${styleContext}`;
+    }
 
     const response = await client.messages.create({
       model: settings.aiModel,

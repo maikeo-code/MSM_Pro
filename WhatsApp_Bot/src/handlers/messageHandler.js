@@ -1,6 +1,8 @@
 import { settings } from '../config/settings.js';
 import { generateResponse, classifyMessage, suggestResponse } from '../ai/claude.js';
 import { saveMessage, getMessagesByContact } from './database.js';
+import { registerIncoming, registerOutgoing } from '../learning/collector.js';
+import { getStyleContext } from '../learning/styleAnalyzer.js';
 
 /**
  * Handle a single incoming WhatsApp message.
@@ -43,8 +45,12 @@ export async function handleIncomingMessage(msg, { mode, whatsappClient } = {}) 
 
   const activeMode = mode || settings.botMode;
 
-  // Skip messages sent by the bot itself
+  // Capture outgoing messages for learning (user's own responses)
   if (msg.fromMe === true) {
+    if (body) {
+      registerOutgoing(from, contactName, body);
+      saveMessage({ chatId: from, contactName, body, fromMe: true, timestamp: msg.timestamp ?? Math.floor(Date.now() / 1000), category: null, isGroup, groupName });
+    }
     return { handled: false, mode: activeMode, contact: contactName };
   }
 
@@ -107,6 +113,9 @@ export async function handleIncomingMessage(msg, { mode, whatsappClient } = {}) 
     groupName,
   });
 
+  // Register for learning (pairs incoming with future outgoing)
+  registerIncoming(from, contactName, body, category, isGroup);
+
   // ------------------------------------------------------------------
   // 5. Act according to botMode
   // ------------------------------------------------------------------
@@ -117,9 +126,17 @@ export async function handleIncomingMessage(msg, { mode, whatsappClient } = {}) 
     body: m.body,
   }));
 
+  // Get learned style context (how the user usually responds to this contact)
+  let styleContext = '';
+  try {
+    styleContext = await getStyleContext(contactName);
+  } catch {
+    // Learning data may not exist yet
+  }
+
   if (activeMode === 'auto') {
     try {
-      const response = await generateResponse(contextMsgs, body, contactName);
+      const response = await generateResponse(contextMsgs, body, contactName, styleContext);
       if (response) {
         await msg.reply(response);
         console.log(
@@ -131,7 +148,7 @@ export async function handleIncomingMessage(msg, { mode, whatsappClient } = {}) 
     }
   } else if (activeMode === 'suggest') {
     try {
-      const suggestions = await suggestResponse(contextMsgs, body, contactName);
+      const suggestions = await suggestResponse(contextMsgs, body, contactName, styleContext);
 
       if (suggestions && suggestions.length > 0) {
         console.log('\n─────────────────────────────────────────');

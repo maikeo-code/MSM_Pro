@@ -9,6 +9,9 @@ import { handleIncomingMessage } from './handlers/messageHandler.js';
 import { initDb, getMessagesToday } from './handlers/database.js';
 import { generateDailySummary, scheduleSummary } from './summaries/dailySummary.js';
 import { scanUnreadMessages } from './handlers/unreadScanner.js';
+import { initLearningDb } from './learning/learningDb.js';
+import { showAllProfiles, getLearningProgress } from './learning/contactProfile.js';
+import { runFullAnalysis } from './learning/styleAnalyzer.js';
 
 const LOGO = `
 ${chalk.green('╔══════════════════════════════════════╗')}
@@ -30,6 +33,10 @@ async function showStatus() {
   console.log(`${chalk.cyan('Modelo IA:')} ${settings.aiModel}`);
   console.log(`${chalk.cyan('Mensagens hoje:')} ${received} recebidas, ${sent} enviadas`);
   console.log(`${chalk.cyan('Resumo agendado:')} ${settings.summaryTime}`);
+  const progress = getLearningProgress();
+  const bar = '█'.repeat(Math.floor(progress.percentage / 10)) + '░'.repeat(10 - Math.floor(progress.percentage / 10));
+  console.log(`${chalk.cyan('Aprendizado:')} [${bar}] ${progress.percentage}% — ${progress.description}`);
+  console.log(`${chalk.cyan('Respostas aprendidas:')} ${progress.totalPairs}`);
   console.log(`${chalk.cyan('Hora atual:')} ${dayjs().format('HH:mm:ss')}`);
   console.log('');
 }
@@ -45,6 +52,8 @@ async function showMenu() {
       { name: `${chalk.blue('💬')} Ver mensagens de hoje`, value: 'messages' },
       { name: `${chalk.yellow('🔄')} Mudar modo (atual: ${currentMode})`, value: 'mode' },
       { name: `${chalk.magenta('📋')} Gerar resumo do dia`, value: 'summary' },
+      { name: `${chalk.white('🧠')} Ver aprendizado (perfis)`, value: 'learning' },
+      { name: `${chalk.white('🔄')} Analisar estilo agora`, value: 'analyze' },
       { name: `${chalk.red('✖')} Sair`, value: 'exit' },
     ],
   }]);
@@ -97,18 +106,25 @@ async function changeMode() {
 async function onMessage(msg) {
   try {
     const parsed = parseMessage(msg);
-
-    if (msg.fromMe) return;
-
     const contactName = parsed.fromName || parsed.from;
     const preview = parsed.body?.substring(0, 60) || '[midia]';
 
-    console.log(
-      chalk.gray(dayjs().format('HH:mm:ss')) + ' ' +
-      chalk.cyan(`[${contactName}]`) + ' ' +
-      preview
-    );
+    if (msg.fromMe) {
+      // Capture user's own messages for learning
+      console.log(
+        chalk.gray(dayjs().format('HH:mm:ss')) + ' ' +
+        chalk.green('[Voce]') + ' ' +
+        chalk.gray(preview)
+      );
+    } else {
+      console.log(
+        chalk.gray(dayjs().format('HH:mm:ss')) + ' ' +
+        chalk.cyan(`[${contactName}]`) + ' ' +
+        preview
+      );
+    }
 
+    // Handler processes BOTH incoming and outgoing (for learning)
     await handleIncomingMessage(msg, {
       mode: currentMode,
       whatsappClient,
@@ -132,9 +148,10 @@ async function main() {
   }
 
   // Init database
-  const dbSpinner = ora('Inicializando banco de dados...').start();
+  const dbSpinner = ora('Inicializando bancos de dados...').start();
   initDb();
-  dbSpinner.succeed('Banco de dados pronto');
+  initLearningDb();
+  dbSpinner.succeed('Bancos de dados prontos (mensagens + aprendizado)');
 
   // Connect WhatsApp
   const waSpinner = ora('Conectando ao WhatsApp...').start();
@@ -204,6 +221,15 @@ async function main() {
           console.log('\n' + chalk.bold('=== Resumo do Dia ==='));
           console.log(summary);
           console.log('');
+          break;
+        }
+        case 'learning':
+          showAllProfiles();
+          break;
+        case 'analyze': {
+          const analyzeSpinner = ora('Analisando seu estilo de comunicacao...').start();
+          const result = await runFullAnalysis();
+          analyzeSpinner.succeed(`Analise completa! ${result.contactsAnalyzed} perfis atualizados.`);
           break;
         }
         case 'exit':
