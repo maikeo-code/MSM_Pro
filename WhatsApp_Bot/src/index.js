@@ -8,6 +8,7 @@ import { parseMessage } from './whatsapp/formatter.js';
 import { handleIncomingMessage } from './handlers/messageHandler.js';
 import { initDb, getMessagesToday } from './handlers/database.js';
 import { generateDailySummary, scheduleSummary } from './summaries/dailySummary.js';
+import { scanUnreadMessages } from './handlers/unreadScanner.js';
 
 const LOGO = `
 ${chalk.green('╔══════════════════════════════════════╗')}
@@ -40,9 +41,10 @@ async function showMenu() {
     message: 'O que deseja fazer?',
     choices: [
       { name: `${chalk.green('▶')} Ver status`, value: 'status' },
+      { name: `${chalk.bold.cyan('📬')} Escanear nao lidas (resumo + sugestoes)`, value: 'unread' },
       { name: `${chalk.blue('💬')} Ver mensagens de hoje`, value: 'messages' },
       { name: `${chalk.yellow('🔄')} Mudar modo (atual: ${currentMode})`, value: 'mode' },
-      { name: `${chalk.magenta('📋')} Gerar resumo agora`, value: 'summary' },
+      { name: `${chalk.magenta('📋')} Gerar resumo do dia`, value: 'summary' },
       { name: `${chalk.red('✖')} Sair`, value: 'exit' },
     ],
   }]);
@@ -167,8 +169,12 @@ async function main() {
     process.exit(1);
   }
 
-  // Schedule daily summary
+  // Schedule daily summary (resumo automatico no horario configurado)
   const cancelSummary = scheduleSummary(settings.summaryTime);
+
+  // Auto-scan unread messages on connect (resumo automatico ao conectar)
+  console.log('');
+  await scanUnreadMessages(whatsappClient);
 
   // Show initial status
   await showStatus();
@@ -181,6 +187,9 @@ async function main() {
       switch (action) {
         case 'status':
           await showStatus();
+          break;
+        case 'unread':
+          await scanUnreadMessages(whatsappClient);
           break;
         case 'messages':
           await showTodayMessages();

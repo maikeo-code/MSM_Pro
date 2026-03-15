@@ -20,14 +20,16 @@ export const SUMMARY_PROMPT = (conversations) => {
   return `Voce e um assistente pessoal. Abaixo estao todas as conversas do dia no WhatsApp. Faca um resumo organizado e objetivo em portugues brasileiro.
 
 Agrupe as conversas nas seguintes categorias:
-- Trabalho/Fornecedores
-- Pessoal
-- Grupos
+- 💰 FINANCEIRO (bancos, cobranças, pagamentos, boletos, PIX, faturas)
+- 🏢 TRABALHO/FORNECEDORES (clientes, fornecedores, negocios)
+- 👤 PESSOAL (amigos, familia, conversas casuais)
+- 👥 GRUPOS
 
-Para cada conversa relevante, destaque:
-- Assunto principal
-- Acoes pendentes ou compromissos
-- Mensagens urgentes nao respondidas
+Para cada conversa:
+1. Resumo em 1-2 linhas do que se trata
+2. Acoes pendentes (pagamentos, respostas necessarias, compromissos)
+3. Urgencia: URGENTE / NORMAL / PODE ESPERAR
+4. Se tem algo que precisa de resposta, sugira uma resposta curta
 
 CONVERSAS DO DIA:
 ${lines.join('\n')}
