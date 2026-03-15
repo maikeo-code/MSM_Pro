@@ -46,3 +46,7 @@ Thumbs.db
 _auto_learning/db/learning.db
 _auto_learning/logs/
 _auto_learning/exports/
+
+# WhatsApp Bot data (SQLite databases)
+data/
+WhatsApp_Bot/data/
