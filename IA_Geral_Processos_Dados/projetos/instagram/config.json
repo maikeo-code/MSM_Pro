@@ -1,0 +1,15 @@
+{
+  "nome": "Instagram Automation",
+  "descricao": "Automacao de conteudo e interacoes no Instagram",
+  "status": "planejado",
+  "caminho_local": "",
+  "repositorio": "",
+  "stack": "",
+  "deploy": "",
+  "auto_learning_instalado": false,
+  "ciclos_completados": 0,
+  "regras_aprendidas": 0,
+  "modulos": [],
+  "apis_externas": ["Instagram Graph API"],
+  "data_registro": "2026-03-15"
+}

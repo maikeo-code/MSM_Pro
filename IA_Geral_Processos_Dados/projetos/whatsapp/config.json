@@ -1,0 +1,15 @@
+{
+  "nome": "WhatsApp Bot",
+  "descricao": "Automacao de atendimento e notificacoes via WhatsApp",
+  "status": "planejado",
+  "caminho_local": "",
+  "repositorio": "",
+  "stack": "",
+  "deploy": "",
+  "auto_learning_instalado": false,
+  "ciclos_completados": 0,
+  "regras_aprendidas": 0,
+  "modulos": [],
+  "apis_externas": ["WhatsApp Business API"],
+  "data_registro": "2026-03-15"
+}

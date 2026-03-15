@@ -1,0 +1,15 @@
+{
+  "nome": "Email Automation",
+  "descricao": "Automacao de emails, campanhas e notificacoes",
+  "status": "planejado",
+  "caminho_local": "",
+  "repositorio": "",
+  "stack": "",
+  "deploy": "",
+  "auto_learning_instalado": false,
+  "ciclos_completados": 0,
+  "regras_aprendidas": 0,
+  "modulos": [],
+  "apis_externas": ["SMTP", "SendGrid ou similar"],
+  "data_registro": "2026-03-15"
+}

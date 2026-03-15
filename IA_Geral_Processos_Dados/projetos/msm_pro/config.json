@@ -1,0 +1,24 @@
+{
+  "nome": "MSM_Pro",
+  "descricao": "Dashboard de inteligencia de vendas para Mercado Livre",
+  "status": "ativo",
+  "caminho_local": "C:\\Users\\Maikeo\\MSM_Imports_Mercado_Livre\\MSM_Pro",
+  "repositorio": "github",
+  "stack": "FastAPI + React + PostgreSQL + Redis + Celery",
+  "deploy": "Railway",
+  "auto_learning_instalado": true,
+  "ciclos_completados": 5,
+  "regras_aprendidas": 12,
+  "sprint_atual": 2,
+  "modulos": [
+    "Dashboard + KPIs",
+    "Analise de Preco por Anuncio",
+    "Concorrencia",
+    "Alertas",
+    "Multi-Conta ML"
+  ],
+  "apis_externas": [
+    "Mercado Livre (api.mercadolibre.com)"
+  ],
+  "data_registro": "2026-03-15"
+}
