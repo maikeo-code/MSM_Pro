@@ -13,7 +13,7 @@ import { initLearningDb, getFeedbackStats } from './learning/learningDb.js';
 import { showAllProfiles, getLearningProgress } from './learning/contactProfile.js';
 import { runFullAnalysis } from './learning/styleAnalyzer.js';
 import { onAutoAnalysis } from './learning/collector.js';
-import { getPendingSuggestions, removeSuggestion, pendingCount } from './handlers/suggestionQueue.js';
+import { getPendingSuggestions, removeSuggestion, pendingCount, clearAll as clearSuggestions } from './handlers/suggestionQueue.js';
 
 const LOGO = `
 ${chalk.green('╔══════════════════════════════════════╗')}
@@ -172,7 +172,7 @@ async function showTodayMessages() {
   for (const [contact, messages] of Object.entries(grouped)) {
     console.log(chalk.bold.cyan(`\n--- ${contact} (${messages.length} msgs) ---`));
     for (const msg of messages.slice(-5)) {
-      const time = dayjs(msg.timestamp).format('HH:mm');
+      const time = dayjs.unix(msg.timestamp).format('HH:mm');
       const prefix = msg.from_me ? chalk.green('Voce') : chalk.white(contact);
       console.log(`  ${chalk.gray(time)} ${prefix}: ${msg.body.substring(0, 80)}`);
     }
@@ -194,6 +194,7 @@ async function changeMode() {
   }]);
 
   currentMode = mode;
+  if (mode !== 'suggest') clearSuggestions();
   console.log(chalk.green(`\nModo alterado para: ${mode}\n`));
 }
 

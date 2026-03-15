@@ -1,7 +1,6 @@
 import dayjs from 'dayjs';
 import chalk from 'chalk';
 import { saveResponsePair, updateMetrics, getResponsePairCount, saveSuggestionFeedback } from './learningDb.js';
-import { getMessagesToday } from '../handlers/database.js';
 
 /**
  * Track when we last saw a message from each contact,

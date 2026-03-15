@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { getAllContactStyles, getContactStyle, getTopVocabulary } from './learningDb.js';
+import { getAllContactStyles, getContactStyle, getTopVocabulary, getResponsePairCount } from './learningDb.js';
 import { getResponsePairs, getAllResponsePairs } from './learningDb.js';
 
 /**
@@ -126,9 +126,8 @@ export function showAllProfiles() {
  * @returns {{ percentage: number, description: string, totalPairs: number }}
  */
 export function getLearningProgress() {
-  const allPairs = getAllResponsePairs(10000);
+  const total = getResponsePairCount();
   const styles = getAllContactStyles();
-  const total = allPairs.length;
 
   if (total === 0) {
     return { percentage: 0, description: 'Sem dados - comece a usar o WhatsApp', totalPairs: 0 };
