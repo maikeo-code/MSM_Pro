@@ -1,0 +1,158 @@
+import { settings } from '../config/settings.js';
+import { generateResponse, classifyMessage, suggestResponse } from '../ai/claude.js';
+import { saveMessage, getMessagesByContact } from './database.js';
+
+/**
+ * Handle a single incoming WhatsApp message.
+ *
+ * @param {import('whatsapp-web.js').Message} msg
+ * @param {{ mode: string, whatsappClient: any }} options
+ * @returns {Promise<{ handled: boolean, mode: string, contact: string }>}
+ */
+export async function handleIncomingMessage(msg, { mode, whatsappClient } = {}) {
+  // ------------------------------------------------------------------
+  // 1. Extract message metadata
+  // ------------------------------------------------------------------
+  const from = msg.from;
+  const body = msg.body?.trim() ?? '';
+  const isGroup = msg.isGroupMsg ?? false;
+
+  // Resolve a human-readable contact name
+  let contactName = msg.notifyName ?? from;
+  try {
+    const contact = await msg.getContact();
+    contactName = contact.pushname || contact.name || contact.number || from;
+  } catch {
+    // getContact() can fail for some message types — keep the fallback value
+  }
+
+  // Group name (only meaningful when isGroup is true)
+  let groupName = null;
+  if (isGroup) {
+    try {
+      const chat = await msg.getChat();
+      groupName = chat.name ?? null;
+    } catch {
+      // ignore
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // 2. Early-exit guards
+  // ------------------------------------------------------------------
+
+  const activeMode = mode || settings.botMode;
+
+  // Skip messages sent by the bot itself
+  if (msg.fromMe === true) {
+    return { handled: false, mode: activeMode, contact: contactName };
+  }
+
+  // Skip media-only messages (no text body)
+  if (!body) {
+    return { handled: false, mode: activeMode, contact: contactName };
+  }
+
+  // Skip blacklisted contacts
+  if (
+    settings.blacklistContacts.length > 0 &&
+    settings.blacklistContacts.some(
+      (blocked) =>
+        blocked.trim().toLowerCase() === contactName.toLowerCase() ||
+        blocked.trim() === from
+    )
+  ) {
+    console.log(`[MessageHandler] Skipping blacklisted contact: ${contactName}`);
+    return { handled: false, mode: activeMode, contact: contactName };
+  }
+
+  // ------------------------------------------------------------------
+  // 3. Persist the message
+  // ------------------------------------------------------------------
+  const timestamp = msg.timestamp ?? Math.floor(Date.now() / 1000);
+
+  saveMessage({
+    chatId: from,
+    contactName,
+    body,
+    fromMe: false,
+    timestamp,
+    category: null, // will be updated after classification
+    isGroup,
+    groupName,
+  });
+
+  // ------------------------------------------------------------------
+  // 4. Classify the message with AI
+  // ------------------------------------------------------------------
+  let category = 'unknown';
+  try {
+    const classification = await classifyMessage(body, contactName);
+    if (classification) {
+      category = classification.category;
+    }
+  } catch (err) {
+    console.error('[MessageHandler] Classification error:', err.message);
+  }
+
+  // Update saved message with category
+  saveMessage({
+    chatId: from,
+    contactName,
+    body,
+    fromMe: false,
+    timestamp,
+    category,
+    isGroup,
+    groupName,
+  });
+
+  // ------------------------------------------------------------------
+  // 5. Act according to botMode
+  // ------------------------------------------------------------------
+
+  // Get conversation context for AI
+  const contextMsgs = getMessagesByContact(contactName, 20).map(m => ({
+    fromMe: Boolean(m.from_me),
+    body: m.body,
+  }));
+
+  if (activeMode === 'auto') {
+    try {
+      const response = await generateResponse(contextMsgs, body, contactName);
+      if (response) {
+        await msg.reply(response);
+        console.log(
+          `[MessageHandler] AUTO reply to ${contactName}: ${response.slice(0, 60)}...`
+        );
+      }
+    } catch (err) {
+      console.error('[MessageHandler] Auto-response error:', err.message);
+    }
+  } else if (activeMode === 'suggest') {
+    try {
+      const suggestions = await suggestResponse(contextMsgs, body, contactName);
+
+      if (suggestions && suggestions.length > 0) {
+        console.log('\n─────────────────────────────────────────');
+        console.log(`Nova msg de ${contactName}${isGroup ? ` (${groupName})` : ''}:`);
+        console.log(`  "${body}"`);
+        console.log('\nSugestoes de resposta:');
+
+        suggestions.forEach((s, i) => {
+          console.log(`  ${i + 1}. [${s.label}] ${s.text}`);
+        });
+
+        console.log('─────────────────────────────────────────\n');
+      }
+    } catch (err) {
+      console.error('[MessageHandler] Suggest error:', err.message);
+    }
+  } else {
+    console.log(
+      `[MessageHandler] SUMMARY mode — saved msg from ${contactName} (${category})`
+    );
+  }
+
+  return { handled: true, mode: activeMode, contact: contactName };
+}
