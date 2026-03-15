@@ -1,6 +1,7 @@
 import click
 from rich.console import Console
 from rich.panel import Panel
+from rich.prompt import Prompt
 from rich.table import Table
 
 from insta_app.config import Settings, _CONFIG_FILE
@@ -8,6 +9,69 @@ from insta_app.core.rate_limiter import RateLimiter
 from insta_app.core.session import SessionManager
 
 console = Console()
+
+
+# ---------------------------------------------------------------------------
+# Helpers compartilhados pelos novos comandos
+# ---------------------------------------------------------------------------
+
+def _get_logged_client():
+    """
+    Carrega sessao e retorna (settings, manager, client).
+    Encerra o processo se a sessao nao for valida.
+    """
+    settings = _load_settings()
+    manager = SessionManager(settings)
+    if not manager.load_session():
+        console.print(
+            Panel(
+                "[bold red]Sessao nao encontrada ou expirada.[/bold red]\n"
+                "Execute [bold]python -m insta_app.app login[/bold] primeiro.",
+                title="Erro de Autenticacao",
+            )
+        )
+        raise SystemExit(1)
+    return settings, manager, manager.get_client()
+
+
+def _parse_selection(selection: str, max_index: int) -> list[int]:
+    """
+    Converte string de selecao em lista de indices (1-based).
+    Aceita: "todos", "nenhum", "1,3,5-10", etc.
+    Retorna lista de indices 0-based para acesso em lista.
+    """
+    selection = selection.strip().lower()
+
+    if selection in ("nenhum", "n", ""):
+        return []
+
+    if selection in ("todos", "t", "all", "a"):
+        return list(range(max_index))
+
+    indices: list[int] = []
+    parts = [p.strip() for p in selection.split(",")]
+    for part in parts:
+        if "-" in part:
+            bounds = part.split("-", 1)
+            try:
+                start = int(bounds[0])
+                end = int(bounds[1])
+                for i in range(start, end + 1):
+                    if 1 <= i <= max_index:
+                        indices.append(i - 1)
+            except ValueError:
+                console.print(f"[yellow]Intervalo invalido ignorado: {part}[/yellow]")
+        else:
+            try:
+                i = int(part)
+                if 1 <= i <= max_index:
+                    indices.append(i - 1)
+                else:
+                    console.print(f"[yellow]Numero fora do intervalo ignorado: {i}[/yellow]")
+            except ValueError:
+                console.print(f"[yellow]Valor invalido ignorado: {part}[/yellow]")
+
+    return indices
 
 
 def _load_settings() -> Settings:
