@@ -353,6 +353,18 @@ export function updateMetrics(date, field) {
 }
 
 /**
+ * Return the total count of response pairs (efficient COUNT query).
+ *
+ * @returns {number}
+ */
+export function getResponsePairCount() {
+  const row = getDb()
+    .prepare(`SELECT COUNT(*) as count FROM response_pairs`)
+    .get();
+  return row?.count ?? 0;
+}
+
+/**
  * Return the metrics row for a specific date, or null if none.
  *
  * @param {string} date - YYYY-MM-DD

@@ -188,9 +188,9 @@ export async function getStyleContext(contactName) {
   let context = '';
 
   if (style) {
-    const greetings = JSON.parse(style.greeting_words || '[]');
-    const farewells = JSON.parse(style.farewell_words || '[]');
-    const phrases = JSON.parse(style.common_phrases || '[]');
+    const greetings = Array.isArray(style.greeting_words) ? style.greeting_words : [];
+    const farewells = Array.isArray(style.farewell_words) ? style.farewell_words : [];
+    const phrases = Array.isArray(style.common_phrases) ? style.common_phrases : [];
 
     context += `\nEstilo com ${contactName}:`;
     context += `\n- Tom: ${style.tone}`;

@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import chalk from 'chalk';
-import { saveResponsePair, updateMetrics, getAllResponsePairs, saveSuggestionFeedback } from './learningDb.js';
+import { saveResponsePair, updateMetrics, getResponsePairCount, saveSuggestionFeedback } from './learningDb.js';
 import { getMessagesToday } from '../handlers/database.js';
 
 /**
@@ -89,7 +89,7 @@ export function registerOutgoing(contactId, contactName, userResponse) {
   pendingMessages.delete(contactId);
 
   // Log learning event in real-time
-  const totalPairs = getAllResponsePairs(100000).length;
+  const totalPairs = getResponsePairCount();
   console.log(
     chalk.gray(dayjs().format('HH:mm:ss')) + ' ' +
     chalk.magenta('[Aprendizado]') + ' ' +

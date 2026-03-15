@@ -75,24 +75,10 @@ export async function handleIncomingMessage(msg, { mode, whatsappClient } = {}) 
   }
 
   // ------------------------------------------------------------------
-  // 3. Persist the message
+  // 3. Classify the message with AI
   // ------------------------------------------------------------------
   const timestamp = msg.timestamp ?? Math.floor(Date.now() / 1000);
 
-  saveMessage({
-    chatId: from,
-    contactName,
-    body,
-    fromMe: false,
-    timestamp,
-    category: null, // will be updated after classification
-    isGroup,
-    groupName,
-  });
-
-  // ------------------------------------------------------------------
-  // 4. Classify the message with AI
-  // ------------------------------------------------------------------
   let category = 'unknown';
   try {
     const classification = await classifyMessage(body, contactName);
@@ -103,7 +89,9 @@ export async function handleIncomingMessage(msg, { mode, whatsappClient } = {}) 
     console.error('[MessageHandler] Classification error:', err.message);
   }
 
-  // Update saved message with category
+  // ------------------------------------------------------------------
+  // 4. Persist the message (once, with category already set)
+  // ------------------------------------------------------------------
   saveMessage({
     chatId: from,
     contactName,

@@ -25,9 +25,9 @@ export function showContactProfile(contactName) {
       : style.category === 'financial' ? '💰'
       : '👤';
 
-    const greetings = JSON.parse(style.greeting_words || '[]');
-    const farewells = JSON.parse(style.farewell_words || '[]');
-    const phrases = JSON.parse(style.common_phrases || '[]');
+    const greetings = Array.isArray(style.greeting_words) ? style.greeting_words : [];
+    const farewells = Array.isArray(style.farewell_words) ? style.farewell_words : [];
+    const phrases = Array.isArray(style.common_phrases) ? style.common_phrases : [];
 
     console.log(`  ${categoryIcon} Categoria: ${chalk.white(style.category)}`);
     console.log(`  🎭 Tom: ${chalk.white(style.tone)}`);
@@ -83,7 +83,7 @@ export function showAllProfiles() {
   if (workStyles.length > 0) {
     console.log(chalk.blue.bold('\n  ━━━ 🏢 TRABALHO ━━━'));
     for (const s of workStyles) {
-      const phrases = JSON.parse(s.common_phrases || '[]');
+      const phrases = Array.isArray(s.common_phrases) ? s.common_phrases : [];
       console.log(`  ${chalk.white(s.contact_name)} - ${s.tone} (${s.total_interactions} msgs)`);
       if (phrases.length) console.log(chalk.gray(`    Frases: ${phrases.slice(0, 3).join(', ')}`));
     }
@@ -92,7 +92,7 @@ export function showAllProfiles() {
   if (personalStyles.length > 0) {
     console.log(chalk.green.bold('\n  ━━━ 👤 PESSOAL ━━━'));
     for (const s of personalStyles) {
-      const phrases = JSON.parse(s.common_phrases || '[]');
+      const phrases = Array.isArray(s.common_phrases) ? s.common_phrases : [];
       console.log(`  ${chalk.white(s.contact_name)} - ${s.tone} (${s.total_interactions} msgs)`);
       if (phrases.length) console.log(chalk.gray(`    Frases: ${phrases.slice(0, 3).join(', ')}`));
     }
