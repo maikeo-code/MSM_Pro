@@ -26,6 +26,11 @@ class AnuncioAnalise(BaseModel):
     vendas_anteontem: int = 0
     vendas_7d: int = 0
 
+    # Dias com dados (para validação de conversão)
+    dias_dados_7d: int = 0
+    dias_dados_15d: int = 0
+    dias_dados_30d: int = 0
+
     # Estoque
     estoque: int = 0
 

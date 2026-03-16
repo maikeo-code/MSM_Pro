@@ -411,8 +411,11 @@ async def _sync_all_snapshots_async():
     faz 1 chamada bulk por conta ML usando get_items_visits_bulk().
     O resultado é passado como visits_override para cada task individual,
     evitando o overhead de rate-limit N vezes.
+
+    IMPORTANTE: O sync roda às 06:00 BRT. Para ter dados completos de "ontem",
+    buscamos visitas do DIA ANTERIOR inteiro (não do dia atual parcial).
     """
-    from datetime import date as date_type
+    from datetime import date as date_type, timedelta
     from collections import defaultdict
 
     async with AsyncSessionLocal() as db:
@@ -432,9 +435,11 @@ async def _sync_all_snapshots_async():
                 listings_by_account[str(listing.ml_account_id)].append(listing)
 
             # Para cada conta, buscar token e chamar bulk de visitas
-            # visits_map: mlb_id (normalizado) -> total do dia
+            # visits_map: mlb_id (normalizado) -> total do dia anterior
+            # O sync roda às 06:00 BRT. Buscamos visitas do DIA ANTERIOR completo.
             visits_map: dict[str, int] = {}
-            today_str = date_type.today().isoformat()
+            yesterday = date_type.today() - timedelta(days=1)
+            yesterday_str = yesterday.isoformat()
 
             for account_id, account_listings in listings_by_account.items():
                 acc_result = await db.execute(
@@ -457,12 +462,13 @@ async def _sync_all_snapshots_async():
 
                 client = MLClient(account.access_token)
                 try:
+                    # Buscar visitas do DIA ANTERIOR (completo)
                     bulk_result = await client.get_items_visits_bulk(
-                        mlb_ids, date_from=today_str, date_to=today_str
+                        mlb_ids, date_from=yesterday_str, date_to=yesterday_str
                     )
                     visits_map.update(bulk_result)
                     logger.info(
-                        f"Visitas bulk OK para conta {account_id}: "
+                        f"Visitas bulk OK para conta {account_id} (dia anterior {yesterday_str}): "
                         f"{len(bulk_result)} itens retornados"
                     )
                 except Exception as e:

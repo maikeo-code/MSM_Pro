@@ -2,7 +2,7 @@
 Serviço de análise de anúncios.
 
 Calcula métricas reais de vendas, visitas, conversão e ROAS
-a partir dos snapshots históricos dos listings.
+a partir dos snapshots históricos dos listings e da tabela Order.
 """
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -13,13 +13,14 @@ from sqlalchemy import (
     func,
     literal,
     select,
+    Float,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ads.models import AdCampaign, AdSnapshot
 from app.analise.schemas import AnuncioAnalise
-from app.auth.models import User
-from app.vendas.models import Listing, ListingSnapshot
+from app.auth.models import User, MLAccount
+from app.vendas.models import Listing, ListingSnapshot, Order
 
 # Timezone Brasil
 BRT = ZoneInfo("America/Sao_Paulo")
@@ -60,11 +61,13 @@ async def get_analysis_listings(
     date_15d_start = datetime.combine(date_15d_ago, datetime.min.time()).replace(tzinfo=BRT)
     date_30d_start = datetime.combine(date_30d_ago, datetime.min.time()).replace(tzinfo=BRT)
 
-    # Subqueries para snapshots por período
+    # CTE para ml_account_ids do usuário
+    user_accounts = select(MLAccount.id).where(MLAccount.user_id == user.id).cte("user_accounts")
+
+    # === VISITAS (via ListingSnapshot) ===
     snapshot_today = select(
         ListingSnapshot.listing_id,
         func.sum(ListingSnapshot.visits).label("visits"),
-        func.sum(ListingSnapshot.sales_today).label("sales"),
     ).where(
         and_(
             ListingSnapshot.captured_at >= today_start,
@@ -75,7 +78,6 @@ async def get_analysis_listings(
     snapshot_yesterday = select(
         ListingSnapshot.listing_id,
         func.sum(ListingSnapshot.visits).label("visits"),
-        func.sum(ListingSnapshot.sales_today).label("sales"),
     ).where(
         and_(
             ListingSnapshot.captured_at >= yesterday_start,
@@ -83,20 +85,9 @@ async def get_analysis_listings(
         )
     ).group_by(ListingSnapshot.listing_id).cte("snapshot_yesterday")
 
-    snapshot_day_before = select(
-        ListingSnapshot.listing_id,
-        func.sum(ListingSnapshot.sales_today).label("sales"),
-    ).where(
-        and_(
-            ListingSnapshot.captured_at >= day_before_yesterday_start,
-            ListingSnapshot.captured_at < day_before_yesterday_start + timedelta(days=1),
-        )
-    ).group_by(ListingSnapshot.listing_id).cte("snapshot_day_before")
-
     snapshot_7d = select(
         ListingSnapshot.listing_id,
         func.sum(ListingSnapshot.visits).label("visits"),
-        func.sum(ListingSnapshot.sales_today).label("sales"),
     ).where(ListingSnapshot.captured_at >= date_7d_start).group_by(
         ListingSnapshot.listing_id
     ).cte("snapshot_7d")
@@ -104,7 +95,6 @@ async def get_analysis_listings(
     snapshot_15d = select(
         ListingSnapshot.listing_id,
         func.sum(ListingSnapshot.visits).label("visits"),
-        func.sum(ListingSnapshot.sales_today).label("sales"),
     ).where(ListingSnapshot.captured_at >= date_15d_start).group_by(
         ListingSnapshot.listing_id
     ).cte("snapshot_15d")
@@ -112,10 +102,83 @@ async def get_analysis_listings(
     snapshot_30d = select(
         ListingSnapshot.listing_id,
         func.sum(ListingSnapshot.visits).label("visits"),
-        func.sum(ListingSnapshot.sales_today).label("sales"),
     ).where(ListingSnapshot.captured_at >= date_30d_start).group_by(
         ListingSnapshot.listing_id
     ).cte("snapshot_30d")
+
+    # === VENDAS (via Order table) ===
+    # Vendas de hoje (approved orders)
+    orders_today = select(
+        Order.listing_id,
+        func.coalesce(func.sum(Order.quantity), 0).label("sales"),
+    ).where(
+        and_(
+            Order.ml_account_id.in_(select(user_accounts.c.id)),
+            Order.order_date >= today_start,
+            Order.order_date < today_start + timedelta(days=1),
+            Order.payment_status == "approved",
+        )
+    ).group_by(Order.listing_id).cte("orders_today")
+
+    # Vendas de ontem (approved orders)
+    orders_yesterday = select(
+        Order.listing_id,
+        func.coalesce(func.sum(Order.quantity), 0).label("sales"),
+    ).where(
+        and_(
+            Order.ml_account_id.in_(select(user_accounts.c.id)),
+            Order.order_date >= yesterday_start,
+            Order.order_date < yesterday_start + timedelta(days=1),
+            Order.payment_status == "approved",
+        )
+    ).group_by(Order.listing_id).cte("orders_yesterday")
+
+    # Vendas de anteontem (approved orders)
+    orders_day_before = select(
+        Order.listing_id,
+        func.coalesce(func.sum(Order.quantity), 0).label("sales"),
+    ).where(
+        and_(
+            Order.ml_account_id.in_(select(user_accounts.c.id)),
+            Order.order_date >= day_before_yesterday_start,
+            Order.order_date < day_before_yesterday_start + timedelta(days=1),
+            Order.payment_status == "approved",
+        )
+    ).group_by(Order.listing_id).cte("orders_day_before")
+
+    # Vendas 7d (approved orders)
+    orders_7d = select(
+        Order.listing_id,
+        func.coalesce(func.sum(Order.quantity), 0).label("sales"),
+    ).where(
+        and_(
+            Order.ml_account_id.in_(select(user_accounts.c.id)),
+            Order.order_date >= date_7d_start,
+            Order.payment_status == "approved",
+        )
+    ).group_by(Order.listing_id).cte("orders_7d")
+
+    # Contagem de dias com dados (para validar conversão)
+    days_with_data_7d = select(
+        ListingSnapshot.listing_id,
+        func.count(func.distinct(func.date_trunc('day', ListingSnapshot.captured_at))).label("days_count"),
+    ).where(ListingSnapshot.captured_at >= date_7d_start).group_by(
+        ListingSnapshot.listing_id
+    ).cte("days_with_data_7d")
+
+    days_with_data_15d = select(
+        ListingSnapshot.listing_id,
+        func.count(func.distinct(func.date_trunc('day', ListingSnapshot.captured_at))).label("days_count"),
+    ).where(ListingSnapshot.captured_at >= date_15d_start).group_by(
+        ListingSnapshot.listing_id
+    ).cte("days_with_data_15d")
+
+    days_with_data_30d = select(
+        ListingSnapshot.listing_id,
+        func.count(func.distinct(func.date_trunc('day', ListingSnapshot.captured_at))).label("days_count"),
+    ).where(ListingSnapshot.captured_at >= date_30d_start).group_by(
+        ListingSnapshot.listing_id
+    ).cte("days_with_data_30d")
 
     # Subquery para último snapshot (stock + price)
     latest_snapshot = select(
@@ -192,33 +255,46 @@ async def get_analysis_listings(
         # Visitas
         func.coalesce(snapshot_today.c.visits, literal(0)).label("visitas_hoje"),
         func.coalesce(snapshot_yesterday.c.visits, literal(0)).label("visitas_ontem"),
-        # Conversão (%)
+        # Conversão (%) — usa visitas dos snapshots e vendas do Order
         case(
             (
-                func.coalesce(snapshot_7d.c.visits, 0) > 0,
-                (func.coalesce(snapshot_7d.c.sales, 0) / func.coalesce(snapshot_7d.c.visits, 1) * 100),
+                and_(
+                    func.coalesce(snapshot_7d.c.visits, 0) >= 50,
+                    func.coalesce(orders_7d.c.sales, 0) > 0,
+                ),
+                (func.cast(orders_7d.c.sales, Float) / func.cast(snapshot_7d.c.visits, Float) * 100),
             ),
             else_=literal(None),
         ).label("conversao_7d"),
         case(
             (
-                func.coalesce(snapshot_15d.c.visits, 0) > 0,
-                (func.coalesce(snapshot_15d.c.sales, 0) / func.coalesce(snapshot_15d.c.visits, 1) * 100),
+                and_(
+                    func.coalesce(snapshot_15d.c.visits, 0) >= 50,
+                    func.coalesce(orders_7d.c.sales, 0) > 0,
+                ),
+                (func.cast(orders_7d.c.sales, Float) / func.cast(snapshot_15d.c.visits, Float) * 100),
             ),
             else_=literal(None),
         ).label("conversao_15d"),
         case(
             (
-                func.coalesce(snapshot_30d.c.visits, 0) > 0,
-                (func.coalesce(snapshot_30d.c.sales, 0) / func.coalesce(snapshot_30d.c.visits, 1) * 100),
+                and_(
+                    func.coalesce(snapshot_30d.c.visits, 0) >= 50,
+                    func.coalesce(orders_7d.c.sales, 0) > 0,
+                ),
+                (func.cast(orders_7d.c.sales, Float) / func.cast(snapshot_30d.c.visits, Float) * 100),
             ),
             else_=literal(None),
         ).label("conversao_30d"),
-        # Vendas
-        func.coalesce(snapshot_today.c.sales, literal(0)).label("vendas_hoje"),
-        func.coalesce(snapshot_yesterday.c.sales, literal(0)).label("vendas_ontem"),
-        func.coalesce(snapshot_day_before.c.sales, literal(0)).label("vendas_anteontem"),
-        func.coalesce(snapshot_7d.c.sales, literal(0)).label("vendas_7d"),
+        # Vendas (via Order table)
+        func.coalesce(orders_today.c.sales, literal(0)).label("vendas_hoje"),
+        func.coalesce(orders_yesterday.c.sales, literal(0)).label("vendas_ontem"),
+        func.coalesce(orders_day_before.c.sales, literal(0)).label("vendas_anteontem"),
+        func.coalesce(orders_7d.c.sales, literal(0)).label("vendas_7d"),
+        # Dias com dados (para validação de conversão)
+        func.coalesce(days_with_data_7d.c.days_count, literal(0)).label("dias_dados_7d"),
+        func.coalesce(days_with_data_15d.c.days_count, literal(0)).label("dias_dados_15d"),
+        func.coalesce(days_with_data_30d.c.days_count, literal(0)).label("dias_dados_30d"),
         # Estoque (último snapshot)
         func.coalesce(latest_snapshot.c.stock, literal(0)).label("estoque"),
         # ROAS (%)
@@ -234,10 +310,6 @@ async def get_analysis_listings(
         Listing.id == snapshot_yesterday.c.listing_id,
         isouter=True,
     ).join(
-        snapshot_day_before,
-        Listing.id == snapshot_day_before.c.listing_id,
-        isouter=True,
-    ).join(
         snapshot_7d,
         Listing.id == snapshot_7d.c.listing_id,
         isouter=True,
@@ -248,6 +320,34 @@ async def get_analysis_listings(
     ).join(
         snapshot_30d,
         Listing.id == snapshot_30d.c.listing_id,
+        isouter=True,
+    ).join(
+        orders_today,
+        Listing.id == orders_today.c.listing_id,
+        isouter=True,
+    ).join(
+        orders_yesterday,
+        Listing.id == orders_yesterday.c.listing_id,
+        isouter=True,
+    ).join(
+        orders_day_before,
+        Listing.id == orders_day_before.c.listing_id,
+        isouter=True,
+    ).join(
+        orders_7d,
+        Listing.id == orders_7d.c.listing_id,
+        isouter=True,
+    ).join(
+        days_with_data_7d,
+        Listing.id == days_with_data_7d.c.listing_id,
+        isouter=True,
+    ).join(
+        days_with_data_15d,
+        Listing.id == days_with_data_15d.c.listing_id,
+        isouter=True,
+    ).join(
+        days_with_data_30d,
+        Listing.id == days_with_data_30d.c.listing_id,
         isouter=True,
     ).join(
         latest_snapshot,
@@ -301,6 +401,9 @@ async def get_analysis_listings(
             vendas_ontem=row.vendas_ontem or 0,
             vendas_anteontem=row.vendas_anteontem or 0,
             vendas_7d=row.vendas_7d or 0,
+            dias_dados_7d=row.dias_dados_7d or 0,
+            dias_dados_15d=row.dias_dados_15d or 0,
+            dias_dados_30d=row.dias_dados_30d or 0,
             estoque=row.estoque or 0,
             roas_7d=roas_7d,
             roas_15d=roas_15d,
