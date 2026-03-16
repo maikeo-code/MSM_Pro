@@ -368,11 +368,84 @@ class MLClient:
             json=payload,
         )
 
+    async def get_advertiser_id(self) -> str | None:
+        """
+        Verifica se a conta tem acesso a Product Ads e retorna o advertiser_id.
+        GET /advertising/advertisers?product_id=PADS
+        Retorna None se account não tem acesso a Product Ads.
+        """
+        try:
+            data = await self._request("GET", "/advertising/advertisers", params={"product_id": "PADS"})
+            if isinstance(data, list) and len(data) > 0:
+                return str(data[0].get("advertiser_id"))
+            if isinstance(data, dict):
+                return str(data.get("advertiser_id"))
+            return None
+        except MLClientError:
+            return None
+
+    async def get_product_ads_campaigns(self, advertiser_id: str, date_from: str, date_to: str) -> list:
+        """
+        Busca campanhas de Product Ads com métricas.
+        GET /advertising/advertisers/{advertiser_id}/product_ads/campaigns
+        Parâmetros: date_from, date_to, metrics, metrics_summary.
+        Retorna lista de campanhas com métricas ou lista vazia se falhar.
+        """
+        try:
+            data = await self._request(
+                "GET",
+                f"/advertising/advertisers/{advertiser_id}/product_ads/campaigns",
+                params={
+                    "date_from": date_from,
+                    "date_to": date_to,
+                    "metrics": "clicks,prints,cost,roas,acos,units_quantity,total_amount,cpc,ctr,cvr",
+                    "metrics_summary": "true",
+                    "limit": 50,
+                },
+            )
+            if isinstance(data, dict):
+                return data.get("results", [])
+            if isinstance(data, list):
+                return data
+            return []
+        except MLClientError:
+            return []
+
+    async def get_product_ads_items(self, advertiser_id: str, date_from: str, date_to: str, item_id: str = None) -> list:
+        """
+        Busca métricas de ads por item (anúncio).
+        GET /advertising/advertisers/{advertiser_id}/product_ads/items
+        Parâmetros: date_from, date_to, metrics, item_id (opcional).
+        Retorna lista de items com métricas ou lista vazia se falhar.
+        """
+        try:
+            params = {
+                "date_from": date_from,
+                "date_to": date_to,
+                "metrics": "clicks,prints,cost,roas,acos,units_quantity,total_amount",
+                "limit": 50,
+            }
+            if item_id:
+                params["item_id"] = item_id
+            data = await self._request(
+                "GET",
+                f"/advertising/advertisers/{advertiser_id}/product_ads/items",
+                params=params,
+            )
+            if isinstance(data, dict):
+                return data.get("results", [])
+            if isinstance(data, list):
+                return data
+            return []
+        except MLClientError:
+            return []
+
     async def get_item_ads(self, mlb_id: str) -> dict:
         """
         Busca dados de publicidade (Ads) de um anúncio.
         GET /advertising/product_ads?item_id={mlb_id}&status=active
         Retorna: impressions, clicks, spend, attributed_sales, roas, cpc
+        DEPRECATED: usar get_product_ads_items com advertiser_id em vez disso.
         """
         item_id = mlb_id.upper().replace("-", "")
         if not item_id.startswith("MLB"):

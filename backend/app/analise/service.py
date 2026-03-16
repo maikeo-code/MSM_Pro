@@ -17,9 +17,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ads.models import AdCampaign, AdSnapshot
 from app.analise.schemas import AnuncioAnalise
 from app.auth.models import User, MLAccount
+from app.mercadolivre.client import MLClient
 from app.vendas.models import Listing, ListingSnapshot, Order
 
 # Timezone Brasil
@@ -189,59 +189,6 @@ async def get_analysis_listings(
         ListingSnapshot.listing_id, ListingSnapshot.captured_at.desc()
     ).cte("latest_snapshot")
 
-    # Subquery para ROAS (ads)
-    ad_roas_7d = select(
-        Listing.id,
-        func.avg(AdSnapshot.roas).label("roas"),
-    ).join(
-        AdCampaign,
-        and_(
-            AdCampaign.ml_account_id == Listing.ml_account_id,
-            # Correlação ad-listing é fraca (ads API não expõe listing_id)
-            # Portanto usar ml_account_id como aproximação
-        ),
-        isouter=True,
-    ).join(
-        AdSnapshot,
-        and_(
-            AdSnapshot.campaign_id == AdCampaign.id,
-            AdSnapshot.date >= date_7d_ago,
-        ),
-        isouter=True,
-    ).group_by(Listing.id).cte("ad_roas_7d")
-
-    ad_roas_15d = select(
-        Listing.id,
-        func.avg(AdSnapshot.roas).label("roas"),
-    ).join(
-        AdCampaign,
-        AdCampaign.ml_account_id == Listing.ml_account_id,
-        isouter=True,
-    ).join(
-        AdSnapshot,
-        and_(
-            AdSnapshot.campaign_id == AdCampaign.id,
-            AdSnapshot.date >= date_15d_ago,
-        ),
-        isouter=True,
-    ).group_by(Listing.id).cte("ad_roas_15d")
-
-    ad_roas_30d = select(
-        Listing.id,
-        func.avg(AdSnapshot.roas).label("roas"),
-    ).join(
-        AdCampaign,
-        AdCampaign.ml_account_id == Listing.ml_account_id,
-        isouter=True,
-    ).join(
-        AdSnapshot,
-        and_(
-            AdSnapshot.campaign_id == AdCampaign.id,
-            AdSnapshot.date >= date_30d_ago,
-        ),
-        isouter=True,
-    ).group_by(Listing.id).cte("ad_roas_30d")
-
     # Query principal: todos os listings do usuário com métricas calculadas
     stmt = select(
         Listing.mlb_id,
@@ -297,10 +244,6 @@ async def get_analysis_listings(
         func.coalesce(days_with_data_30d.c.days_count, literal(0)).label("dias_dados_30d"),
         # Estoque (último snapshot)
         func.coalesce(latest_snapshot.c.stock, literal(0)).label("estoque"),
-        # ROAS (%)
-        func.coalesce(ad_roas_7d.c.roas, literal(None)).label("roas_7d"),
-        func.coalesce(ad_roas_15d.c.roas, literal(None)).label("roas_15d"),
-        func.coalesce(ad_roas_30d.c.roas, literal(None)).label("roas_30d"),
     ).where(Listing.user_id == user.id).join(
         snapshot_today,
         Listing.id == snapshot_today.c.listing_id,
@@ -353,22 +296,63 @@ async def get_analysis_listings(
         latest_snapshot,
         Listing.id == latest_snapshot.c.listing_id,
         isouter=True,
-    ).join(
-        ad_roas_7d,
-        Listing.id == ad_roas_7d.c.id,
-        isouter=True,
-    ).join(
-        ad_roas_15d,
-        Listing.id == ad_roas_15d.c.id,
-        isouter=True,
-    ).join(
-        ad_roas_30d,
-        Listing.id == ad_roas_30d.c.id,
-        isouter=True,
     ).order_by(Listing.title)
 
     result = await db.execute(stmt)
     rows = result.all()
+
+    # Buscar dados de ads via API ML (ROAS/ACOS por item)
+    # Montar dicionário: mlb_id -> {roas_7d, roas_15d, roas_30d, acos_7d, acos_15d, acos_30d}
+    ads_by_item = {}
+
+    # Pegar contas ML ativas do usuário
+    accounts_stmt = select(MLAccount).where(
+        and_(MLAccount.user_id == user.id, MLAccount.is_active == True)
+    )
+    accounts_result = await db.execute(accounts_stmt)
+    ml_accounts = accounts_result.scalars().all()
+
+    # Para cada conta, buscar advertiser_id e métricas
+    for account in ml_accounts:
+        client = MLClient(account.access_token)
+        advertiser_id = await client.get_advertiser_id()
+
+        if not advertiser_id:
+            # Conta não tem acesso a Product Ads — skip
+            continue
+
+        # Buscar métricas para 7d, 15d, 30d
+        for period_name, date_start in [
+            ("7d", date_7d_ago),
+            ("15d", date_15d_ago),
+            ("30d", date_30d_ago),
+        ]:
+            try:
+                items = await client.get_product_ads_items(
+                    advertiser_id,
+                    date_from=date_start.isoformat(),
+                    date_to=today.isoformat(),
+                )
+
+                for item in items:
+                    # Normalizar item_id (remover hífens, maiúsculas)
+                    item_id_raw = item.get("item_id", "").upper().replace("-", "")
+                    if not item_id_raw:
+                        continue
+
+                    # Garantir que começa com MLB
+                    if not item_id_raw.startswith("MLB"):
+                        item_id_raw = f"MLB{item_id_raw}"
+
+                    if item_id_raw not in ads_by_item:
+                        ads_by_item[item_id_raw] = {}
+
+                    # Armazenar ROAS e ACOS (já em %)
+                    ads_by_item[item_id_raw][f"roas_{period_name}"] = item.get("roas")
+                    ads_by_item[item_id_raw][f"acos_{period_name}"] = item.get("acos")
+            except Exception:
+                # Erro ao buscar métricas de uma conta — continua com outras contas
+                continue
 
     # Converter rows em AnuncioAnalise
     anuncios = []
@@ -378,12 +362,36 @@ async def get_analysis_listings(
         conversao_15d = float(row.conversao_15d) if row.conversao_15d is not None else None
         conversao_30d = float(row.conversao_30d) if row.conversao_30d is not None else None
 
-        roas_7d = float(row.roas_7d) if row.roas_7d is not None else None
-        roas_15d = float(row.roas_15d) if row.roas_15d is not None else None
-        roas_30d = float(row.roas_30d) if row.roas_30d is not None else None
-
         preco = float(row.price) if row.price else 0.0
         preco_original = float(row.original_price) if row.original_price else None
+
+        # Normalizar MLB ID para lookup em ads_by_item
+        mlb_id_normalized = row.mlb_id.upper().replace("-", "")
+        if not mlb_id_normalized.startswith("MLB"):
+            mlb_id_normalized = f"MLB{mlb_id_normalized}"
+
+        # Buscar ROAS/ACOS de ads_by_item
+        ads_data = ads_by_item.get(mlb_id_normalized, {})
+        roas_7d = ads_data.get("roas_7d")
+        roas_15d = ads_data.get("roas_15d")
+        roas_30d = ads_data.get("roas_30d")
+        acos_7d = ads_data.get("acos_7d")
+        acos_15d = ads_data.get("acos_15d")
+        acos_30d = ads_data.get("acos_30d")
+
+        # Converter para float se não None
+        if roas_7d is not None:
+            roas_7d = float(roas_7d)
+        if roas_15d is not None:
+            roas_15d = float(roas_15d)
+        if roas_30d is not None:
+            roas_30d = float(roas_30d)
+        if acos_7d is not None:
+            acos_7d = float(acos_7d)
+        if acos_15d is not None:
+            acos_15d = float(acos_15d)
+        if acos_30d is not None:
+            acos_30d = float(acos_30d)
 
         anuncio = AnuncioAnalise(
             mlb_id=row.mlb_id,
@@ -408,6 +416,9 @@ async def get_analysis_listings(
             roas_7d=roas_7d,
             roas_15d=roas_15d,
             roas_30d=roas_30d,
+            acos_7d=acos_7d,
+            acos_15d=acos_15d,
+            acos_30d=acos_30d,
             thumbnail=row.thumbnail,
             permalink=row.permalink,
             quality_score=row.quality_score,

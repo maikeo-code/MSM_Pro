@@ -39,6 +39,11 @@ class AnuncioAnalise(BaseModel):
     roas_15d: Optional[float] = None
     roas_30d: Optional[float] = None
 
+    # ACOS (%)
+    acos_7d: Optional[float] = None
+    acos_15d: Optional[float] = None
+    acos_30d: Optional[float] = None
+
     # Extras
     thumbnail: Optional[str] = None
     permalink: Optional[str] = None
