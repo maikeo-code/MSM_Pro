@@ -79,9 +79,14 @@ def _load_settings() -> Settings:
 
 
 @click.group()
-def insta() -> None:
+@click.option("--dry-run", is_flag=True, default=False, help="Simula acoes sem executar de verdade.")
+@click.pass_context
+def insta(ctx: click.Context, dry_run: bool) -> None:
     """InstaApp — Automacao segura do Instagram."""
-    pass
+    ctx.ensure_object(dict)
+    ctx.obj["dry_run"] = dry_run
+    if dry_run:
+        console.print(Panel("[bold yellow]MODO DRY-RUN ATIVO[/bold yellow] — Nenhuma acao sera executada de verdade.", title="Dry-Run"))
 
 
 @insta.command()
@@ -251,10 +256,12 @@ def cmd_followers() -> None:
 
 
 @insta.command("not-following-back")
-def cmd_not_following_back() -> None:
+@click.pass_context
+def cmd_not_following_back(ctx: click.Context) -> None:
     """Lista quem nao te segue de volta e oferece opcao de unfollow."""
     settings, manager, client = _get_logged_client()
     rate_limiter = RateLimiter(settings)
+    dry_run = ctx.obj.get("dry_run", False)
 
     from insta_app.features.monitoring import FollowerMonitor
     from insta_app.features.unfollow import UnfollowManager
@@ -302,7 +309,7 @@ def cmd_not_following_back() -> None:
         default="agora",
     )
 
-    unfollow_mgr = UnfollowManager(client, rate_limiter, data_dir="data", settings=settings)
+    unfollow_mgr = UnfollowManager(client, rate_limiter, data_dir="data", dry_run=dry_run, settings=settings)
     result = unfollow_mgr.schedule_unfollow(chosen_ids)
 
     if when.strip().lower() == "agora":
@@ -331,14 +338,16 @@ def cmd_not_following_back() -> None:
 @insta.command("unfollow-queue")
 @click.option("--execute", is_flag=True, default=False, help="Executa a fila de unfollows pendentes.")
 @click.option("--cancel", is_flag=True, default=False, help="Cancela a fila de unfollows.")
-def cmd_unfollow_queue(execute: bool, cancel: bool) -> None:
+@click.pass_context
+def cmd_unfollow_queue(ctx: click.Context, execute: bool, cancel: bool) -> None:
     """Gerencia a fila de unfollows pendentes."""
     settings, manager, client = _get_logged_client()
     rate_limiter = RateLimiter(settings)
+    dry_run = ctx.obj.get("dry_run", False)
 
     from insta_app.features.unfollow import UnfollowManager
 
-    unfollow_mgr = UnfollowManager(client, rate_limiter, data_dir="data", settings=settings)
+    unfollow_mgr = UnfollowManager(client, rate_limiter, data_dir="data", dry_run=dry_run, settings=settings)
 
     if cancel:
         unfollow_mgr.cancel_unfollow_queue()
@@ -427,14 +436,16 @@ def cmd_unfollowers() -> None:
     show_default=True,
     help="Numero maximo de posts para curtir por usuario.",
 )
-def cmd_like_new(max_posts: int) -> None:
+@click.pass_context
+def cmd_like_new(ctx: click.Context, max_posts: int) -> None:
     """Curte posts dos novos seguidores."""
     settings, manager, client = _get_logged_client()
     rate_limiter = RateLimiter(settings)
+    dry_run = ctx.obj.get("dry_run", False)
 
     from insta_app.features.likes import LikeManager
 
-    like_mgr = LikeManager(client, rate_limiter)
+    like_mgr = LikeManager(client, rate_limiter, dry_run=dry_run, settings=settings)
 
     console.print(
         Panel(
@@ -463,14 +474,16 @@ def cmd_like_new(max_posts: int) -> None:
     show_default=True,
     help="Numero de posts para curtir.",
 )
-def cmd_like_user(username: str, amount: int) -> None:
+@click.pass_context
+def cmd_like_user(ctx: click.Context, username: str, amount: int) -> None:
     """Curte posts de um usuario especifico. USERNAME pode conter @ ou nao."""
     settings, manager, client = _get_logged_client()
     rate_limiter = RateLimiter(settings)
+    dry_run = ctx.obj.get("dry_run", False)
 
     from insta_app.features.likes import LikeManager
 
-    like_mgr = LikeManager(client, rate_limiter)
+    like_mgr = LikeManager(client, rate_limiter, dry_run=dry_run, settings=settings)
     clean_username = username.lstrip("@")
 
     console.print(
@@ -493,14 +506,16 @@ def cmd_like_user(username: str, amount: int) -> None:
 
 
 @insta.command("like-commenters")
-def cmd_like_commenters() -> None:
+@click.pass_context
+def cmd_like_commenters(ctx: click.Context) -> None:
     """Curte posts de quem comentou nos seus posts recentes."""
     settings, manager, client = _get_logged_client()
     rate_limiter = RateLimiter(settings)
+    dry_run = ctx.obj.get("dry_run", False)
 
     from insta_app.features.likes import LikeManager
 
-    like_mgr = LikeManager(client, rate_limiter)
+    like_mgr = LikeManager(client, rate_limiter, dry_run=dry_run, settings=settings)
 
     console.print(
         Panel(
@@ -534,14 +549,16 @@ def cmd_like_commenters() -> None:
     show_default=True,
     help="Emoji usado como reacao.",
 )
-def cmd_stories(react: bool, emoji: str) -> None:
+@click.pass_context
+def cmd_stories(ctx: click.Context, react: bool, emoji: str) -> None:
     """Visualiza (e opcionalmente reage a) stories de novos seguidores."""
     settings, manager, client = _get_logged_client()
     rate_limiter = RateLimiter(settings)
+    dry_run = ctx.obj.get("dry_run", False)
 
     from insta_app.features.stories import StoryManager
 
-    story_mgr = StoryManager(client, rate_limiter)
+    story_mgr = StoryManager(client, rate_limiter, dry_run=dry_run, settings=settings)
 
     if react:
         console.print(
@@ -591,14 +608,16 @@ def cmd_stories(react: bool, emoji: str) -> None:
     show_default=True,
     help="Emoji usado como reacao.",
 )
-def cmd_stories_user(username: str, react: bool, emoji: str) -> None:
+@click.pass_context
+def cmd_stories_user(ctx: click.Context, username: str, react: bool, emoji: str) -> None:
     """Visualiza (e opcionalmente reage a) stories de um usuario especifico. USERNAME pode conter @ ou nao."""
     settings, manager, client = _get_logged_client()
     rate_limiter = RateLimiter(settings)
+    dry_run = ctx.obj.get("dry_run", False)
 
     from insta_app.features.stories import StoryManager
 
-    story_mgr = StoryManager(client, rate_limiter)
+    story_mgr = StoryManager(client, rate_limiter, dry_run=dry_run, settings=settings)
     clean_username = username.lstrip("@")
 
     try:
@@ -738,6 +757,161 @@ def cmd_commit_snapshot() -> None:
             title="Resultado",
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# Comandos de configuracao: presets, whitelist/blacklist, proxy
+# ---------------------------------------------------------------------------
+
+
+@insta.command("preset")
+@click.argument("name", type=click.Choice(["conservador", "moderado", "agressivo"]))
+def cmd_preset(name: str) -> None:
+    """Aplica um preset de comportamento (conservador, moderado, agressivo)."""
+    settings = _load_settings()
+    settings.apply_preset(name)
+    settings.save_to_file(str(_CONFIG_FILE))
+    console.print(
+        Panel(
+            f"Preset [bold]{name}[/bold] aplicado com sucesso!\n"
+            f"Os novos limites de taxa estao ativos.",
+            title="Preset Aplicado",
+        )
+    )
+
+    # Mostra os novos limites
+    table = Table(title=f"Limites do preset '{name}'", show_header=True, header_style="bold cyan")
+    table.add_column("Acao", style="dim", width=16)
+    table.add_column("Por hora", justify="center")
+    table.add_column("Por dia", justify="center")
+    table.add_column("Delay min (s)", justify="center")
+    table.add_column("Delay max (s)", justify="center")
+
+    for action, limits in settings.rate_limits.items():
+        table.add_row(
+            action,
+            str(limits.per_hour),
+            str(limits.per_day),
+            f"{limits.delay_min:.0f}",
+            f"{limits.delay_max:.0f}",
+        )
+
+    console.print(table)
+
+
+@insta.command("whitelist-add")
+@click.argument("username")
+def cmd_whitelist_add(username: str) -> None:
+    """Adiciona username a whitelist (nunca dar unfollow)."""
+    username = username.lstrip("@")
+    settings = _load_settings()
+    if username in settings.whitelist:
+        console.print(f"[yellow]@{username} ja esta na whitelist.[/yellow]")
+        return
+    settings.whitelist.append(username)
+    settings.save_to_file(str(_CONFIG_FILE))
+    console.print(f"[green]@{username} adicionado a whitelist.[/green]")
+
+
+@insta.command("whitelist-remove")
+@click.argument("username")
+def cmd_whitelist_remove(username: str) -> None:
+    """Remove username da whitelist."""
+    username = username.lstrip("@")
+    settings = _load_settings()
+    if username not in settings.whitelist:
+        console.print(f"[yellow]@{username} nao esta na whitelist.[/yellow]")
+        return
+    settings.whitelist.remove(username)
+    settings.save_to_file(str(_CONFIG_FILE))
+    console.print(f"[green]@{username} removido da whitelist.[/green]")
+
+
+@insta.command("whitelist-show")
+def cmd_whitelist_show() -> None:
+    """Exibe a whitelist atual (usernames que nunca serao unfollowed)."""
+    settings = _load_settings()
+    if not settings.whitelist:
+        console.print("[dim]Whitelist vazia.[/dim]")
+        return
+
+    table = Table(title=f"Whitelist ({len(settings.whitelist)} usuarios)", show_header=True, header_style="bold green")
+    table.add_column("#", justify="right", width=5)
+    table.add_column("Username", style="bold")
+
+    for i, username in enumerate(settings.whitelist, start=1):
+        table.add_row(str(i), f"@{username}")
+
+    console.print(table)
+
+
+@insta.command("blacklist-add")
+@click.argument("username")
+def cmd_blacklist_add(username: str) -> None:
+    """Adiciona username a blacklist (nunca interagir)."""
+    username = username.lstrip("@")
+    settings = _load_settings()
+    if username in settings.blacklist:
+        console.print(f"[yellow]@{username} ja esta na blacklist.[/yellow]")
+        return
+    settings.blacklist.append(username)
+    settings.save_to_file(str(_CONFIG_FILE))
+    console.print(f"[green]@{username} adicionado a blacklist.[/green]")
+
+
+@insta.command("blacklist-remove")
+@click.argument("username")
+def cmd_blacklist_remove(username: str) -> None:
+    """Remove username da blacklist."""
+    username = username.lstrip("@")
+    settings = _load_settings()
+    if username not in settings.blacklist:
+        console.print(f"[yellow]@{username} nao esta na blacklist.[/yellow]")
+        return
+    settings.blacklist.remove(username)
+    settings.save_to_file(str(_CONFIG_FILE))
+    console.print(f"[green]@{username} removido da blacklist.[/green]")
+
+
+@insta.command("blacklist-show")
+def cmd_blacklist_show() -> None:
+    """Exibe a blacklist atual (usernames que nunca serao interagidos)."""
+    settings = _load_settings()
+    if not settings.blacklist:
+        console.print("[dim]Blacklist vazia.[/dim]")
+        return
+
+    table = Table(title=f"Blacklist ({len(settings.blacklist)} usuarios)", show_header=True, header_style="bold red")
+    table.add_column("#", justify="right", width=5)
+    table.add_column("Username", style="bold")
+
+    for i, username in enumerate(settings.blacklist, start=1):
+        table.add_row(str(i), f"@{username}")
+
+    console.print(table)
+
+
+@insta.command("set-proxy")
+@click.argument("proxy_url")
+def cmd_set_proxy(proxy_url: str) -> None:
+    """Configura proxy para conexao (ex: http://user:pass@host:port ou socks5://...)."""
+    settings = _load_settings()
+    settings.proxy = proxy_url
+    settings.save_to_file(str(_CONFIG_FILE))
+    console.print(f"[green]Proxy configurado:[/green] {proxy_url}")
+    console.print("[dim]O proxy sera usado na proxima sessao de login.[/dim]")
+
+
+@insta.command("remove-proxy")
+def cmd_remove_proxy() -> None:
+    """Remove a configuracao de proxy."""
+    settings = _load_settings()
+    if settings.proxy is None:
+        console.print("[yellow]Nenhum proxy configurado.[/yellow]")
+        return
+    settings.proxy = None
+    settings.save_to_file(str(_CONFIG_FILE))
+    console.print("[green]Proxy removido.[/green]")
 
 
 if __name__ == "__main__":

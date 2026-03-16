@@ -392,93 +392,122 @@ class StoryManager:
             f"[cyan]Visualizando e reagindo a stories de {len(new_followers)} novo(s) seguidor(es)...[/cyan]"
         )
 
-        for user in new_followers:
-            user_id = int(user.pk)
-            username = user.username
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Reagindo a stories de novos seguidores...", total=len(new_followers))
 
-            users_checked += 1
-            console.print(f"[dim]Verificando stories de @{username}...[/dim]")
+            for user in new_followers:
+                user_id = int(user.pk)
+                username = user.username
 
-            try:
-                # FIX 1: Buscar stories UMA unica vez e fazer view + react no mesmo loop
-                stories = self._client.user_stories(user_id)
-            except ChallengeRequired:
-                console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
-                console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
-                raise SystemExit(2)
-            except LoginRequired:
-                console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
-                raise SystemExit(2)
-            except Exception as exc:
-                console.print(f"[red]Erro ao buscar stories de @{username}:[/red] {exc}")
-                errors += 1
-                continue
-
-            if not stories:
-                console.print(f"[dim]Nenhum story ativo para @{username}.[/dim]")
-                continue
-
-            for story in stories:
-                # VIEW
-                # FIX 9: verificar duplicata antes de visualizar
-                view_skipped = False
-                if self._action_log and self._action_log.already_acted(_ACTION_VIEW, str(story.pk), hours=24):
-                    console.print(f"[dim]Story {story.pk} ja visto recentemente. Pulando view.[/dim]")
-                    view_skipped = True
-
-                if not view_skipped and self._rate_limiter.can_perform(_ACTION_VIEW):
-                    self._rate_limiter.wait_for_action(_ACTION_VIEW)
-                    try:
-                        self._client.story_seen([story.pk])
-                        self._rate_limiter.record_action(_ACTION_VIEW)
-                        self._rate_limiter.record_success(_ACTION_VIEW)
-                        stories_viewed += 1
-                        console.print(f"[green]Story visto:[/green] {story.pk} de @{username}")
-                        if self._action_log:
-                            self._action_log.log(_ACTION_VIEW, str(story.pk), username, "ok")
-                    except ChallengeRequired:
-                        console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
-                        console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
-                        raise SystemExit(2)
-                    except LoginRequired:
-                        console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
-                        raise SystemExit(2)
-                    except Exception as exc:
-                        console.print(f"[red]Erro ao ver story {story.pk}:[/red] {exc}")
-                        self._rate_limiter.record_error(_ACTION_VIEW)
-                        if self._action_log:
-                            self._action_log.log(_ACTION_VIEW, str(story.pk), username, "error", str(exc))
-                        errors += 1
-
-                # REACT (usando API nativa, nao DM)
-                # FIX 9: verificar duplicata antes de reagir
-                if self._action_log and self._action_log.already_acted(_ACTION_REACT, str(story.pk), hours=48):
-                    console.print(f"[dim]Story {story.pk} ja reagido recentemente. Pulando react.[/dim]")
+                # Blacklist check
+                if self._settings and username in self._settings.blacklist:
+                    console.print(f"[dim]@{username} na blacklist. Pulando.[/dim]")
+                    progress.advance(task)
                     continue
 
-                if self._rate_limiter.can_perform(_ACTION_REACT):
-                    self._rate_limiter.wait_for_action(_ACTION_REACT)
-                    try:
-                        self._client.story_send_reaction(story.pk, emoji)
-                        self._rate_limiter.record_action(_ACTION_REACT)
-                        self._rate_limiter.record_success(_ACTION_REACT)
-                        reactions_sent += 1
-                        console.print(f"[green]Reacao enviada:[/green] {emoji} para story {story.pk} de @{username}")
-                        if self._action_log:
-                            self._action_log.log(_ACTION_REACT, str(story.pk), username, "ok", f"emoji={emoji}")
-                    except ChallengeRequired:
-                        console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
-                        console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
-                        raise SystemExit(2)
-                    except LoginRequired:
-                        console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
-                        raise SystemExit(2)
-                    except Exception as exc:
-                        console.print(f"[red]Erro ao reagir ao story {story.pk}:[/red] {exc}")
-                        self._rate_limiter.record_error(_ACTION_REACT)
-                        if self._action_log:
-                            self._action_log.log(_ACTION_REACT, str(story.pk), username, "error", str(exc))
-                        errors += 1
+                users_checked += 1
+                console.print(f"[dim]Verificando stories de @{username}...[/dim]")
+
+                try:
+                    # FIX 1: Buscar stories UMA unica vez e fazer view + react no mesmo loop
+                    stories = self._client.user_stories(user_id)
+                except ChallengeRequired:
+                    console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+                    console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+                    raise SystemExit(2)
+                except LoginRequired:
+                    console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+                    raise SystemExit(2)
+                except Exception as exc:
+                    console.print(f"[red]Erro ao buscar stories de @{username}:[/red] {exc}")
+                    errors += 1
+                    progress.advance(task)
+                    continue
+
+                if not stories:
+                    console.print(f"[dim]Nenhum story ativo para @{username}.[/dim]")
+                    progress.advance(task)
+                    continue
+
+                for story in stories:
+                    # VIEW
+                    # FIX 9: verificar duplicata antes de visualizar
+                    view_skipped = False
+                    if self._action_log and self._action_log.already_acted(_ACTION_VIEW, str(story.pk), hours=24):
+                        console.print(f"[dim]Story {story.pk} ja visto recentemente. Pulando view.[/dim]")
+                        view_skipped = True
+
+                    if not view_skipped and self._rate_limiter.can_perform(_ACTION_VIEW):
+                        if not self._dry_run:
+                            self._rate_limiter.wait_for_action(_ACTION_VIEW)
+                        try:
+                            if self._dry_run:
+                                console.print(f"[dim][DRY-RUN] Visualizando story {story.pk} de @{username}[/dim]")
+                            else:
+                                self._client.story_seen([story.pk])
+                            self._rate_limiter.record_action(_ACTION_VIEW)
+                            self._rate_limiter.record_success(_ACTION_VIEW)
+                            stories_viewed += 1
+                            if not self._dry_run:
+                                console.print(f"[green]Story visto:[/green] {story.pk} de @{username}")
+                            if self._action_log and not self._dry_run:
+                                self._action_log.log(_ACTION_VIEW, str(story.pk), username, "ok")
+                        except ChallengeRequired:
+                            console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+                            console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+                            raise SystemExit(2)
+                        except LoginRequired:
+                            console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+                            raise SystemExit(2)
+                        except Exception as exc:
+                            console.print(f"[red]Erro ao ver story {story.pk}:[/red] {exc}")
+                            self._rate_limiter.record_error(_ACTION_VIEW)
+                            if self._action_log:
+                                self._action_log.log(_ACTION_VIEW, str(story.pk), username, "error", str(exc))
+                            errors += 1
+
+                    # REACT (usando API nativa, nao DM)
+                    # FIX 9: verificar duplicata antes de reagir
+                    if self._action_log and self._action_log.already_acted(_ACTION_REACT, str(story.pk), hours=48):
+                        console.print(f"[dim]Story {story.pk} ja reagido recentemente. Pulando react.[/dim]")
+                        continue
+
+                    if self._rate_limiter.can_perform(_ACTION_REACT):
+                        if not self._dry_run:
+                            self._rate_limiter.wait_for_action(_ACTION_REACT)
+                        try:
+                            if self._dry_run:
+                                console.print(f"[dim][DRY-RUN] Reagindo com {emoji} ao story {story.pk} de @{username}[/dim]")
+                            else:
+                                self._client.story_send_reaction(story.pk, emoji)
+                            self._rate_limiter.record_action(_ACTION_REACT)
+                            self._rate_limiter.record_success(_ACTION_REACT)
+                            reactions_sent += 1
+                            if not self._dry_run:
+                                console.print(f"[green]Reacao enviada:[/green] {emoji} para story {story.pk} de @{username}")
+                            if self._action_log and not self._dry_run:
+                                self._action_log.log(_ACTION_REACT, str(story.pk), username, "ok", f"emoji={emoji}")
+                        except ChallengeRequired:
+                            console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+                            console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+                            raise SystemExit(2)
+                        except LoginRequired:
+                            console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+                            raise SystemExit(2)
+                        except Exception as exc:
+                            console.print(f"[red]Erro ao reagir ao story {story.pk}:[/red] {exc}")
+                            self._rate_limiter.record_error(_ACTION_REACT)
+                            if self._action_log:
+                                self._action_log.log(_ACTION_REACT, str(story.pk), username, "error", str(exc))
+                            errors += 1
+
+                progress.advance(task)
 
         return {
             "users_checked": users_checked,

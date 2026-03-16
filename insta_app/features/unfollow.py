@@ -20,6 +20,8 @@ except ImportError:
     )
     raise
 
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, MofNCompleteColumn
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -38,6 +40,7 @@ class UnfollowManager:
         rate_limiter: RateLimiter,
         data_dir: str = "data",
         action_log: ActionLog | None = None,
+        dry_run: bool = False,
         settings: "Settings | None" = None,
     ) -> None:
         """
@@ -48,11 +51,13 @@ class UnfollowManager:
             rate_limiter: instancia de RateLimiter para controlar cadencia.
             data_dir: pasta onde a fila e arquivos de dados sao salvos.
             action_log: instancia opcional de ActionLog para registrar acoes.
-            settings: instancia opcional de Settings para leitura de configuracao.
+            dry_run: se True, simula acoes sem executar de verdade.
+            settings: instancia opcional de Settings para leitura de configuracao (whitelist).
         """
         self._client = client
         self._rate_limiter = rate_limiter
         self._action_log = action_log
+        self._dry_run = dry_run
         self._settings = settings
         self._data_dir = Path(data_dir)
         self._data_dir.mkdir(parents=True, exist_ok=True)
@@ -231,51 +236,84 @@ class UnfollowManager:
 
         console.print(f"[cyan]Iniciando execucao da fila:[/cyan] {len(pending)} unfollows pendentes.")
 
-        for user_id in list(pending):
-            if not self._rate_limiter.can_perform(_ACTION):
-                console.print("[yellow]Limite de unfollow atingido. Pausando execucao.[/yellow]")
-                break
+        # Build a username lookup for whitelist checking
+        whitelist: list[str] = []
+        if self._settings:
+            whitelist = self._settings.whitelist
 
-            self._rate_limiter.wait_for_action(_ACTION)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Executando unfollows...", total=len(pending))
 
-            try:
-                self._client.user_unfollow(user_id)
-                self._rate_limiter.record_action(_ACTION)
-                self._rate_limiter.record_success(_ACTION)
-                completed.append(user_id)
-                pending.remove(user_id)
-                console.print(f"[green]Unfollow realizado:[/green] user_id={user_id}")
-                if self._action_log:
-                    self._action_log.log(_ACTION, str(user_id), "", "ok")
-            except ChallengeRequired:
-                console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
-                console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
-                # Salva progresso antes de sair
+            for user_id in list(pending):
+                if not self._rate_limiter.can_perform(_ACTION):
+                    console.print("[yellow]Limite de unfollow atingido. Pausando execucao.[/yellow]")
+                    break
+
+                # Whitelist check: try to resolve username for the user_id
+                if whitelist:
+                    try:
+                        user_info = self._client.user_info(user_id)
+                        username = user_info.username
+                        if username in whitelist:
+                            console.print(f"[dim]@{username} na whitelist. Pulando.[/dim]")
+                            pending.remove(user_id)
+                            progress.advance(task)
+                            continue
+                    except Exception:
+                        pass  # If we can't resolve username, proceed with unfollow
+
+                if not self._dry_run:
+                    self._rate_limiter.wait_for_action(_ACTION)
+
+                try:
+                    if self._dry_run:
+                        console.print(f"[dim][DRY-RUN] Unfollow user_id={user_id}[/dim]")
+                    else:
+                        self._client.user_unfollow(user_id)
+                    self._rate_limiter.record_action(_ACTION)
+                    self._rate_limiter.record_success(_ACTION)
+                    completed.append(user_id)
+                    pending.remove(user_id)
+                    if not self._dry_run:
+                        console.print(f"[green]Unfollow realizado:[/green] user_id={user_id}")
+                    if self._action_log and not self._dry_run:
+                        self._action_log.log(_ACTION, str(user_id), "", "ok")
+                except ChallengeRequired:
+                    console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+                    console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+                    # Salva progresso antes de sair
+                    queue["pending"] = pending
+                    queue["completed"] = completed
+                    queue["failed"] = failed
+                    self._save_queue(queue)
+                    raise SystemExit(2)
+                except LoginRequired:
+                    console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+                    queue["pending"] = pending
+                    queue["completed"] = completed
+                    queue["failed"] = failed
+                    self._save_queue(queue)
+                    raise SystemExit(2)
+                except Exception as exc:
+                    console.print(f"[red]Erro ao dar unfollow em {user_id}:[/red] {exc}")
+                    self._rate_limiter.record_error(_ACTION)
+                    failed.append(user_id)
+                    pending.remove(user_id)
+                    if self._action_log:
+                        self._action_log.log(_ACTION, str(user_id), "", "error", str(exc))
+
+                # Salva progresso apos cada acao
                 queue["pending"] = pending
                 queue["completed"] = completed
                 queue["failed"] = failed
                 self._save_queue(queue)
-                raise SystemExit(2)
-            except LoginRequired:
-                console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
-                queue["pending"] = pending
-                queue["completed"] = completed
-                queue["failed"] = failed
-                self._save_queue(queue)
-                raise SystemExit(2)
-            except Exception as exc:
-                console.print(f"[red]Erro ao dar unfollow em {user_id}:[/red] {exc}")
-                self._rate_limiter.record_error(_ACTION)
-                failed.append(user_id)
-                pending.remove(user_id)
-                if self._action_log:
-                    self._action_log.log(_ACTION, str(user_id), "", "error", str(exc))
-
-            # Salva progresso apos cada acao
-            queue["pending"] = pending
-            queue["completed"] = completed
-            queue["failed"] = failed
-            self._save_queue(queue)
+                progress.advance(task)
 
         return {
             "completed": len(completed),
