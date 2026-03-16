@@ -92,7 +92,7 @@ async def root():
     """Rota raiz — redireciona para docs."""
     return {
         "message": "MSM_Pro API — acesse /docs para a documentação",
-        "timestamp": "2026-03-16T15:20:00Z"
+        "timestamp": "2026-03-16T17:00:00Z"
     }
 
 
