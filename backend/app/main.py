@@ -21,6 +21,7 @@ import app.jobs.tasks  # noqa: F401
 # Importa routers
 from app.ads.router import router as ads_router
 from app.alertas.router import router as alertas_router
+from app.analise.router import router as analise_router
 from app.auth.router import router as auth_router
 from app.concorrencia.router import router as concorrencia_router
 from app.consultor.router import router as consultor_router
@@ -38,21 +39,26 @@ app = FastAPI(
 )
 
 # --- CORS ---
-# Monta lista de origens permitidas (separa por vírgula no env se necessário)
+# Monta lista de origens permitidas — sem wildcards em methods/headers
 _cors_origins: list[str] = [
     settings.frontend_url,
     "http://localhost:5173",
     "http://localhost:3000",
     "https://msmprofrontend-production.up.railway.app",
 ]
+# Permite origens extras via env var CORS_ORIGINS (comma-separated)
+if settings.cors_origins:
+    _cors_origins.extend(
+        o.strip() for o in settings.cors_origins.split(",") if o.strip()
+    )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
     allow_origin_regex=r"https://.*\.up\.railway\.app",
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
 )
 
 # --- Routers ---
@@ -61,6 +67,7 @@ API_PREFIX = "/api/v1"
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(produtos_router, prefix=API_PREFIX)
 app.include_router(vendas_router, prefix=API_PREFIX)
+app.include_router(analise_router, prefix=API_PREFIX)
 app.include_router(concorrencia_router, prefix=API_PREFIX)
 app.include_router(alertas_router, prefix=API_PREFIX)
 app.include_router(consultor_router, prefix=API_PREFIX)
