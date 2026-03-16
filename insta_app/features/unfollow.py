@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import time
 from datetime import datetime
@@ -6,15 +8,22 @@ from pathlib import Path
 from rich.console import Console
 
 from insta_app.core.rate_limiter import RateLimiter
+from insta_app.core.utils import atomic_write_json
 
 try:
     from instagrapi import Client
+    from instagrapi.exceptions import ChallengeRequired, LoginRequired
 except ImportError:
     Console().print(
         "[bold red]Erro:[/bold red] instagrapi nao instalado. "
         "Execute: pip install instagrapi"
     )
     raise
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from insta_app.core.action_log import ActionLog
 
 console = Console()
 
@@ -27,6 +36,7 @@ class UnfollowManager:
         client: Client,
         rate_limiter: RateLimiter,
         data_dir: str = "data",
+        action_log: ActionLog | None = None,
     ) -> None:
         """
         Gerencia unfollows de forma segura e com rate limiting.
@@ -35,9 +45,11 @@ class UnfollowManager:
             client: instagrapi.Client ja autenticado.
             rate_limiter: instancia de RateLimiter para controlar cadencia.
             data_dir: pasta onde a fila e arquivos de dados sao salvos.
+            action_log: instancia opcional de ActionLog para registrar acoes.
         """
         self._client = client
         self._rate_limiter = rate_limiter
+        self._action_log = action_log
         self._data_dir = Path(data_dir)
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._queue_path = self._data_dir / "unfollow_queue.json"
@@ -55,9 +67,27 @@ class UnfollowManager:
         """
         user_id = self._client.user_id
         console.print("[dim]Buscando seguidores...[/dim]")
-        followers: dict = self._client.user_followers(user_id)
+        try:
+            followers: dict = self._client.user_followers(user_id)
+        except ChallengeRequired:
+            console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+            console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+            raise SystemExit(2)
+        except LoginRequired:
+            console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+            raise SystemExit(2)
+
         console.print("[dim]Buscando seguindo...[/dim]")
-        following: dict = self._client.user_following(user_id)
+
+        try:
+            following: dict = self._client.user_following(user_id)
+        except ChallengeRequired:
+            console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+            console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+            raise SystemExit(2)
+        except LoginRequired:
+            console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+            raise SystemExit(2)
 
         follower_ids: set[int] = set(followers.keys())
         not_following_back = {uid: user for uid, user in following.items() if uid not in follower_ids}
@@ -82,6 +112,13 @@ class UnfollowManager:
                         "is_private": info.is_private,
                     }
                 )
+            except ChallengeRequired:
+                console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+                console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+                raise SystemExit(2)
+            except LoginRequired:
+                console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+                raise SystemExit(2)
             except Exception as exc:
                 console.print(f"[yellow]Nao foi possivel buscar info de {user_short.username}: {exc}[/yellow]")
                 suggestions.append(
@@ -128,8 +165,7 @@ class UnfollowManager:
             "failed": [],
         }
 
-        with open(self._queue_path, "w", encoding="utf-8") as f:
-            json.dump(queue_data, f, indent=2, ensure_ascii=False)
+        atomic_write_json(self._queue_path, queue_data)
 
         # Calcula tempo estimado
         if delay_between is None:
@@ -167,6 +203,11 @@ class UnfollowManager:
         Returns:
             {"completed": int, "failed": int, "remaining": int}
         """
+        # FIX 7: Verificar horario permitido
+        if not self._rate_limiter.is_within_schedule():
+            console.print("[yellow]Fora do horario permitido. Acoes suspensas.[/yellow]")
+            return {"completed": 0, "failed": 0, "remaining": 0, "message": "Fora do horario"}
+
         queue = self._load_queue()
         if queue is None:
             console.print("[yellow]Nenhuma fila de unfollow encontrada.[/yellow]")
@@ -192,13 +233,35 @@ class UnfollowManager:
             try:
                 self._client.user_unfollow(user_id)
                 self._rate_limiter.record_action(_ACTION)
+                self._rate_limiter.record_success(_ACTION)
                 completed.append(user_id)
                 pending.remove(user_id)
                 console.print(f"[green]Unfollow realizado:[/green] user_id={user_id}")
+                if self._action_log:
+                    self._action_log.log(_ACTION, str(user_id), "", "ok")
+            except ChallengeRequired:
+                console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+                console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+                # Salva progresso antes de sair
+                queue["pending"] = pending
+                queue["completed"] = completed
+                queue["failed"] = failed
+                self._save_queue(queue)
+                raise SystemExit(2)
+            except LoginRequired:
+                console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+                queue["pending"] = pending
+                queue["completed"] = completed
+                queue["failed"] = failed
+                self._save_queue(queue)
+                raise SystemExit(2)
             except Exception as exc:
                 console.print(f"[red]Erro ao dar unfollow em {user_id}:[/red] {exc}")
+                self._rate_limiter.record_error(_ACTION)
                 failed.append(user_id)
                 pending.remove(user_id)
+                if self._action_log:
+                    self._action_log.log(_ACTION, str(user_id), "", "error", str(exc))
 
             # Salva progresso apos cada acao
             queue["pending"] = pending
@@ -251,6 +314,5 @@ class UnfollowManager:
             return None
 
     def _save_queue(self, queue: dict) -> None:
-        """Salva fila de unfollow no arquivo JSON."""
-        with open(self._queue_path, "w", encoding="utf-8") as f:
-            json.dump(queue, f, indent=2, ensure_ascii=False)
+        """Salva fila de unfollow no arquivo JSON de forma atomica."""
+        atomic_write_json(self._queue_path, queue)

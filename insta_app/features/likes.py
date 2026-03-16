@@ -6,6 +6,7 @@ from insta_app.core.rate_limiter import RateLimiter
 
 try:
     from instagrapi import Client
+    from instagrapi.exceptions import ChallengeRequired, LoginRequired
 except ImportError:
     Console().print(
         "[bold red]Erro:[/bold red] instagrapi nao instalado. "
@@ -56,6 +57,11 @@ class LikeManager:
         Returns:
             {"users_processed": int, "likes_given": int, "errors": int}
         """
+        # FIX 7: Verificar horario permitido
+        if not self._rate_limiter.is_within_schedule():
+            console.print("[yellow]Fora do horario permitido. Acoes suspensas.[/yellow]")
+            return {"users_processed": 0, "likes_given": 0, "errors": 0, "message": "Fora do horario"}
+
         from insta_app.features.monitoring import FollowerMonitor
 
         monitor = FollowerMonitor(self._client, data_dir="data")
@@ -78,19 +84,27 @@ class LikeManager:
             username = user.username
 
             if user.is_private:
-                console.print(f"[dim]@{username} tem perfil privado — pulando.[/dim]")
+                console.print(f"[dim]@{username} tem perfil privado -- pulando.[/dim]")
                 continue
 
             try:
                 medias = self._client.user_medias(user_id, amount=max_posts_per_user)
+            except ChallengeRequired:
+                console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+                console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+                raise SystemExit(2)
+            except LoginRequired:
+                console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+                raise SystemExit(2)
             except Exception as exc:
                 console.print(f"[yellow]Erro ao buscar posts de @{username}:[/yellow] {exc}")
+                self._rate_limiter.record_error(_ACTION)
                 errors += 1
                 continue
 
             user_likes = 0
             for media in medias:
-                # FIX 9: verificar duplicata antes de curtir
+                # Verificar duplicata antes de curtir
                 if self._action_log and self._action_log.already_acted(_ACTION, str(media.pk), hours=48):
                     console.print(f"[dim]Post {media.pk} ja curtido recentemente. Pulando.[/dim]")
                     continue
@@ -104,6 +118,7 @@ class LikeManager:
                 try:
                     self._client.media_like(media.pk)
                     self._rate_limiter.record_action(_ACTION)
+                    self._rate_limiter.record_success(_ACTION)
                     user_likes += 1
                     likes_given += 1
                     console.print(
@@ -111,10 +126,18 @@ class LikeManager:
                     )
                     if self._action_log:
                         self._action_log.log(_ACTION, str(media.pk), username, "ok")
+                except ChallengeRequired:
+                    console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+                    console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+                    raise SystemExit(2)
+                except LoginRequired:
+                    console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+                    raise SystemExit(2)
                 except Exception as exc:
                     console.print(
                         f"[red]Erro ao curtir post {media.pk} de @{username}:[/red] {exc}"
                     )
+                    self._rate_limiter.record_error(_ACTION)
                     errors += 1
                     if self._action_log:
                         self._action_log.log(_ACTION, str(media.pk), username, "error", str(exc))
@@ -139,6 +162,11 @@ class LikeManager:
         Returns:
             {"username": str, "likes_given": int, "errors": int}
         """
+        # FIX 7: Verificar horario permitido
+        if not self._rate_limiter.is_within_schedule():
+            console.print("[yellow]Fora do horario permitido. Acoes suspensas.[/yellow]")
+            return {"username": username, "likes_given": 0, "errors": 0, "message": "Fora do horario"}
+
         username = username.lstrip("@")
         likes_given = 0
         errors = 0
@@ -146,16 +174,30 @@ class LikeManager:
         try:
             user_info = self._client.user_info_by_username(username)
             user_id = int(user_info.pk)
+        except ChallengeRequired:
+            console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+            console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+            raise SystemExit(2)
+        except LoginRequired:
+            console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+            raise SystemExit(2)
         except Exception as exc:
             console.print(f"[red]Erro ao buscar usuario @{username}:[/red] {exc}")
             return {"username": username, "likes_given": 0, "errors": 1}
 
         if user_info.is_private:
-            console.print(f"[yellow]@{username} tem perfil privado — impossivel ver posts.[/yellow]")
+            console.print(f"[yellow]@{username} tem perfil privado -- impossivel ver posts.[/yellow]")
             return {"username": username, "likes_given": 0, "errors": 0}
 
         try:
             medias = self._client.user_medias(user_id, amount=amount)
+        except ChallengeRequired:
+            console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+            console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+            raise SystemExit(2)
+        except LoginRequired:
+            console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+            raise SystemExit(2)
         except Exception as exc:
             console.print(f"[red]Erro ao buscar posts de @{username}:[/red] {exc}")
             return {"username": username, "likes_given": 0, "errors": 1}
@@ -165,7 +207,7 @@ class LikeManager:
         )
 
         for media in medias:
-            # FIX 9: verificar duplicata antes de curtir
+            # Verificar duplicata antes de curtir
             if self._action_log and self._action_log.already_acted(_ACTION, str(media.pk), hours=48):
                 console.print(f"[dim]Post {media.pk} ja curtido recentemente. Pulando.[/dim]")
                 continue
@@ -179,14 +221,23 @@ class LikeManager:
             try:
                 self._client.media_like(media.pk)
                 self._rate_limiter.record_action(_ACTION)
+                self._rate_limiter.record_success(_ACTION)
                 likes_given += 1
                 console.print(f"[green]Curtida:[/green] post {media.pk} de @{username}")
                 if self._action_log:
                     self._action_log.log(_ACTION, str(media.pk), username, "ok")
+            except ChallengeRequired:
+                console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+                console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+                raise SystemExit(2)
+            except LoginRequired:
+                console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+                raise SystemExit(2)
             except Exception as exc:
                 console.print(
                     f"[red]Erro ao curtir post {media.pk} de @{username}:[/red] {exc}"
                 )
+                self._rate_limiter.record_error(_ACTION)
                 errors += 1
                 if self._action_log:
                     self._action_log.log(_ACTION, str(media.pk), username, "error", str(exc))
@@ -204,6 +255,11 @@ class LikeManager:
         Returns:
             {"users_processed": int, "likes_given": int, "errors": int}
         """
+        # FIX 7: Verificar horario permitido
+        if not self._rate_limiter.is_within_schedule():
+            console.print("[yellow]Fora do horario permitido. Acoes suspensas.[/yellow]")
+            return {"users_processed": 0, "likes_given": 0, "errors": 0, "message": "Fora do horario"}
+
         users_processed = 0
         total_likes = 0
         total_errors = 0
@@ -235,6 +291,11 @@ class LikeManager:
         Returns:
             {"commenters_found": int, "likes_given": int, "errors": int}
         """
+        # FIX 7: Verificar horario permitido
+        if not self._rate_limiter.is_within_schedule():
+            console.print("[yellow]Fora do horario permitido. Acoes suspensas.[/yellow]")
+            return {"commenters_found": 0, "likes_given": 0, "errors": 0, "message": "Fora do horario"}
+
         commenters_found = 0
         likes_given = 0
         errors = 0
@@ -243,6 +304,13 @@ class LikeManager:
 
         try:
             my_medias = self._client.user_medias(self._client.user_id, amount=10)
+        except ChallengeRequired:
+            console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+            console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+            raise SystemExit(2)
+        except LoginRequired:
+            console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+            raise SystemExit(2)
         except Exception as exc:
             console.print(f"[red]Erro ao buscar seus posts:[/red] {exc}")
             return {"commenters_found": 0, "likes_given": 0, "errors": 1}
@@ -253,8 +321,16 @@ class LikeManager:
             console.print(f"[dim]Buscando comentaristas do post {media.pk}...[/dim]")
             try:
                 comments = self._client.media_comments(media.pk)
+            except ChallengeRequired:
+                console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+                console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+                raise SystemExit(2)
+            except LoginRequired:
+                console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+                raise SystemExit(2)
             except Exception as exc:
                 console.print(f"[yellow]Erro ao buscar comentarios do post {media.pk}:[/yellow] {exc}")
+                self._rate_limiter.record_error(_ACTION)
                 errors += 1
                 continue
 

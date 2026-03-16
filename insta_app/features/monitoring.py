@@ -4,8 +4,11 @@ from pathlib import Path
 
 from rich.console import Console
 
+from insta_app.core.utils import atomic_write_json
+
 try:
     from instagrapi import Client
+    from instagrapi.exceptions import ChallengeRequired, LoginRequired
     from instagrapi.types import UserShort
 except ImportError:
     Console().print(
@@ -40,7 +43,15 @@ class FollowerMonitor:
         """Busca todos os seguidores do usuario logado."""
         user_id = self._client.user_id
         console.print(f"[dim]Buscando seguidores de user_id={user_id}...[/dim]")
-        followers: dict[int, UserShort] = self._client.user_followers(user_id)
+        try:
+            followers: dict[int, UserShort] = self._client.user_followers(user_id)
+        except ChallengeRequired:
+            console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+            console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+            raise SystemExit(2)
+        except LoginRequired:
+            console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+            raise SystemExit(2)
         console.print(f"[dim]Total de seguidores: {len(followers)}[/dim]")
         return followers
 
@@ -48,7 +59,15 @@ class FollowerMonitor:
         """Busca todos que o usuario segue."""
         user_id = self._client.user_id
         console.print(f"[dim]Buscando seguindo de user_id={user_id}...[/dim]")
-        following: dict[int, UserShort] = self._client.user_following(user_id)
+        try:
+            following: dict[int, UserShort] = self._client.user_following(user_id)
+        except ChallengeRequired:
+            console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+            console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+            raise SystemExit(2)
+        except LoginRequired:
+            console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+            raise SystemExit(2)
         console.print(f"[dim]Total seguindo: {len(following)}[/dim]")
         return following
 
@@ -184,8 +203,7 @@ class FollowerMonitor:
                 for uid, user in followers.items()
             },
         }
-        with open(self._snapshot_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        atomic_write_json(self._snapshot_path, data)
         console.print(f"[dim]Snapshot salvo em: {self._snapshot_path}[/dim]")
 
     def _load_snapshot(self) -> dict | None:
@@ -219,6 +237,5 @@ class FollowerMonitor:
 
         history.append(entry)
 
-        with open(self._history_path, "w", encoding="utf-8") as f:
-            json.dump(history, f, indent=2, ensure_ascii=False)
+        atomic_write_json(self._history_path, history)
         console.print(f"[dim]Historico salvo em: {self._history_path}[/dim]")

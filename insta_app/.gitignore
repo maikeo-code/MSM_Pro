@@ -1,0 +1,18 @@
+# Sessao Instagram (contem tokens)
+session.json
+session.backup.*.json
+
+# Configuracao com credenciais
+config.json
+
+# Dados locais
+data/
+
+# SQLite databases
+*.db
+*.db-journal
+
+# Python
+__pycache__/
+*.pyc
+.env

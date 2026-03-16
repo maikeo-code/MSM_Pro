@@ -1,4 +1,5 @@
 import json
+import shutil
 from pathlib import Path
 
 from rich.console import Console
@@ -28,6 +29,24 @@ class SessionManager:
         self._settings = settings
         self._client: Client = Client()
         self._logged_in: bool = False
+        self._configure_device_fingerprint()
+
+    def _configure_device_fingerprint(self) -> None:
+        """Configura device fingerprint fixo para manter consistencia entre sessoes."""
+        self._client.set_device(
+            {
+                "app_version": "269.0.0.18.75",
+                "android_version": 31,
+                "android_release": "12.0",
+                "dpi": "480dpi",
+                "resolution": "1080x2220",
+                "manufacturer": "samsung",
+                "device": "star2lte",
+                "model": "SM-G965F",
+                "cpu": "exynos9810",
+                "version_code": "314665256",
+            }
+        )
 
     def login(self, username: str, password: str) -> bool:
         """Realiza login no Instagram. Trata 2FA e challenges."""
@@ -72,30 +91,70 @@ class SessionManager:
             return False
 
     def load_session(self) -> bool:
-        """Tenta carregar sessao salva do arquivo. Retorna True se sessao valida."""
+        """
+        Tenta carregar sessao salva do arquivo. Retorna True se sessao valida.
+        Se o arquivo principal falhar, tenta carregar do backup mais recente.
+        """
         session_path = Path(self._settings.session_file)
-        if not session_path.exists():
-            return False
+
+        # Tentar arquivo principal primeiro
+        if session_path.exists():
+            result = self._try_load_session(session_path)
+            if result:
+                return True
+
+        # Tentar backups em ordem (1 = mais recente)
+        for i in range(1, 4):
+            backup_path = session_path.with_suffix(f".backup.{i}.json")
+            if backup_path.exists():
+                console.print(f"[yellow]Tentando carregar backup {i}...[/yellow]")
+                result = self._try_load_session(backup_path)
+                if result:
+                    # Restaurar backup como sessao principal
+                    shutil.copy2(backup_path, session_path)
+                    console.print(f"[green]Backup {i} restaurado como sessao principal.[/green]")
+                    return True
+
+        console.print("[yellow]Nenhuma sessao valida encontrada. Faca login novamente.[/yellow]")
+        return False
+
+    def _try_load_session(self, path: Path) -> bool:
+        """Tenta carregar sessao de um caminho especifico. Retorna True se valida."""
         try:
-            self._client.load_settings(str(session_path))
-            # Testa se sessao ainda e valida
+            self._client.load_settings(str(path))
             self._client.account_info()
             self._logged_in = True
-            console.print("[green]Sessao carregada com sucesso.[/green]")
+            console.print(f"[green]Sessao carregada com sucesso de: {path}[/green]")
             return True
         except LoginRequired:
-            console.print("[yellow]Sessao expirada. Faca login novamente.[/yellow]")
+            console.print(f"[yellow]Sessao expirada em {path}.[/yellow]")
             self._logged_in = False
             return False
         except Exception as exc:
-            console.print(f"[yellow]Nao foi possivel carregar a sessao:[/yellow] {exc}")
+            console.print(f"[yellow]Nao foi possivel carregar sessao de {path}:[/yellow] {exc}")
             self._logged_in = False
             return False
 
+    def _backup_session(self) -> None:
+        """Cria backup rotativo da sessao atual (mantem ultimos 3)."""
+        session_path = Path(self._settings.session_file)
+        if not session_path.exists():
+            return
+        # Rotacionar: 2->3, 1->2
+        for i in range(3, 1, -1):
+            old = session_path.with_suffix(f".backup.{i - 1}.json")
+            new = session_path.with_suffix(f".backup.{i}.json")
+            if old.exists():
+                old.rename(new)
+        # Copiar atual para backup.1
+        shutil.copy2(session_path, session_path.with_suffix(".backup.1.json"))
+        console.print("[dim]Backup de sessao criado.[/dim]")
+
     def save_session(self) -> None:
-        """Salva cookies/session do instagrapi para arquivo JSON."""
+        """Salva cookies/session do instagrapi para arquivo JSON com backup rotativo."""
         session_path = Path(self._settings.session_file)
         session_path.parent.mkdir(parents=True, exist_ok=True)
+        self._backup_session()
         self._client.dump_settings(str(session_path))
         console.print(f"[dim]Sessao salva em:[/dim] {session_path}")
 

@@ -132,12 +132,26 @@ def status() -> None:
     schedule_ok = rate_limiter.is_within_schedule()
     schedule_text = "[green]Dentro do horario[/green]" if schedule_ok else "[yellow]Fora do horario[/yellow]"
 
+    # FIX 3: Warmup status
+    warmup = rate_limiter.get_warmup_status()
+    if warmup["enabled"]:
+        if warmup["completed"]:
+            warmup_text = "[green]Concluido (100%)[/green]"
+        else:
+            warmup_text = (
+                f"[yellow]Dia {warmup['days_active']}/{warmup['days_total']} "
+                f"({warmup['percentage']}%)[/yellow]"
+            )
+    else:
+        warmup_text = "[dim]Desabilitado[/dim]"
+
     console.print(
         Panel(
             f"Usuario: [bold]{username}[/bold]\n"
             f"Sessao: {status_text}\n"
             f"Horario: {schedule_text} "
-            f"({settings.schedule_hours[0]}h - {settings.schedule_hours[1]}h)",
+            f"({settings.schedule_hours[0]}h - {settings.schedule_hours[1]}h)\n"
+            f"Warm-up: {warmup_text}",
             title="Status da Sessao",
         )
     )
