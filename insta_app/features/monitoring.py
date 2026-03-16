@@ -52,6 +52,9 @@ class FollowerMonitor:
         except LoginRequired:
             console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
             raise SystemExit(2)
+        except Exception as exc:
+            console.print(f"[red]Erro ao buscar seguidores:[/red] {exc}")
+            return {}
         console.print(f"[dim]Total de seguidores: {len(followers)}[/dim]")
         return followers
 
@@ -68,6 +71,9 @@ class FollowerMonitor:
         except LoginRequired:
             console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
             raise SystemExit(2)
+        except Exception as exc:
+            console.print(f"[red]Erro ao buscar seguindo:[/red] {exc}")
+            return {}
         console.print(f"[dim]Total seguindo: {len(following)}[/dim]")
         return following
 

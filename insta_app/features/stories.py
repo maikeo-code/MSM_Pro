@@ -111,8 +111,9 @@ class StoryManager:
                     console.print(f"[dim][DRY-RUN] Visualizando story {story.pk} de user_id={user_id}[/dim]")
                 else:
                     self._client.story_seen([story.pk])
-                self._rate_limiter.record_action(_ACTION_VIEW)
-                self._rate_limiter.record_success(_ACTION_VIEW)
+                if not self._dry_run:
+                    self._rate_limiter.record_action(_ACTION_VIEW)
+                    self._rate_limiter.record_success(_ACTION_VIEW)
                 stories_viewed += 1
                 if not self._dry_run:
                     console.print(f"[green]Story visto:[/green] {story.pk}")
@@ -334,8 +335,9 @@ class StoryManager:
                 else:
                     # FIX 1: Usar API nativa de reacao a stories em vez de direct_send (DM spam)
                     self._client.story_send_reaction(story.pk, emoji)
-                self._rate_limiter.record_action(_ACTION_REACT)
-                self._rate_limiter.record_success(_ACTION_REACT)
+                if not self._dry_run:
+                    self._rate_limiter.record_action(_ACTION_REACT)
+                    self._rate_limiter.record_success(_ACTION_REACT)
                 reactions_sent += 1
                 if not self._dry_run:
                     console.print(f"[green]Reacao enviada:[/green] {emoji} para story {story.pk}")

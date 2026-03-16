@@ -5,6 +5,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from insta_app.config import Settings, _CONFIG_FILE
+from insta_app.core.action_log import ActionLog
 from insta_app.core.rate_limiter import RateLimiter
 from insta_app.core.session import SessionManager
 
@@ -309,7 +310,8 @@ def cmd_not_following_back(ctx: click.Context) -> None:
         default="agora",
     )
 
-    unfollow_mgr = UnfollowManager(client, rate_limiter, data_dir="data", dry_run=dry_run, settings=settings)
+    action_log = ActionLog()
+    unfollow_mgr = UnfollowManager(client, rate_limiter, data_dir="data", action_log=action_log, dry_run=dry_run, settings=settings)
     result = unfollow_mgr.schedule_unfollow(chosen_ids)
 
     if when.strip().lower() == "agora":
@@ -347,7 +349,8 @@ def cmd_unfollow_queue(ctx: click.Context, execute: bool, cancel: bool) -> None:
 
     from insta_app.features.unfollow import UnfollowManager
 
-    unfollow_mgr = UnfollowManager(client, rate_limiter, data_dir="data", dry_run=dry_run, settings=settings)
+    action_log = ActionLog()
+    unfollow_mgr = UnfollowManager(client, rate_limiter, data_dir="data", action_log=action_log, dry_run=dry_run, settings=settings)
 
     if cancel:
         unfollow_mgr.cancel_unfollow_queue()
@@ -445,7 +448,8 @@ def cmd_like_new(ctx: click.Context, max_posts: int) -> None:
 
     from insta_app.features.likes import LikeManager
 
-    like_mgr = LikeManager(client, rate_limiter, dry_run=dry_run, settings=settings)
+    action_log = ActionLog()
+    like_mgr = LikeManager(client, rate_limiter, action_log=action_log, dry_run=dry_run, settings=settings)
 
     console.print(
         Panel(
@@ -483,7 +487,8 @@ def cmd_like_user(ctx: click.Context, username: str, amount: int) -> None:
 
     from insta_app.features.likes import LikeManager
 
-    like_mgr = LikeManager(client, rate_limiter, dry_run=dry_run, settings=settings)
+    action_log = ActionLog()
+    like_mgr = LikeManager(client, rate_limiter, action_log=action_log, dry_run=dry_run, settings=settings)
     clean_username = username.lstrip("@")
 
     console.print(
@@ -515,7 +520,8 @@ def cmd_like_commenters(ctx: click.Context) -> None:
 
     from insta_app.features.likes import LikeManager
 
-    like_mgr = LikeManager(client, rate_limiter, dry_run=dry_run, settings=settings)
+    action_log = ActionLog()
+    like_mgr = LikeManager(client, rate_limiter, action_log=action_log, dry_run=dry_run, settings=settings)
 
     console.print(
         Panel(
@@ -558,7 +564,8 @@ def cmd_stories(ctx: click.Context, react: bool, emoji: str) -> None:
 
     from insta_app.features.stories import StoryManager
 
-    story_mgr = StoryManager(client, rate_limiter, dry_run=dry_run, settings=settings)
+    action_log = ActionLog()
+    story_mgr = StoryManager(client, rate_limiter, action_log=action_log, dry_run=dry_run, settings=settings)
 
     if react:
         console.print(
@@ -617,7 +624,8 @@ def cmd_stories_user(ctx: click.Context, username: str, react: bool, emoji: str)
 
     from insta_app.features.stories import StoryManager
 
-    story_mgr = StoryManager(client, rate_limiter, dry_run=dry_run, settings=settings)
+    action_log = ActionLog()
+    story_mgr = StoryManager(client, rate_limiter, action_log=action_log, dry_run=dry_run, settings=settings)
     clean_username = username.lstrip("@")
 
     try:

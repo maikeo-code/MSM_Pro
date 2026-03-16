@@ -276,8 +276,9 @@ class UnfollowManager:
                         console.print(f"[dim][DRY-RUN] Unfollow user_id={user_id}[/dim]")
                     else:
                         self._client.user_unfollow(user_id)
-                    self._rate_limiter.record_action(_ACTION)
-                    self._rate_limiter.record_success(_ACTION)
+                    if not self._dry_run:
+                        self._rate_limiter.record_action(_ACTION)
+                        self._rate_limiter.record_success(_ACTION)
                     completed.append(user_id)
                     pending.remove(user_id)
                     if not self._dry_run:

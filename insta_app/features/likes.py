@@ -147,8 +147,9 @@ class LikeManager:
                             console.print(f"[dim][DRY-RUN] Curtindo post {media.pk} de @{username}[/dim]")
                         else:
                             self._client.media_like(media.pk)
-                        self._rate_limiter.record_action(_ACTION)
-                        self._rate_limiter.record_success(_ACTION)
+                        if not self._dry_run:
+                            self._rate_limiter.record_action(_ACTION)
+                            self._rate_limiter.record_success(_ACTION)
                         user_likes += 1
                         likes_given += 1
                         if not self._dry_run:
@@ -262,8 +263,9 @@ class LikeManager:
                     console.print(f"[dim][DRY-RUN] Curtindo post {media.pk} de @{username}[/dim]")
                 else:
                     self._client.media_like(media.pk)
-                self._rate_limiter.record_action(_ACTION)
-                self._rate_limiter.record_success(_ACTION)
+                if not self._dry_run:
+                    self._rate_limiter.record_action(_ACTION)
+                    self._rate_limiter.record_success(_ACTION)
                 likes_given += 1
                 if not self._dry_run:
                     console.print(f"[green]Curtida:[/green] post {media.pk} de @{username}")
