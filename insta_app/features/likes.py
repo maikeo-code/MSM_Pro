@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from rich.console import Console
 
 from insta_app.core.rate_limiter import RateLimiter
@@ -11,22 +13,34 @@ except ImportError:
     )
     raise
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from insta_app.core.action_log import ActionLog
+
 console = Console()
 
 _ACTION = "like"
 
 
 class LikeManager:
-    def __init__(self, client: Client, rate_limiter: RateLimiter) -> None:
+    def __init__(
+        self,
+        client: Client,
+        rate_limiter: RateLimiter,
+        action_log: ActionLog | None = None,
+    ) -> None:
         """
         Gerencia curtidas de forma segura e com rate limiting.
 
         Args:
             client: instagrapi.Client ja autenticado.
             rate_limiter: instancia de RateLimiter para controlar cadencia.
+            action_log: instancia opcional de ActionLog para registrar acoes.
         """
         self._client = client
         self._rate_limiter = rate_limiter
+        self._action_log = action_log
 
     # ------------------------------------------------------------------
     # Metodos publicos
@@ -76,6 +90,11 @@ class LikeManager:
 
             user_likes = 0
             for media in medias:
+                # FIX 9: verificar duplicata antes de curtir
+                if self._action_log and self._action_log.already_acted(_ACTION, str(media.pk), hours=48):
+                    console.print(f"[dim]Post {media.pk} ja curtido recentemente. Pulando.[/dim]")
+                    continue
+
                 if not self._rate_limiter.can_perform(_ACTION):
                     console.print("[yellow]Limite de curtidas atingido. Pausando.[/yellow]")
                     break
@@ -90,11 +109,15 @@ class LikeManager:
                     console.print(
                         f"[green]Curtida:[/green] post {media.pk} de @{username}"
                     )
+                    if self._action_log:
+                        self._action_log.log(_ACTION, str(media.pk), username, "ok")
                 except Exception as exc:
                     console.print(
                         f"[red]Erro ao curtir post {media.pk} de @{username}:[/red] {exc}"
                     )
                     errors += 1
+                    if self._action_log:
+                        self._action_log.log(_ACTION, str(media.pk), username, "error", str(exc))
 
             if user_likes > 0:
                 users_processed += 1
@@ -142,6 +165,11 @@ class LikeManager:
         )
 
         for media in medias:
+            # FIX 9: verificar duplicata antes de curtir
+            if self._action_log and self._action_log.already_acted(_ACTION, str(media.pk), hours=48):
+                console.print(f"[dim]Post {media.pk} ja curtido recentemente. Pulando.[/dim]")
+                continue
+
             if not self._rate_limiter.can_perform(_ACTION):
                 console.print("[yellow]Limite de curtidas atingido. Pausando.[/yellow]")
                 break
@@ -153,11 +181,15 @@ class LikeManager:
                 self._rate_limiter.record_action(_ACTION)
                 likes_given += 1
                 console.print(f"[green]Curtida:[/green] post {media.pk} de @{username}")
+                if self._action_log:
+                    self._action_log.log(_ACTION, str(media.pk), username, "ok")
             except Exception as exc:
                 console.print(
                     f"[red]Erro ao curtir post {media.pk} de @{username}:[/red] {exc}"
                 )
                 errors += 1
+                if self._action_log:
+                    self._action_log.log(_ACTION, str(media.pk), username, "error", str(exc))
 
         return {"username": username, "likes_given": likes_given, "errors": errors}
 
