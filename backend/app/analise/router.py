@@ -9,13 +9,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-try:
-    from app.analise import service
-except Exception as e:
-    service = None
-    import sys
-    print(f"ERROR importing analise service: {e}", file=sys.stderr)
-
+from app.analise import service
 from app.analise.schemas import AnaliseResponse
 from app.auth.models import User
 from app.core.database import get_db

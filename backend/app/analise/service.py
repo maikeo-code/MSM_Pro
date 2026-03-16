@@ -5,8 +5,6 @@ Calcula métricas reais de vendas, visitas, conversão e ROAS
 a partir dos snapshots históricos dos listings.
 """
 from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Optional
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import (
@@ -17,11 +15,10 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.ads.models import AdCampaign, AdSnapshot
 from app.analise.schemas import AnuncioAnalise
-from app.auth.models import MLAccount, User
+from app.auth.models import User
 from app.vendas.models import Listing, ListingSnapshot
 
 # Timezone Brasil
