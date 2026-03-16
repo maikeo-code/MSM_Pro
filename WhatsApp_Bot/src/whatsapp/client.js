@@ -97,8 +97,9 @@ class WhatsAppClient extends EventEmitter {
 
     setTimeout(async () => {
       try {
-        // Destroy old client cleanly
+        // Destroy old client and remove its listeners
         if (this.client) {
+          this.client.removeAllListeners();
           try { await this.client.destroy(); } catch { /* ignore */ }
         }
         this._reconnecting = false;

@@ -15,6 +15,9 @@ function canAutoReply(contactId) {
   const now = Date.now();
   const timestamps = autoReplyTimestamps.get(contactId) || [];
   const recent = timestamps.filter(t => now - t < AUTO_REPLY_WINDOW_MS);
+  if (recent.length === 0) {
+    autoReplyTimestamps.delete(contactId);
+  }
   if (recent.length >= AUTO_REPLY_MAX) return false;
   recent.push(now);
   autoReplyTimestamps.set(contactId, recent);

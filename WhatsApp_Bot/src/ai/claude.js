@@ -11,8 +11,8 @@ import { createRateLimiter } from './rateLimiter.js';
 // Haiku model used for cheap classification calls
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
 
-// Rate limiter: max 2 requests/sec, max 3 concurrent
-const limiter = createRateLimiter({ maxPerSecond: 2, maxConcurrent: 3 });
+// Rate limiter: max 2 requests/sec, max 3 concurrent — shared across all AI calls
+export const limiter = createRateLimiter({ maxPerSecond: 2, maxConcurrent: 3 });
 
 /**
  * Strip markdown code fences from AI responses before JSON.parse.

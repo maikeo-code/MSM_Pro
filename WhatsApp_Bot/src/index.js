@@ -262,7 +262,12 @@ async function handleExport() {
   if (exportType === 'cancel') return;
 
   const exportDir = join(__dirname, '../exports');
-  mkdirSync(exportDir, { recursive: true });
+  try {
+    mkdirSync(exportDir, { recursive: true });
+  } catch (err) {
+    console.log(chalk.red(`\nErro ao criar diretorio de exportacao: ${err.message}\n`));
+    return;
+  }
   const timestamp = dayjs().format('YYYY-MM-DD_HH-mm');
 
   if (exportType === 'today_csv') {
@@ -420,6 +425,12 @@ async function main() {
       console.log(chalk.yellow('Tentando reconectar automaticamente...'));
     });
 
+    whatsappClient.on('reconnect_failed', () => {
+      setWhatsappStatus('disconnected');
+      console.log(chalk.red.bold('\n⚠ RECONEXAO FALHOU apos 5 tentativas!'));
+      console.log(chalk.yellow('O bot nao consegue enviar mensagens. Reinicie o app.\n'));
+    });
+
     whatsappClient.onMessage(onMessage);
 
     // Returns a promise that resolves when ready
@@ -519,6 +530,11 @@ async function main() {
 process.on('SIGINT', () => {
   console.log(chalk.yellow('\n\nEncerrando...'));
   isRunning = false;
+  // Force-exit after 5s if cleanup hangs (e.g. inquirer prompt blocking)
+  setTimeout(() => {
+    console.log(chalk.red('Forçando encerramento...'));
+    process.exit(0);
+  }, 5000).unref();
 });
 
 main().catch(err => {

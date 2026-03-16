@@ -139,8 +139,9 @@ export async function scanUnreadMessages(waClient) {
 
         // Generate AI suggestion for this chat
         try {
+          if (chatInfo.messages.length === 0) continue;
           const context = chatInfo.messages.map(m => ({ fromMe: m.fromMe, body: m.body }));
-          const lastMsg = chatInfo.messages[chatInfo.messages.length - 1].body;
+          const lastMsg = chatInfo.messages.at(-1)?.body ?? '';
           const style = await getStyleContext(chatInfo.name);
           const suggestions = await suggestResponse(context, lastMsg, chatInfo.name, style);
 

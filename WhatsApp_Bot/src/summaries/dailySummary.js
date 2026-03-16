@@ -85,9 +85,12 @@ export async function generateDailySummary({ date } = {}) {
 export function scheduleSummary(time) {
   const [targetHour, targetMinute] = time.split(':').map(Number);
 
-  let lastRunDate = null; // Track the date we last ran to avoid duplicate runs
+  let lastRunDate = null;
+  let isGenerating = false; // Prevent concurrent generation
 
   const intervalId = setInterval(async () => {
+    if (isGenerating) return;
+
     const now = new Date();
     // Convert to BRT (UTC-3) regardless of server timezone
     const brtNow = new Date(now.getTime() - 3 * 60 * 60 * 1000 + now.getTimezoneOffset() * 60 * 1000);
@@ -102,6 +105,7 @@ export function scheduleSummary(time) {
       lastRunDate !== todayStr
     ) {
       lastRunDate = todayStr;
+      isGenerating = true;
 
       console.log(`\n[DailySummary] Generating summary for ${todayStr}...`);
 
@@ -114,6 +118,8 @@ export function scheduleSummary(time) {
         console.log('════════════════════════════════════════\n');
       } catch (err) {
         console.error('[DailySummary] Error generating summary:', err.message);
+      } finally {
+        isGenerating = false;
       }
     }
   }, 60_000); // check every minute

@@ -1,5 +1,5 @@
 import { settings } from '../config/settings.js';
-import { getClient, cleanJsonResponse } from '../ai/claude.js';
+import { getClient, cleanJsonResponse, limiter } from '../ai/claude.js';
 import {
   getResponsePairs,
   getAllResponsePairs,
@@ -32,7 +32,7 @@ export async function analyzeContactStyle(contactName) {
   ).join('\n---\n');
 
   try {
-    const response = await getClient().messages.create({
+    const response = await limiter.execute(() => getClient().messages.create({
       model: HAIKU_MODEL,
       max_tokens: 800,
       messages: [{
@@ -54,7 +54,7 @@ Responda APENAS com JSON valido:
   "category": "work" ou "personal" ou "financial"
 }`,
       }],
-    });
+    }));
 
     const raw = response.content[0]?.text?.trim();
     if (!raw) return null;
@@ -97,7 +97,7 @@ export async function analyzeGlobalVocabulary() {
   const responses = allPairs.map(p => p.user_response).join('\n');
 
   try {
-    const response = await getClient().messages.create({
+    const response = await limiter.execute(() => getClient().messages.create({
       model: HAIKU_MODEL,
       max_tokens: 600,
       messages: [{
@@ -115,7 +115,7 @@ Responda APENAS com JSON valido:
   "expressions": ["expressoes caracteristicas como 'show', 'beleza', 'tranquilo'"]
 }`,
       }],
-    });
+    }));
 
     const raw = response.content[0]?.text?.trim();
     if (!raw) return;

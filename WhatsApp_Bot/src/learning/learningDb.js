@@ -333,15 +333,16 @@ export function getTopVocabulary(limit = 50) {
  *                         suggestions_modified | suggestions_ignored
  */
 export function updateMetrics(date, field) {
-  const allowed = [
-    'suggestions_shown',
-    'suggestions_used',
-    'suggestions_modified',
-    'suggestions_ignored',
-  ];
+  // Pre-compiled statements per field — no string interpolation in SQL
+  const stmts = {
+    suggestions_shown: 'UPDATE learning_metrics SET suggestions_shown = suggestions_shown + 1 WHERE date = ?',
+    suggestions_used: 'UPDATE learning_metrics SET suggestions_used = suggestions_used + 1 WHERE date = ?',
+    suggestions_modified: 'UPDATE learning_metrics SET suggestions_modified = suggestions_modified + 1 WHERE date = ?',
+    suggestions_ignored: 'UPDATE learning_metrics SET suggestions_ignored = suggestions_ignored + 1 WHERE date = ?',
+  };
 
-  if (!allowed.includes(field)) {
-    throw new Error(`updateMetrics: unknown field "${field}". Allowed: ${allowed.join(', ')}`);
+  if (!stmts[field]) {
+    throw new Error(`updateMetrics: unknown field "${field}". Allowed: ${Object.keys(stmts).join(', ')}`);
   }
 
   // Ensure the row exists before incrementing
@@ -352,9 +353,7 @@ export function updateMetrics(date, field) {
     )
     .run(date);
 
-  getDb()
-    .prepare(`UPDATE learning_metrics SET ${field} = ${field} + 1 WHERE date = ?`)
-    .run(date);
+  getDb().prepare(stmts[field]).run(date);
 }
 
 /**

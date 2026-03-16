@@ -57,6 +57,6 @@ export function startHealthServer(port = 3100) {
 
   return {
     server,
-    close: () => server.close(),
+    close: () => { try { server.close(); } catch { /* not listening */ } },
   };
 }
