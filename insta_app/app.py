@@ -302,7 +302,7 @@ def cmd_not_following_back() -> None:
         default="agora",
     )
 
-    unfollow_mgr = UnfollowManager(client, rate_limiter, data_dir="data")
+    unfollow_mgr = UnfollowManager(client, rate_limiter, data_dir="data", settings=settings)
     result = unfollow_mgr.schedule_unfollow(chosen_ids)
 
     if when.strip().lower() == "agora":
@@ -338,7 +338,7 @@ def cmd_unfollow_queue(execute: bool, cancel: bool) -> None:
 
     from insta_app.features.unfollow import UnfollowManager
 
-    unfollow_mgr = UnfollowManager(client, rate_limiter, data_dir="data")
+    unfollow_mgr = UnfollowManager(client, rate_limiter, data_dir="data", settings=settings)
 
     if cancel:
         unfollow_mgr.cancel_unfollow_queue()
@@ -643,6 +643,101 @@ def cmd_stories_user(username: str, react: bool, emoji: str) -> None:
                 title="Resultado",
             )
         )
+
+
+@insta.command("report")
+@click.option("--days", default=7, show_default=True, help="Periodo do relatorio em dias.")
+def cmd_report(days: int) -> None:
+    """Mostra relatorio de atividade dos ultimos N dias."""
+    import sqlite3
+    from datetime import datetime, timedelta
+    from pathlib import Path
+
+    db_path = Path("data/actions.db")
+    if not db_path.exists():
+        console.print(
+            Panel(
+                "[yellow]Nenhum registro de acoes encontrado.[/yellow]\n"
+                "Execute algumas acoes primeiro (like-new, stories, etc.).",
+                title="Relatorio",
+            )
+        )
+        return
+
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+
+    rows = conn.execute(
+        """
+        SELECT action_type, status, COUNT(*) as cnt
+        FROM actions
+        WHERE timestamp >= ?
+        GROUP BY action_type, status
+        ORDER BY action_type, status
+        """,
+        (cutoff,),
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        console.print(
+            Panel(
+                f"[yellow]Nenhuma acao registrada nos ultimos {days} dias.[/yellow]",
+                title="Relatorio",
+            )
+        )
+        return
+
+    # Agrupa por action_type
+    summary: dict[str, dict[str, int]] = {}
+    for row in rows:
+        action_type = row["action_type"]
+        status = row["status"]
+        count = row["cnt"]
+        if action_type not in summary:
+            summary[action_type] = {}
+        summary[action_type][status] = count
+
+    table = Table(title=f"Relatorio de Atividade - Ultimos {days} dias")
+    table.add_column("Acao", style="cyan")
+    table.add_column("Sucesso", style="green", justify="right")
+    table.add_column("Falha", style="red", justify="right")
+    table.add_column("Total", style="bold", justify="right")
+
+    for action_type, counts in sorted(summary.items()):
+        ok_count = counts.get("ok", 0)
+        error_count = counts.get("error", 0)
+        table.add_row(
+            action_type,
+            str(ok_count),
+            str(error_count),
+            str(ok_count + error_count),
+        )
+
+    console.print(table)
+
+
+@insta.command("commit-snapshot")
+def cmd_commit_snapshot() -> None:
+    """Salva o snapshot atual de seguidores, marcando-os como processados."""
+    settings, manager, client = _get_logged_client()
+
+    from insta_app.features.monitoring import FollowerMonitor
+
+    monitor = FollowerMonitor(client, data_dir="data")
+
+    console.print(Panel("[bold cyan]Atualizando snapshot de seguidores...[/bold cyan]", title="Snapshot"))
+
+    monitor.commit_snapshot()
+
+    console.print(
+        Panel(
+            "[bold green]Snapshot atualizado com sucesso.[/bold green]\n"
+            "Novos seguidores serao calculados a partir deste ponto.",
+            title="Resultado",
+        )
+    )
 
 
 if __name__ == "__main__":

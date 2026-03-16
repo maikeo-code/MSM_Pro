@@ -23,6 +23,7 @@ except ImportError:
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from insta_app.config import Settings
     from insta_app.core.action_log import ActionLog
 
 console = Console()
@@ -37,6 +38,7 @@ class UnfollowManager:
         rate_limiter: RateLimiter,
         data_dir: str = "data",
         action_log: ActionLog | None = None,
+        settings: "Settings | None" = None,
     ) -> None:
         """
         Gerencia unfollows de forma segura e com rate limiting.
@@ -46,10 +48,12 @@ class UnfollowManager:
             rate_limiter: instancia de RateLimiter para controlar cadencia.
             data_dir: pasta onde a fila e arquivos de dados sao salvos.
             action_log: instancia opcional de ActionLog para registrar acoes.
+            settings: instancia opcional de Settings para leitura de configuracao.
         """
         self._client = client
         self._rate_limiter = rate_limiter
         self._action_log = action_log
+        self._settings = settings
         self._data_dir = Path(data_dir)
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._queue_path = self._data_dir / "unfollow_queue.json"
@@ -100,7 +104,8 @@ class UnfollowManager:
         suggestions: list[dict] = []
         for uid, user_short in not_following_back.items():
             try:
-                self._rate_limiter.wait_for_action("story_view")  # delay leve entre chamadas
+                import random
+                time.sleep(random.uniform(0.5, 1.5))  # delay simples entre chamadas API
                 info = self._client.user_info(uid)
                 suggestions.append(
                     {
@@ -169,10 +174,13 @@ class UnfollowManager:
 
         # Calcula tempo estimado
         if delay_between is None:
-            from insta_app.config import Settings
             # Usa a media dos delays configurados para unfollow
             try:
-                limits = Settings().rate_limits.get(_ACTION)
+                if self._settings is not None:
+                    limits = self._settings.rate_limits.get(_ACTION)
+                else:
+                    from insta_app.config import Settings
+                    limits = Settings().rate_limits.get(_ACTION)
                 delay_between = (limits.delay_min + limits.delay_max) / 2 if limits else 60.0
             except Exception:
                 delay_between = 60.0

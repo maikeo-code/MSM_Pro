@@ -88,53 +88,32 @@ class LikeManager:
             f"[cyan]Curtindo posts de {len(new_followers)} novo(s) seguidor(es)...[/cyan]"
         )
 
-        for user in new_followers:
-            user_id = int(user.pk)
-            username = user.username
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Curtindo posts de novos seguidores...", total=len(new_followers))
 
-            if user.is_private:
-                console.print(f"[dim]@{username} tem perfil privado -- pulando.[/dim]")
-                continue
+            for user in new_followers:
+                user_id = int(user.pk)
+                username = user.username
 
-            try:
-                medias = self._client.user_medias(user_id, amount=max_posts_per_user)
-            except ChallengeRequired:
-                console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
-                console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
-                raise SystemExit(2)
-            except LoginRequired:
-                console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
-                raise SystemExit(2)
-            except Exception as exc:
-                console.print(f"[yellow]Erro ao buscar posts de @{username}:[/yellow] {exc}")
-                self._rate_limiter.record_error(_ACTION)
-                errors += 1
-                continue
-
-            user_likes = 0
-            for media in medias:
-                # Verificar duplicata antes de curtir
-                if self._action_log and self._action_log.already_acted(_ACTION, str(media.pk), hours=48):
-                    console.print(f"[dim]Post {media.pk} ja curtido recentemente. Pulando.[/dim]")
+                # Blacklist check
+                if self._settings and username in self._settings.blacklist:
+                    console.print(f"[dim]@{username} na blacklist. Pulando.[/dim]")
+                    progress.advance(task)
                     continue
 
-                if not self._rate_limiter.can_perform(_ACTION):
-                    console.print("[yellow]Limite de curtidas atingido. Pausando.[/yellow]")
-                    break
-
-                self._rate_limiter.wait_for_action(_ACTION)
+                if user.is_private:
+                    console.print(f"[dim]@{username} tem perfil privado -- pulando.[/dim]")
+                    progress.advance(task)
+                    continue
 
                 try:
-                    self._client.media_like(media.pk)
-                    self._rate_limiter.record_action(_ACTION)
-                    self._rate_limiter.record_success(_ACTION)
-                    user_likes += 1
-                    likes_given += 1
-                    console.print(
-                        f"[green]Curtida:[/green] post {media.pk} de @{username}"
-                    )
-                    if self._action_log:
-                        self._action_log.log(_ACTION, str(media.pk), username, "ok")
+                    medias = self._client.user_medias(user_id, amount=max_posts_per_user)
                 except ChallengeRequired:
                     console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
                     console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
@@ -143,16 +122,61 @@ class LikeManager:
                     console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
                     raise SystemExit(2)
                 except Exception as exc:
-                    console.print(
-                        f"[red]Erro ao curtir post {media.pk} de @{username}:[/red] {exc}"
-                    )
+                    console.print(f"[yellow]Erro ao buscar posts de @{username}:[/yellow] {exc}")
                     self._rate_limiter.record_error(_ACTION)
                     errors += 1
-                    if self._action_log:
-                        self._action_log.log(_ACTION, str(media.pk), username, "error", str(exc))
+                    progress.advance(task)
+                    continue
 
-            if user_likes > 0:
-                users_processed += 1
+                user_likes = 0
+                for media in medias:
+                    # Verificar duplicata antes de curtir
+                    if self._action_log and self._action_log.already_acted(_ACTION, str(media.pk), hours=48):
+                        console.print(f"[dim]Post {media.pk} ja curtido recentemente. Pulando.[/dim]")
+                        continue
+
+                    if not self._rate_limiter.can_perform(_ACTION):
+                        console.print("[yellow]Limite de curtidas atingido. Pausando.[/yellow]")
+                        break
+
+                    if not self._dry_run:
+                        self._rate_limiter.wait_for_action(_ACTION)
+
+                    try:
+                        if self._dry_run:
+                            console.print(f"[dim][DRY-RUN] Curtindo post {media.pk} de @{username}[/dim]")
+                        else:
+                            self._client.media_like(media.pk)
+                        self._rate_limiter.record_action(_ACTION)
+                        self._rate_limiter.record_success(_ACTION)
+                        user_likes += 1
+                        likes_given += 1
+                        if not self._dry_run:
+                            console.print(
+                                f"[green]Curtida:[/green] post {media.pk} de @{username}"
+                            )
+                        if self._action_log and not self._dry_run:
+                            self._action_log.log(_ACTION, str(media.pk), username, "ok")
+                    except ChallengeRequired:
+                        console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+                        console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+                        raise SystemExit(2)
+                    except LoginRequired:
+                        console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+                        raise SystemExit(2)
+                    except Exception as exc:
+                        console.print(
+                            f"[red]Erro ao curtir post {media.pk} de @{username}:[/red] {exc}"
+                        )
+                        self._rate_limiter.record_error(_ACTION)
+                        errors += 1
+                        if self._action_log:
+                            self._action_log.log(_ACTION, str(media.pk), username, "error", str(exc))
+
+                if user_likes > 0:
+                    users_processed += 1
+
+                progress.advance(task)
 
         return {
             "users_processed": users_processed,
@@ -179,6 +203,11 @@ class LikeManager:
         username = username.lstrip("@")
         likes_given = 0
         errors = 0
+
+        # Blacklist check
+        if self._settings and username in self._settings.blacklist:
+            console.print(f"[dim]@{username} na blacklist. Pulando.[/dim]")
+            return {"username": username, "likes_given": 0, "errors": 0}
 
         try:
             user_info = self._client.user_info_by_username(username)
@@ -225,15 +254,20 @@ class LikeManager:
                 console.print("[yellow]Limite de curtidas atingido. Pausando.[/yellow]")
                 break
 
-            self._rate_limiter.wait_for_action(_ACTION)
+            if not self._dry_run:
+                self._rate_limiter.wait_for_action(_ACTION)
 
             try:
-                self._client.media_like(media.pk)
+                if self._dry_run:
+                    console.print(f"[dim][DRY-RUN] Curtindo post {media.pk} de @{username}[/dim]")
+                else:
+                    self._client.media_like(media.pk)
                 self._rate_limiter.record_action(_ACTION)
                 self._rate_limiter.record_success(_ACTION)
                 likes_given += 1
-                console.print(f"[green]Curtida:[/green] post {media.pk} de @{username}")
-                if self._action_log:
+                if not self._dry_run:
+                    console.print(f"[green]Curtida:[/green] post {media.pk} de @{username}")
+                if self._action_log and not self._dry_run:
                     self._action_log.log(_ACTION, str(media.pk), username, "ok")
             except ChallengeRequired:
                 console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
@@ -277,12 +311,22 @@ class LikeManager:
             f"[cyan]Curtindo posts de {len(usernames)} usuario(s)...[/cyan]"
         )
 
-        for username in usernames:
-            result = self.like_user_posts(username, amount=max_posts_per_user)
-            if result["likes_given"] > 0:
-                users_processed += 1
-            total_likes += result["likes_given"]
-            total_errors += result["errors"]
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Curtindo posts da lista...", total=len(usernames))
+
+            for username in usernames:
+                result = self.like_user_posts(username, amount=max_posts_per_user)
+                if result["likes_given"] > 0:
+                    users_processed += 1
+                total_likes += result["likes_given"]
+                total_errors += result["errors"]
+                progress.advance(task)
 
         return {
             "users_processed": users_processed,
@@ -326,6 +370,9 @@ class LikeManager:
 
         seen_commenter_ids: set[int] = set()
 
+        # First pass: collect all unique commenters
+        all_commenters: list[tuple[int, str]] = []
+
         for media in my_medias:
             console.print(f"[dim]Buscando comentaristas do post {media.pk}...[/dim]")
             try:
@@ -347,20 +394,38 @@ class LikeManager:
                 commenter_id = int(comment.user.pk)
                 commenter_username = comment.user.username
 
-                # Nao curtir seus proprios posts de volta e nao repetir commentaristas
                 if commenter_id == int(self._client.user_id):
                     continue
                 if commenter_id in seen_commenter_ids:
                     continue
 
                 seen_commenter_ids.add(commenter_id)
-                commenters_found += 1
+                all_commenters.append((commenter_id, commenter_username))
 
+        # Second pass: like posts with progress bar
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Curtindo posts de comentaristas...", total=len(all_commenters))
+
+            for commenter_id, commenter_username in all_commenters:
+                # Blacklist check
+                if self._settings and commenter_username in self._settings.blacklist:
+                    console.print(f"[dim]@{commenter_username} na blacklist. Pulando.[/dim]")
+                    progress.advance(task)
+                    continue
+
+                commenters_found += 1
                 console.print(f"[cyan]Curtindo posts de comentarista @{commenter_username}...[/cyan]")
 
                 result = self.like_user_posts(commenter_username, amount=amount)
                 likes_given += result["likes_given"]
                 errors += result["errors"]
+                progress.advance(task)
 
         return {
             "commenters_found": commenters_found,

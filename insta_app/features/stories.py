@@ -14,10 +14,13 @@ except ImportError:
     )
     raise
 
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, MofNCompleteColumn
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from insta_app.core.action_log import ActionLog
+    from insta_app.config import Settings
 
 console = Console()
 
@@ -31,6 +34,8 @@ class StoryManager:
         client: Client,
         rate_limiter: RateLimiter,
         action_log: ActionLog | None = None,
+        dry_run: bool = False,
+        settings: Settings | None = None,
     ) -> None:
         """
         Gerencia visualizacoes e reacoes a stories com rate limiting.
@@ -39,10 +44,14 @@ class StoryManager:
             client: instagrapi.Client ja autenticado.
             rate_limiter: instancia de RateLimiter para controlar cadencia.
             action_log: instancia opcional de ActionLog para registrar acoes.
+            dry_run: se True, simula acoes sem executar de verdade.
+            settings: instancia de Settings para acesso a blacklist.
         """
         self._client = client
         self._rate_limiter = rate_limiter
         self._action_log = action_log
+        self._dry_run = dry_run
+        self._settings = settings
 
     # ------------------------------------------------------------------
     # Metodos publicos
@@ -94,15 +103,20 @@ class StoryManager:
                 console.print("[yellow]Limite de story_view atingido. Pausando.[/yellow]")
                 break
 
-            self._rate_limiter.wait_for_action(_ACTION_VIEW)
+            if not self._dry_run:
+                self._rate_limiter.wait_for_action(_ACTION_VIEW)
 
             try:
-                self._client.story_seen([story.pk])
+                if self._dry_run:
+                    console.print(f"[dim][DRY-RUN] Visualizando story {story.pk} de user_id={user_id}[/dim]")
+                else:
+                    self._client.story_seen([story.pk])
                 self._rate_limiter.record_action(_ACTION_VIEW)
                 self._rate_limiter.record_success(_ACTION_VIEW)
                 stories_viewed += 1
-                console.print(f"[green]Story visto:[/green] {story.pk}")
-                if self._action_log:
+                if not self._dry_run:
+                    console.print(f"[green]Story visto:[/green] {story.pk}")
+                if self._action_log and not self._dry_run:
                     self._action_log.log(_ACTION_VIEW, str(story.pk), str(user_id), "ok")
             except ChallengeRequired:
                 console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
@@ -148,21 +162,38 @@ class StoryManager:
             f"[cyan]Verificando stories de {len(new_followers)} novo(s) seguidor(es)...[/cyan]"
         )
 
-        for user in new_followers:
-            user_id = int(user.pk)
-            username = user.username
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Visualizando stories de novos seguidores...", total=len(new_followers))
 
-            users_checked += 1
-            console.print(f"[dim]Verificando stories de @{username}...[/dim]")
+            for user in new_followers:
+                user_id = int(user.pk)
+                username = user.username
 
-            try:
-                viewed = self.view_user_stories(user_id)
-                stories_viewed += viewed
-            except SystemExit:
-                raise
-            except Exception as exc:
-                console.print(f"[red]Erro ao ver stories de @{username}:[/red] {exc}")
-                errors += 1
+                # Blacklist check
+                if self._settings and username in self._settings.blacklist:
+                    console.print(f"[dim]@{username} na blacklist. Pulando.[/dim]")
+                    progress.advance(task)
+                    continue
+
+                users_checked += 1
+                console.print(f"[dim]Verificando stories de @{username}...[/dim]")
+
+                try:
+                    viewed = self.view_user_stories(user_id)
+                    stories_viewed += viewed
+                except SystemExit:
+                    raise
+                except Exception as exc:
+                    console.print(f"[red]Erro ao ver stories de @{username}:[/red] {exc}")
+                    errors += 1
+
+                progress.advance(task)
 
         return {
             "users_checked": users_checked,
@@ -193,35 +224,54 @@ class StoryManager:
             f"[cyan]Verificando stories de {len(usernames)} usuario(s)...[/cyan]"
         )
 
-        for username in usernames:
-            username = username.lstrip("@")
-            users_checked += 1
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Visualizando stories da lista...", total=len(usernames))
 
-            try:
-                user_info = self._client.user_info_by_username(username)
-                user_id = int(user_info.pk)
-            except ChallengeRequired:
-                console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
-                console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
-                raise SystemExit(2)
-            except LoginRequired:
-                console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
-                raise SystemExit(2)
-            except Exception as exc:
-                console.print(f"[red]Erro ao buscar usuario @{username}:[/red] {exc}")
-                errors += 1
-                continue
+            for username in usernames:
+                username = username.lstrip("@")
 
-            console.print(f"[dim]Verificando stories de @{username}...[/dim]")
+                # Blacklist check
+                if self._settings and username in self._settings.blacklist:
+                    console.print(f"[dim]@{username} na blacklist. Pulando.[/dim]")
+                    progress.advance(task)
+                    continue
 
-            try:
-                viewed = self.view_user_stories(user_id)
-                stories_viewed += viewed
-            except SystemExit:
-                raise
-            except Exception as exc:
-                console.print(f"[red]Erro ao ver stories de @{username}:[/red] {exc}")
-                errors += 1
+                users_checked += 1
+
+                try:
+                    user_info = self._client.user_info_by_username(username)
+                    user_id = int(user_info.pk)
+                except ChallengeRequired:
+                    console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
+                    console.print("Resolva o desafio no app/site do Instagram e faca login novamente.")
+                    raise SystemExit(2)
+                except LoginRequired:
+                    console.print("[bold red]LOGIN NECESSARIO! Sessao expirada.[/bold red]")
+                    raise SystemExit(2)
+                except Exception as exc:
+                    console.print(f"[red]Erro ao buscar usuario @{username}:[/red] {exc}")
+                    errors += 1
+                    progress.advance(task)
+                    continue
+
+                console.print(f"[dim]Verificando stories de @{username}...[/dim]")
+
+                try:
+                    viewed = self.view_user_stories(user_id)
+                    stories_viewed += viewed
+                except SystemExit:
+                    raise
+                except Exception as exc:
+                    console.print(f"[red]Erro ao ver stories de @{username}:[/red] {exc}")
+                    errors += 1
+
+                progress.advance(task)
 
         return {
             "users_checked": users_checked,
@@ -275,16 +325,21 @@ class StoryManager:
                 console.print("[yellow]Limite de story_react atingido. Pausando.[/yellow]")
                 break
 
-            self._rate_limiter.wait_for_action(_ACTION_REACT)
+            if not self._dry_run:
+                self._rate_limiter.wait_for_action(_ACTION_REACT)
 
             try:
-                # FIX 1: Usar API nativa de reacao a stories em vez de direct_send (DM spam)
-                self._client.story_send_reaction(story.pk, emoji)
+                if self._dry_run:
+                    console.print(f"[dim][DRY-RUN] Reagindo com {emoji} ao story {story.pk} de user_id={user_id}[/dim]")
+                else:
+                    # FIX 1: Usar API nativa de reacao a stories em vez de direct_send (DM spam)
+                    self._client.story_send_reaction(story.pk, emoji)
                 self._rate_limiter.record_action(_ACTION_REACT)
                 self._rate_limiter.record_success(_ACTION_REACT)
                 reactions_sent += 1
-                console.print(f"[green]Reacao enviada:[/green] {emoji} para story {story.pk}")
-                if self._action_log:
+                if not self._dry_run:
+                    console.print(f"[green]Reacao enviada:[/green] {emoji} para story {story.pk}")
+                if self._action_log and not self._dry_run:
                     self._action_log.log(_ACTION_REACT, str(story.pk), str(user_id), "ok", f"emoji={emoji}")
             except ChallengeRequired:
                 console.print("[bold red]CHECKPOINT DETECTADO! Parando TODAS as acoes.[/bold red]")
