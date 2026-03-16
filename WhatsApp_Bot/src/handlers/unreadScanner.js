@@ -1,7 +1,8 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import dayjs from 'dayjs';
-import { generateSummary, suggestResponse, classifyMessage } from '../ai/claude.js';
+import { suggestResponse, classifyMessage } from '../ai/claude.js';
+import { getStyleContext } from '../learning/styleAnalyzer.js';
 import { settings } from '../config/settings.js';
 
 /**
@@ -140,7 +141,8 @@ export async function scanUnreadMessages(waClient) {
         try {
           const context = chatInfo.messages.map(m => ({ fromMe: m.fromMe, body: m.body }));
           const lastMsg = chatInfo.messages[chatInfo.messages.length - 1].body;
-          const suggestions = await suggestResponse(context, lastMsg, chatInfo.name);
+          const style = await getStyleContext(chatInfo.name);
+          const suggestions = await suggestResponse(context, lastMsg, chatInfo.name, style);
 
           if (suggestions && suggestions.length > 0) {
             console.log(chalk.cyan('    💡 Sugestoes de resposta:'));

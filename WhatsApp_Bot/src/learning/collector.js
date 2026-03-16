@@ -40,13 +40,20 @@ export function onAutoAnalysis(fn) {
  * @param {boolean} [isGroup]
  */
 export function registerIncoming(contactId, contactName, message, category, isGroup) {
-  pendingMessages.set(contactId, {
-    contactName,
-    message,
-    timestamp: Date.now(),
-    category: category || 'personal',
-    isGroup: isGroup || false,
-  });
+  const existing = pendingMessages.get(contactId);
+  if (existing) {
+    // Concatenate rapid messages from same contact instead of overwriting
+    existing.message += '\n' + message;
+    existing.timestamp = Date.now();
+  } else {
+    pendingMessages.set(contactId, {
+      contactName,
+      message,
+      timestamp: Date.now(),
+      category: category || 'personal',
+      isGroup: isGroup || false,
+    });
+  }
 }
 
 /**
@@ -67,7 +74,7 @@ export function registerOutgoing(contactId, contactName, userResponse) {
 
   if (!pending) return null;
 
-  const responseTimeSeconds = Math.floor((Date.now() - pending.timestamp) / 1000);
+  const responseTimeSeconds = Math.max(0, Math.floor((Date.now() - pending.timestamp) / 1000));
 
   const pair = {
     contactName: pending.contactName || contactName,

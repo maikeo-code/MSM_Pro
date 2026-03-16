@@ -150,14 +150,15 @@ export function getMessagesByContact(contactName, limit = 50) {
 }
 
 /**
- * Return all messages for a given date string (YYYY-MM-DD, UTC).
+ * Return all messages for a given date string (YYYY-MM-DD) in BRT timezone.
  *
  * @param {string} date - e.g. "2026-03-15"
  * @returns {object[]}
  */
 export function getMessagesByDate(date) {
-  const start = new Date(`${date}T00:00:00.000Z`);
-  const end = new Date(`${date}T23:59:59.999Z`);
+  // BRT = UTC-3: midnight in BRT = 03:00 UTC
+  const startBRT = new Date(`${date}T03:00:00.000Z`);
+  const endBRT = new Date(startBRT.getTime() + 24 * 60 * 60 * 1000 - 1);
 
   return getDb()
     .prepare(
@@ -166,8 +167,8 @@ export function getMessagesByDate(date) {
        ORDER BY timestamp ASC`
     )
     .all(
-      Math.floor(start.getTime() / 1000),
-      Math.floor(end.getTime() / 1000)
+      Math.floor(startBRT.getTime() / 1000),
+      Math.floor(endBRT.getTime() / 1000)
     );
 }
 

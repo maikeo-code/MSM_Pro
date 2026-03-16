@@ -2,13 +2,14 @@ import { getMessagesByDate, getMessagesToday, saveSummary } from '../handlers/da
 import { generateSummary } from '../ai/claude.js';
 
 /**
- * Format today's date (or any Date) as a YYYY-MM-DD string in UTC.
+ * Format today's date (or any Date) as a YYYY-MM-DD string in BRT (UTC-3).
  *
  * @param {Date} [date]
  * @returns {string}
  */
 function toDateString(date = new Date()) {
-  return date.toISOString().slice(0, 10);
+  const brtMs = date.getTime() - 3 * 60 * 60 * 1000;
+  return new Date(brtMs).toISOString().slice(0, 10);
 }
 
 /**
@@ -50,10 +51,18 @@ export async function generateDailySummary({ date } = {}) {
   }
 
   // Group messages by contact for a more structured summary prompt
-  const grouped = groupByContact(messages);
+  // Map from_me (DB integer) to fromMe (boolean) expected by SUMMARY_PROMPT
+  const mapped = messages.map(m => ({ ...m, fromMe: Boolean(m.from_me) }));
+  const grouped = groupByContact(mapped);
 
   // Ask the AI to produce the summary
   const summaryText = await generateSummary(grouped);
+
+  if (!summaryText) {
+    const fallback = `Erro ao gerar resumo para ${targetDate} — API indisponivel.`;
+    saveSummary(targetDate, fallback);
+    return fallback;
+  }
 
   // Persist and return
   saveSummary(targetDate, summaryText);

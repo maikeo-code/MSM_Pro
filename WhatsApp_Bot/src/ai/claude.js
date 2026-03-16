@@ -10,6 +10,18 @@ import {
 // Haiku model used for cheap classification calls
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
 
+/**
+ * Strip markdown code fences from AI responses before JSON.parse.
+ * Claude sometimes wraps JSON in ```json ... ``` blocks despite instructions.
+ */
+export function cleanJsonResponse(raw) {
+  let cleaned = raw.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  }
+  return cleaned.trim();
+}
+
 // Lazy singleton — client is only created on first use, after API key validation in index.js
 let _client = null;
 export function getClient() {
@@ -34,17 +46,24 @@ function buildMessages(context, message, contactName) {
 
   if (context && context.length > 0) {
     for (const msg of context) {
-      messages.push({
-        role: msg.fromMe ? 'assistant' : 'user',
-        content: msg.body,
-      });
+      const role = msg.fromMe ? 'assistant' : 'user';
+      // Merge consecutive messages with the same role (Anthropic requires alternating roles)
+      if (messages.length > 0 && messages[messages.length - 1].role === role) {
+        messages[messages.length - 1].content += `\n${msg.body}`;
+      } else {
+        messages.push({ role, content: msg.body });
+      }
     }
+  }
+
+  // Ensure first message has role "user" (Anthropic API requirement)
+  while (messages.length > 0 && messages[0].role === 'assistant') {
+    messages.shift();
   }
 
   // Ensure the last message is from the user (the contact)
   const lastRole = messages.length > 0 ? messages[messages.length - 1].role : null;
   if (lastRole === 'user') {
-    // Merge to avoid two consecutive user messages
     messages[messages.length - 1].content += `\n${message}`;
   } else {
     messages.push({ role: 'user', content: message });
@@ -126,7 +145,7 @@ export async function classifyMessage(message, contactName) {
     const raw = response.content[0]?.text?.trim();
     if (!raw) return null;
 
-    const result = JSON.parse(raw);
+    const result = JSON.parse(cleanJsonResponse(raw));
     return {
       needsResponse: Boolean(result.needsResponse),
       urgency: result.urgency ?? 'low',
@@ -162,7 +181,7 @@ export async function suggestResponse(context, message, contactName, styleContex
     const raw = response.content[0]?.text?.trim();
     if (!raw) return null;
 
-    const suggestions = JSON.parse(raw);
+    const suggestions = JSON.parse(cleanJsonResponse(raw));
 
     if (!Array.isArray(suggestions) || suggestions.length === 0) return null;
 

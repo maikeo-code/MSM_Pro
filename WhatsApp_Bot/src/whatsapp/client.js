@@ -1,8 +1,11 @@
 import pkg from 'whatsapp-web.js';
 import qrcode from 'qrcode-terminal';
 import { EventEmitter } from 'events';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 const { Client, LocalAuth } = pkg;
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 class WhatsAppClient extends EventEmitter {
   constructor() {
@@ -15,7 +18,7 @@ class WhatsAppClient extends EventEmitter {
   initialize() {
     this.client = new Client({
       authStrategy: new LocalAuth({
-        dataPath: '.wwebjs_auth',
+        dataPath: join(__dirname, '../../.wwebjs_auth'),
       }),
       puppeteer: {
         args: ['--no-sandbox', '--disable-setuid-sandbox'],

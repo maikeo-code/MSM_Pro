@@ -1,5 +1,5 @@
 import { settings } from '../config/settings.js';
-import { getClient } from '../ai/claude.js';
+import { getClient, cleanJsonResponse } from '../ai/claude.js';
 import {
   getResponsePairs,
   getAllResponsePairs,
@@ -59,7 +59,7 @@ Responda APENAS com JSON valido:
     const raw = response.content[0]?.text?.trim();
     if (!raw) return null;
 
-    const style = JSON.parse(raw);
+    const style = JSON.parse(cleanJsonResponse(raw));
 
     // Save to database
     saveContactStyle({
@@ -120,7 +120,7 @@ Responda APENAS com JSON valido:
     const raw = response.content[0]?.text?.trim();
     if (!raw) return;
 
-    const vocab = JSON.parse(raw);
+    const vocab = JSON.parse(cleanJsonResponse(raw));
 
     // Save each category
     for (const word of (vocab.greetings || [])) {
