@@ -7,12 +7,19 @@ import { fileURLToPath } from 'url';
 const { Client, LocalAuth } = pkg;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Reconnection config
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_BASE_DELAY_MS = 5000; // 5s, 10s, 20s, 40s, 80s
+
 class WhatsAppClient extends EventEmitter {
   constructor() {
     super();
     this.client = null;
     this.isReady = false;
     this.messageCallback = null;
+    this._reconnectAttempts = 0;
+    this._reconnecting = false;
+    this._autoReconnect = true;
   }
 
   initialize() {
@@ -32,6 +39,8 @@ class WhatsAppClient extends EventEmitter {
 
     this.client.on('ready', async () => {
       this.isReady = true;
+      this._reconnectAttempts = 0;
+      this._reconnecting = false;
       const info = this.client.info;
       const number = info?.wid?.user ?? 'desconhecido';
       console.log(`WhatsApp conectado! Numero: +${number}`);
@@ -59,9 +68,47 @@ class WhatsAppClient extends EventEmitter {
       this.isReady = false;
       console.log('WhatsApp desconectado:', reason);
       this.emit('disconnected', reason);
+
+      if (this._autoReconnect) {
+        this._scheduleReconnect();
+      }
     });
 
     this.client.initialize();
+  }
+
+  /**
+   * Attempt to reconnect with exponential backoff.
+   * @private
+   */
+  _scheduleReconnect() {
+    if (this._reconnecting) return;
+    if (this._reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.log(`[Reconexao] Maximo de ${MAX_RECONNECT_ATTEMPTS} tentativas atingido. Reinicie o app manualmente.`);
+      this.emit('reconnect_failed');
+      return;
+    }
+
+    this._reconnecting = true;
+    this._reconnectAttempts++;
+    const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, this._reconnectAttempts - 1);
+
+    console.log(`[Reconexao] Tentativa ${this._reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} em ${delay / 1000}s...`);
+
+    setTimeout(async () => {
+      try {
+        // Destroy old client cleanly
+        if (this.client) {
+          try { await this.client.destroy(); } catch { /* ignore */ }
+        }
+        this._reconnecting = false;
+        this.initialize();
+      } catch (err) {
+        console.error('[Reconexao] Erro:', err.message);
+        this._reconnecting = false;
+        this._scheduleReconnect();
+      }
+    }, delay);
   }
 
   /**
@@ -108,6 +155,13 @@ class WhatsAppClient extends EventEmitter {
     }
     const chat = await this.client.getChatById(chatId);
     return chat.fetchMessages({ limit });
+  }
+
+  /**
+   * Disable auto-reconnect (e.g. during graceful shutdown).
+   */
+  disableAutoReconnect() {
+    this._autoReconnect = false;
   }
 }
 

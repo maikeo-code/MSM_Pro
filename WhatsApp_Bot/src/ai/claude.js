@@ -6,9 +6,13 @@ import {
   CLASSIFY_PROMPT,
   SUGGEST_PROMPT,
 } from './prompts.js';
+import { createRateLimiter } from './rateLimiter.js';
 
 // Haiku model used for cheap classification calls
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
+
+// Rate limiter: max 2 requests/sec, max 3 concurrent
+const limiter = createRateLimiter({ maxPerSecond: 2, maxConcurrent: 3 });
 
 /**
  * Strip markdown code fences from AI responses before JSON.parse.
@@ -87,12 +91,14 @@ export async function generateResponse(context, message, contactName, styleConte
     }
     const messages = buildMessages(context, message, contactName);
 
-    const response = await getClient().messages.create({
-      model: settings.aiModel,
-      max_tokens: settings.maxTokens,
-      system: systemPrompt,
-      messages,
-    });
+    const response = await limiter.execute(() =>
+      getClient().messages.create({
+        model: settings.aiModel,
+        max_tokens: settings.maxTokens,
+        system: systemPrompt,
+        messages,
+      })
+    );
 
     return response.content[0]?.text ?? null;
   } catch (error) {
@@ -111,11 +117,13 @@ export async function generateSummary(conversations) {
   try {
     const prompt = SUMMARY_PROMPT(conversations);
 
-    const response = await getClient().messages.create({
-      model: settings.aiModel,
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const response = await limiter.execute(() =>
+      getClient().messages.create({
+        model: settings.aiModel,
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }],
+      })
+    );
 
     return response.content[0]?.text ?? null;
   } catch (error) {
@@ -136,11 +144,13 @@ export async function classifyMessage(message, contactName) {
   try {
     const prompt = CLASSIFY_PROMPT(contactName, message);
 
-    const response = await getClient().messages.create({
-      model: HAIKU_MODEL,
-      max_tokens: 150,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const response = await limiter.execute(() =>
+      getClient().messages.create({
+        model: HAIKU_MODEL,
+        max_tokens: 150,
+        messages: [{ role: 'user', content: prompt }],
+      })
+    );
 
     const raw = response.content[0]?.text?.trim();
     if (!raw) return null;
@@ -172,11 +182,13 @@ export async function suggestResponse(context, message, contactName, styleContex
       prompt += `\n\nIMPORTANTE - Baseie as sugestoes no estilo real do usuario:\n${styleContext}`;
     }
 
-    const response = await getClient().messages.create({
-      model: settings.aiModel,
-      max_tokens: 600,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const response = await limiter.execute(() =>
+      getClient().messages.create({
+        model: settings.aiModel,
+        max_tokens: 600,
+        messages: [{ role: 'user', content: prompt }],
+      })
+    );
 
     const raw = response.content[0]?.text?.trim();
     if (!raw) return null;

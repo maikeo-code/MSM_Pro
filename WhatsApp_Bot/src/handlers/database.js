@@ -46,6 +46,14 @@ export function initDb() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_summaries_date ON summaries(date);
+
+    CREATE TABLE IF NOT EXISTS pending_suggestions (
+      chat_id      TEXT    PRIMARY KEY,
+      contact_name TEXT    NOT NULL,
+      incoming_msg TEXT    NOT NULL,
+      suggestions  TEXT    NOT NULL,
+      created_at   INTEGER NOT NULL
+    );
   `);
 
   return db;
@@ -209,4 +217,65 @@ export function getSummary(date) {
       .prepare(`SELECT * FROM summaries WHERE date = ?`)
       .get(date) ?? null
   );
+}
+
+// ── Pending Suggestions (persistent queue) ──────────────────────────
+
+export function savePendingSuggestion(chatId, contactName, incomingMsg, suggestions) {
+  getDb().prepare(`
+    INSERT OR REPLACE INTO pending_suggestions (chat_id, contact_name, incoming_msg, suggestions, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(chatId, contactName, incomingMsg, JSON.stringify(suggestions), Math.floor(Date.now() / 1000));
+}
+
+export function getAllPendingSuggestions() {
+  return getDb()
+    .prepare(`SELECT * FROM pending_suggestions ORDER BY created_at DESC`)
+    .all()
+    .map(row => ({
+      chatId: row.chat_id,
+      contactName: row.contact_name,
+      incomingMsg: row.incoming_msg,
+      suggestions: JSON.parse(row.suggestions),
+      timestamp: row.created_at * 1000,
+    }));
+}
+
+export function deletePendingSuggestion(chatId) {
+  getDb().prepare(`DELETE FROM pending_suggestions WHERE chat_id = ?`).run(chatId);
+}
+
+export function deleteAllPendingSuggestions() {
+  getDb().prepare(`DELETE FROM pending_suggestions`).run();
+}
+
+export function countPendingSuggestions() {
+  return getDb().prepare(`SELECT COUNT(*) as count FROM pending_suggestions`).get().count;
+}
+
+// ── Message search / history ────────────────────────────────────────
+
+export function searchMessages(query, limit = 50) {
+  return getDb()
+    .prepare(`SELECT * FROM messages WHERE body LIKE ? ORDER BY timestamp DESC LIMIT ?`)
+    .all(`%${query}%`, limit);
+}
+
+export function getMessageHistory(contactName, limit = 100) {
+  return getDb()
+    .prepare(`SELECT * FROM messages WHERE contact_name = ? ORDER BY timestamp DESC LIMIT ?`)
+    .all(contactName, limit)
+    .reverse();
+}
+
+export function getDistinctContacts() {
+  return getDb()
+    .prepare(`SELECT contact_name, COUNT(*) as msg_count, MAX(timestamp) as last_msg FROM messages GROUP BY contact_name ORDER BY last_msg DESC`)
+    .all();
+}
+
+export function getAllSummaries(limit = 30) {
+  return getDb()
+    .prepare(`SELECT * FROM summaries ORDER BY date DESC LIMIT ?`)
+    .all(limit);
 }

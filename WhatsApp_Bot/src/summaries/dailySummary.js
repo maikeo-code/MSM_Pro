@@ -74,7 +74,7 @@ export async function generateDailySummary({ date } = {}) {
  * Set up a lightweight scheduler that generates and prints a daily summary
  * at the specified wall-clock time.
  *
- * @param {string} time - "HH:MM" in local time (e.g. "22:00")
+ * @param {string} time - "HH:MM" in BRT (e.g. "22:00")
  * @returns {() => void} A cancel function that stops the interval
  *
  * @example
@@ -89,8 +89,10 @@ export function scheduleSummary(time) {
 
   const intervalId = setInterval(async () => {
     const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
+    // Convert to BRT (UTC-3) regardless of server timezone
+    const brtNow = new Date(now.getTime() - 3 * 60 * 60 * 1000 + now.getTimezoneOffset() * 60 * 1000);
+    const currentHour = brtNow.getHours();
+    const currentMinute = brtNow.getMinutes();
     const todayStr = toDateString(now);
 
     // Fire only once per day at the target time

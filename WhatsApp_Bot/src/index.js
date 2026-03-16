@@ -2,17 +2,23 @@ import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
 import dayjs from 'dayjs';
+import { writeFileSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 import { settings } from './config/settings.js';
 import { whatsappClient } from './whatsapp/client.js';
 import { parseMessage } from './whatsapp/formatter.js';
 import { handleIncomingMessage } from './handlers/messageHandler.js';
-import { initDb, getMessagesToday } from './handlers/database.js';
+import { initDb, getMessagesToday, searchMessages, getDistinctContacts, getMessageHistory, getAllSummaries } from './handlers/database.js';
 import { generateDailySummary, scheduleSummary } from './summaries/dailySummary.js';
 import { scanUnreadMessages } from './handlers/unreadScanner.js';
 import { initLearningDb, getFeedbackStats } from './learning/learningDb.js';
 import { showAllProfiles, getLearningProgress } from './learning/contactProfile.js';
 import { runFullAnalysis } from './learning/styleAnalyzer.js';
 import { onAutoAnalysis } from './learning/collector.js';
+import { startHealthServer, setWhatsappStatus } from './health/server.js';
 import { getPendingSuggestions, removeSuggestion, pendingCount, clearAll as clearSuggestions } from './handlers/suggestionQueue.js';
 
 const LOGO = `
@@ -64,6 +70,9 @@ async function showMenu() {
     { name: `${chalk.blue('💬')} Ver mensagens de hoje`, value: 'messages' },
     { name: `${chalk.yellow('🔄')} Mudar modo (atual: ${currentMode})`, value: 'mode' },
     { name: `${chalk.magenta('📋')} Gerar resumo do dia`, value: 'summary' },
+    { name: `${chalk.white('🔍')} Buscar mensagens`, value: 'search' },
+    { name: `${chalk.white('📖')} Historico por contato`, value: 'history' },
+    { name: `${chalk.white('📂')} Exportar dados`, value: 'export' },
     { name: `${chalk.white('🧠')} Ver aprendizado (perfis)`, value: 'learning' },
     { name: `${chalk.white('🔄')} Analisar estilo agora`, value: 'analyze' },
     { name: `${chalk.red('✖')} Sair`, value: 'exit' },
@@ -180,6 +189,135 @@ async function showTodayMessages() {
   console.log('');
 }
 
+async function handleSearch() {
+  const { query } = await inquirer.prompt([{
+    type: 'input',
+    name: 'query',
+    message: 'Buscar por:',
+  }]);
+
+  if (!query?.trim()) {
+    console.log(chalk.yellow('Busca vazia — cancelado.\n'));
+    return;
+  }
+
+  const results = searchMessages(query.trim(), 30);
+  if (results.length === 0) {
+    console.log(chalk.yellow(`\nNenhum resultado para "${query}".\n`));
+    return;
+  }
+
+  console.log(chalk.bold(`\n--- ${results.length} resultado(s) para "${query}" ---\n`));
+  for (const msg of results) {
+    const time = dayjs.unix(msg.timestamp).format('DD/MM HH:mm');
+    const prefix = msg.from_me ? chalk.green('Voce') : chalk.cyan(msg.contact_name);
+    const body = msg.body.substring(0, 120);
+    console.log(`  ${chalk.gray(time)} ${prefix}: ${body}`);
+  }
+  console.log('');
+}
+
+async function handleHistory() {
+  const contacts = getDistinctContacts();
+  if (contacts.length === 0) {
+    console.log(chalk.yellow('\nNenhum contato registrado ainda.\n'));
+    return;
+  }
+
+  const choices = contacts.slice(0, 20).map(c => ({
+    name: `${c.contact_name} (${c.msg_count} msgs, ultimo: ${dayjs.unix(c.last_msg).format('DD/MM HH:mm')})`,
+    value: c.contact_name,
+  }));
+
+  const { contact } = await inquirer.prompt([{
+    type: 'list',
+    name: 'contact',
+    message: 'Selecione o contato:',
+    choices,
+  }]);
+
+  const msgs = getMessageHistory(contact, 50);
+  console.log(chalk.bold(`\n--- Historico: ${contact} (${msgs.length} msgs) ---\n`));
+  for (const msg of msgs) {
+    const time = dayjs.unix(msg.timestamp).format('DD/MM HH:mm');
+    const prefix = msg.from_me ? chalk.green('Voce') : chalk.cyan(contact);
+    console.log(`  ${chalk.gray(time)} ${prefix}: ${msg.body.substring(0, 150)}`);
+  }
+  console.log('');
+}
+
+async function handleExport() {
+  const { exportType } = await inquirer.prompt([{
+    type: 'list',
+    name: 'exportType',
+    message: 'O que deseja exportar?',
+    choices: [
+      { name: 'Mensagens de hoje (CSV)', value: 'today_csv' },
+      { name: 'Historico de contato (TXT)', value: 'contact_txt' },
+      { name: 'Todos os resumos (TXT)', value: 'summaries' },
+      { name: 'Cancelar', value: 'cancel' },
+    ],
+  }]);
+
+  if (exportType === 'cancel') return;
+
+  const exportDir = join(__dirname, '../exports');
+  mkdirSync(exportDir, { recursive: true });
+  const timestamp = dayjs().format('YYYY-MM-DD_HH-mm');
+
+  if (exportType === 'today_csv') {
+    const msgs = getMessagesToday();
+    if (msgs.length === 0) {
+      console.log(chalk.yellow('\nNenhuma mensagem hoje para exportar.\n'));
+      return;
+    }
+    const header = 'timestamp,contact_name,from_me,category,body';
+    const rows = msgs.map(m => {
+      const time = dayjs.unix(m.timestamp).format('YYYY-MM-DD HH:mm:ss');
+      const body = `"${(m.body || '').replace(/"/g, '""')}"`;
+      return `${time},${m.contact_name},${m.from_me ? 'sim' : 'nao'},${m.category || ''},${body}`;
+    });
+    const filePath = join(exportDir, `mensagens_${timestamp}.csv`);
+    writeFileSync(filePath, [header, ...rows].join('\n'), 'utf-8');
+    console.log(chalk.green(`\nExportado ${msgs.length} mensagens para: ${filePath}\n`));
+  }
+
+  if (exportType === 'contact_txt') {
+    const contacts = getDistinctContacts();
+    if (contacts.length === 0) {
+      console.log(chalk.yellow('\nNenhum contato registrado.\n'));
+      return;
+    }
+    const { contact } = await inquirer.prompt([{
+      type: 'list',
+      name: 'contact',
+      message: 'Qual contato?',
+      choices: contacts.slice(0, 20).map(c => ({ name: c.contact_name, value: c.contact_name })),
+    }]);
+    const msgs = getMessageHistory(contact, 500);
+    const lines = msgs.map(m => {
+      const time = dayjs.unix(m.timestamp).format('DD/MM/YY HH:mm');
+      const who = m.from_me ? 'Voce' : contact;
+      return `[${time}] ${who}: ${m.body}`;
+    });
+    const filePath = join(exportDir, `${contact.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}.txt`);
+    writeFileSync(filePath, lines.join('\n'), 'utf-8');
+    console.log(chalk.green(`\nExportado ${msgs.length} mensagens de ${contact} para: ${filePath}\n`));
+  }
+
+  if (exportType === 'summaries') {
+    const summaries = getAllSummaries(30);
+    if (summaries.length === 0) {
+      console.log(chalk.yellow('\nNenhum resumo disponivel.\n'));
+      return;
+    }
+    const lines = summaries.map(s => `\n=== ${s.date} ===\n${s.content}`);
+    const filePath = join(exportDir, `resumos_${timestamp}.txt`);
+    writeFileSync(filePath, lines.join('\n\n'), 'utf-8');
+    console.log(chalk.green(`\nExportado ${summaries.length} resumos para: ${filePath}\n`));
+  }
+}
+
 async function changeMode() {
   const { mode } = await inquirer.prompt([{
     type: 'list',
@@ -248,6 +386,10 @@ async function main() {
   initLearningDb();
   dbSpinner.succeed('Bancos de dados prontos (mensagens + aprendizado)');
 
+  // Start health-check HTTP server
+  const healthPort = parseInt(process.env.HEALTH_PORT || '3100');
+  const healthServer = startHealthServer(healthPort);
+
   // Register auto-analysis callback (triggers after every 20 new learned pairs)
   onAutoAnalysis(async () => {
     const result = await runFullAnalysis();
@@ -269,11 +411,13 @@ async function main() {
 
     whatsappClient.on('ready', () => {
       waSpinner.succeed('WhatsApp conectado!');
+      setWhatsappStatus('connected');
     });
 
     whatsappClient.on('disconnected', (reason) => {
+      setWhatsappStatus('disconnected');
       console.log(chalk.red(`\nWhatsApp desconectado: ${reason}`));
-      console.log(chalk.yellow('Reinicie o app para reconectar.\n'));
+      console.log(chalk.yellow('Tentando reconectar automaticamente...'));
     });
 
     whatsappClient.onMessage(onMessage);
@@ -330,6 +474,15 @@ async function main() {
           console.log('');
           break;
         }
+        case 'search':
+          await handleSearch();
+          break;
+        case 'history':
+          await handleHistory();
+          break;
+        case 'export':
+          await handleExport();
+          break;
         case 'learning':
           showAllProfiles();
           break;
@@ -354,9 +507,11 @@ async function main() {
 
   // Cleanup
   cancelSummary();
+  healthServer.close();
+  whatsappClient.disableAutoReconnect();
   console.log(chalk.yellow('\nDesligando...'));
   if (whatsappClient.client) await whatsappClient.client.destroy();
-  console.log(chalk.green('Ate mais! 👋\n'));
+  console.log(chalk.green('Ate mais!\n'));
   process.exit(0);
 }
 

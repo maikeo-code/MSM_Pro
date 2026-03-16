@@ -6,6 +6,21 @@ import { registerIncoming, registerOutgoing, registerSuggestions, evaluateSugges
 import { getStyleContext } from '../learning/styleAnalyzer.js';
 import { addSuggestion } from './suggestionQueue.js';
 
+// Auto-mode rate limiter: max 5 auto-replies per contact per minute
+const autoReplyTimestamps = new Map();
+const AUTO_REPLY_MAX = 5;
+const AUTO_REPLY_WINDOW_MS = 60_000;
+
+function canAutoReply(contactId) {
+  const now = Date.now();
+  const timestamps = autoReplyTimestamps.get(contactId) || [];
+  const recent = timestamps.filter(t => now - t < AUTO_REPLY_WINDOW_MS);
+  if (recent.length >= AUTO_REPLY_MAX) return false;
+  recent.push(now);
+  autoReplyTimestamps.set(contactId, recent);
+  return true;
+}
+
 /**
  * Handle a single incoming WhatsApp message.
  *
@@ -127,18 +142,29 @@ export async function handleIncomingMessage(msg, { mode, whatsappClient } = {}) 
   }
 
   if (activeMode === 'auto') {
-    try {
-      const response = await generateResponse(contextMsgs, body, contactName, styleContext);
-      if (response) {
-        await msg.reply(response);
-        console.log(
-          `[MessageHandler] AUTO reply to ${contactName}: ${response.slice(0, 60)}...`
-        );
+    // Safe-guard: never auto-reply in groups — fall through to suggest mode
+    if (isGroup) {
+      console.log(chalk.yellow(`[SafeGuard] Grupo detectado — modo auto desabilitado para "${groupName}". Usando suggest.`));
+    } else if (!canAutoReply(from)) {
+      console.log(chalk.yellow(`[SafeGuard] Rate-limit: muitas respostas automaticas para ${contactName}. Usando suggest.`));
+    } else {
+      try {
+        const response = await generateResponse(contextMsgs, body, contactName, styleContext);
+        if (response) {
+          await msg.reply(response);
+          console.log(
+            `[MessageHandler] AUTO reply to ${contactName}: ${response.slice(0, 60)}...`
+          );
+        }
+      } catch (err) {
+        console.error('[MessageHandler] Auto-response error:', err.message);
       }
-    } catch (err) {
-      console.error('[MessageHandler] Auto-response error:', err.message);
+      return { handled: true, mode: activeMode, contact: contactName };
     }
-  } else if (activeMode === 'suggest') {
+  }
+
+  // Suggest mode, or auto mode that fell through (group/rate-limited)
+  if (activeMode !== 'summary') {
     try {
       const suggestions = await suggestResponse(contextMsgs, body, contactName, styleContext);
 
