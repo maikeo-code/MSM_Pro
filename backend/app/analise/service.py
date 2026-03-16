@@ -158,6 +158,30 @@ async def get_analysis_listings(
         )
     ).group_by(Order.listing_id).cte("orders_7d")
 
+    # Vendas 15d (approved orders)
+    orders_15d = select(
+        Order.listing_id,
+        func.coalesce(func.sum(Order.quantity), 0).label("sales"),
+    ).where(
+        and_(
+            Order.ml_account_id.in_(select(user_accounts.c.id)),
+            Order.order_date >= date_15d_start,
+            Order.payment_status == "approved",
+        )
+    ).group_by(Order.listing_id).cte("orders_15d")
+
+    # Vendas 30d (approved orders)
+    orders_30d = select(
+        Order.listing_id,
+        func.coalesce(func.sum(Order.quantity), 0).label("sales"),
+    ).where(
+        and_(
+            Order.ml_account_id.in_(select(user_accounts.c.id)),
+            Order.order_date >= date_30d_start,
+            Order.payment_status == "approved",
+        )
+    ).group_by(Order.listing_id).cte("orders_30d")
+
     # Contagem de dias com dados (para validar conversão)
     days_with_data_7d = select(
         ListingSnapshot.listing_id,
@@ -217,9 +241,9 @@ async def get_analysis_listings(
             (
                 and_(
                     func.coalesce(snapshot_15d.c.visits, 0) >= 50,
-                    func.coalesce(orders_7d.c.sales, 0) > 0,
+                    func.coalesce(orders_15d.c.sales, 0) > 0,
                 ),
-                (func.cast(orders_7d.c.sales, Float) / func.cast(snapshot_15d.c.visits, Float) * 100),
+                (func.cast(orders_15d.c.sales, Float) / func.cast(snapshot_15d.c.visits, Float) * 100),
             ),
             else_=literal(None),
         ).label("conversao_15d"),
@@ -227,9 +251,9 @@ async def get_analysis_listings(
             (
                 and_(
                     func.coalesce(snapshot_30d.c.visits, 0) >= 50,
-                    func.coalesce(orders_7d.c.sales, 0) > 0,
+                    func.coalesce(orders_30d.c.sales, 0) > 0,
                 ),
-                (func.cast(orders_7d.c.sales, Float) / func.cast(snapshot_30d.c.visits, Float) * 100),
+                (func.cast(orders_30d.c.sales, Float) / func.cast(snapshot_30d.c.visits, Float) * 100),
             ),
             else_=literal(None),
         ).label("conversao_30d"),
@@ -279,6 +303,14 @@ async def get_analysis_listings(
     ).join(
         orders_7d,
         Listing.id == orders_7d.c.listing_id,
+        isouter=True,
+    ).join(
+        orders_15d,
+        Listing.id == orders_15d.c.listing_id,
+        isouter=True,
+    ).join(
+        orders_30d,
+        Listing.id == orders_30d.c.listing_id,
         isouter=True,
     ).join(
         days_with_data_7d,

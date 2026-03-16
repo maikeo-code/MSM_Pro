@@ -16,10 +16,16 @@ export interface AnuncioAnalise {
   vendas_ontem: number;
   vendas_anteontem: number;
   vendas_7d: number;
+  dias_dados_7d: number;
+  dias_dados_15d: number;
+  dias_dados_30d: number;
   estoque: number;
   roas_7d: number | null;
   roas_15d: number | null;
   roas_30d: number | null;
+  acos_7d: number | null;
+  acos_15d: number | null;
+  acos_30d: number | null;
   thumbnail: string | null;
   permalink: string | null;
   quality_score: number | null;

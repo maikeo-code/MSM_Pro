@@ -91,7 +91,7 @@ export default function AnaliseAnuncios() {
     return vals.length > 0 ? vals.reduce((sum, v) => sum + v, 0) / vals.length : 0;
   }, [filteredAnuncios]);
 
-  const colSpan = 20; // Total de colunas
+  const colSpan = 23; // Total de colunas
 
   return (
     <div className="p-8">
@@ -339,6 +339,39 @@ export default function AnaliseAnuncios() {
                   <div className="flex items-center justify-end gap-2">
                     ROAS 30d
                     {sortKey === "roas_30d" && (
+                      <ArrowUpDown className={`h-3 w-3 ${sortDirection === "asc" ? "rotate-180" : ""}`} />
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 text-right font-medium text-muted-foreground cursor-pointer hover:bg-muted transition-colors"
+                  onClick={() => handleSort("acos_7d")}
+                >
+                  <div className="flex items-center justify-end gap-2">
+                    ACOS 7d
+                    {sortKey === "acos_7d" && (
+                      <ArrowUpDown className={`h-3 w-3 ${sortDirection === "asc" ? "rotate-180" : ""}`} />
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 text-right font-medium text-muted-foreground cursor-pointer hover:bg-muted transition-colors"
+                  onClick={() => handleSort("acos_15d")}
+                >
+                  <div className="flex items-center justify-end gap-2">
+                    ACOS 15d
+                    {sortKey === "acos_15d" && (
+                      <ArrowUpDown className={`h-3 w-3 ${sortDirection === "asc" ? "rotate-180" : ""}`} />
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 text-right font-medium text-muted-foreground cursor-pointer hover:bg-muted transition-colors"
+                  onClick={() => handleSort("acos_30d")}
+                >
+                  <div className="flex items-center justify-end gap-2">
+                    ACOS 30d
+                    {sortKey === "acos_30d" && (
                       <ArrowUpDown className={`h-3 w-3 ${sortDirection === "asc" ? "rotate-180" : ""}`} />
                     )}
                   </div>
@@ -618,6 +651,66 @@ export default function AnaliseAnuncios() {
                           )}
                         </td>
 
+                        {/* ACOS 7d */}
+                        <td className="px-4 py-3 text-right">
+                          {anuncio.acos_7d != null ? (
+                            <span
+                              className={cn(
+                                "font-medium",
+                                Number(anuncio.acos_7d) < 15
+                                  ? "text-green-600"
+                                  : Number(anuncio.acos_7d) <= 30
+                                  ? "text-yellow-600"
+                                  : "text-red-500"
+                              )}
+                            >
+                              {Number(anuncio.acos_7d).toFixed(1)}%
+                            </span>
+                          ) : (
+                            "N/D"
+                          )}
+                        </td>
+
+                        {/* ACOS 15d */}
+                        <td className="px-4 py-3 text-right">
+                          {anuncio.acos_15d != null ? (
+                            <span
+                              className={cn(
+                                "font-medium",
+                                Number(anuncio.acos_15d) < 15
+                                  ? "text-green-600"
+                                  : Number(anuncio.acos_15d) <= 30
+                                  ? "text-yellow-600"
+                                  : "text-red-500"
+                              )}
+                            >
+                              {Number(anuncio.acos_15d).toFixed(1)}%
+                            </span>
+                          ) : (
+                            "N/D"
+                          )}
+                        </td>
+
+                        {/* ACOS 30d */}
+                        <td className="px-4 py-3 text-right">
+                          {anuncio.acos_30d != null ? (
+                            <span
+                              className={cn(
+                                "font-medium",
+                                Number(anuncio.acos_30d) < 15
+                                  ? "text-green-600"
+                                  : Number(anuncio.acos_30d) <= 30
+                                  ? "text-yellow-600"
+                                  : "text-red-500"
+                              )}
+                            >
+                              {Number(anuncio.acos_30d).toFixed(1)}%
+                            </span>
+                          ) : (
+                            "N/D"
+                          )}
+                        </td>
+
                         {/* Quality Score */}
                         <td className="px-4 py-3 text-right">
                           {anuncio.quality_score != null ? (
@@ -674,7 +767,7 @@ export default function AnaliseAnuncios() {
                     <td className="px-4 py-3 text-right">{totals.vendas_anteontem}</td>
                     <td className="px-4 py-3 text-right text-blue-600">{totals.vendas_7d}</td>
                     <td className="px-4 py-3 text-right">{totals.estoque}</td>
-                    <td colSpan={4}></td>
+                    <td colSpan={7}></td>
                     <td></td>
                   </tr>
                 </>
