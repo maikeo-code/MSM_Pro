@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "@/pages/Dashboard";
 import Anuncios from "@/pages/Anuncios";
 import AnuncioDetalhe from "@/pages/Anuncios/AnuncioDetalhe";
+import AnaliseAnuncios from "@/pages/AnaliseAnuncios";
 import Concorrencia from "@/pages/Concorrencia";
 import Alertas from "@/pages/Alertas";
 import Configuracoes from "@/pages/Configuracoes";
@@ -26,6 +27,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/anuncios" element={<Anuncios />} />
             <Route path="/anuncios/:mlbId" element={<AnuncioDetalhe />} />
+            <Route path="/analise-anuncios" element={<AnaliseAnuncios />} />
             <Route path="/produtos" element={<Produtos />} />
             <Route path="/concorrencia" element={<Concorrencia />} />
             <Route path="/alertas" element={<Alertas />} />

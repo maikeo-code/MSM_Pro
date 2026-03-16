@@ -10,12 +10,14 @@ import {
   TrendingUp,
   DollarSign,
   Megaphone,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/anuncios", label: "Anuncios", icon: Tag },
+  { to: "/analise-anuncios", label: "Analise", icon: BarChart3 },
   { to: "/produtos", label: "Produtos", icon: Package },
   { to: "/concorrencia", label: "Concorrencia", icon: Users },
   { to: "/reputacao", label: "Reputacao", icon: Shield },
