@@ -71,7 +71,7 @@ def _parse_selection(selection: str, max_index: int) -> list[int]:
             except ValueError:
                 console.print(f"[yellow]Valor invalido ignorado: {part}[/yellow]")
 
-    return indices
+    return sorted(set(indices))
 
 
 def _load_settings() -> Settings:

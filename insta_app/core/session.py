@@ -30,6 +30,7 @@ class SessionManager:
         self._client: Client = Client()
         self._logged_in: bool = False
         self._configure_device_fingerprint()
+        self._configure_proxy()
 
     def _configure_device_fingerprint(self) -> None:
         """Configura device fingerprint fixo para manter consistencia entre sessoes."""
@@ -47,6 +48,12 @@ class SessionManager:
                 "version_code": "314665256",
             }
         )
+
+    def _configure_proxy(self) -> None:
+        """Configura proxy se definido nas settings."""
+        if self._settings.proxy:
+            self._client.set_proxy(self._settings.proxy)
+            console.print(f"[dim]Proxy configurado: {self._settings.proxy}[/dim]")
 
     def login(self, username: str, password: str) -> bool:
         """Realiza login no Instagram. Trata 2FA e challenges."""

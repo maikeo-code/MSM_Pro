@@ -20,6 +20,31 @@ class ActionLimits(BaseModel):
         return self
 
 
+PRESETS: dict[str, dict[str, ActionLimits]] = {
+    "conservador": {
+        "like": ActionLimits(per_hour=10, per_day=100, delay_min=45, delay_max=120),
+        "follow": ActionLimits(per_hour=5, per_day=50, delay_min=60, delay_max=180),
+        "unfollow": ActionLimits(per_hour=5, per_day=50, delay_min=60, delay_max=180),
+        "story_view": ActionLimits(per_hour=15, per_day=150, delay_min=8, delay_max=25),
+        "story_react": ActionLimits(per_hour=5, per_day=30, delay_min=30, delay_max=90),
+    },
+    "moderado": {
+        "like": ActionLimits(per_hour=40, per_day=500, delay_min=15, delay_max=45),
+        "follow": ActionLimits(per_hour=15, per_day=150, delay_min=30, delay_max=90),
+        "unfollow": ActionLimits(per_hour=15, per_day=150, delay_min=30, delay_max=90),
+        "story_view": ActionLimits(per_hour=50, per_day=500, delay_min=5, delay_max=15),
+        "story_react": ActionLimits(per_hour=10, per_day=100, delay_min=30, delay_max=90),
+    },
+    "agressivo": {
+        "like": ActionLimits(per_hour=55, per_day=700, delay_min=8, delay_max=25),
+        "follow": ActionLimits(per_hour=25, per_day=300, delay_min=20, delay_max=60),
+        "unfollow": ActionLimits(per_hour=25, per_day=300, delay_min=20, delay_max=60),
+        "story_view": ActionLimits(per_hour=50, per_day=500, delay_min=3, delay_max=10),
+        "story_react": ActionLimits(per_hour=20, per_day=150, delay_min=10, delay_max=30),
+    },
+}
+
+
 class Settings(BaseModel):
     username: str = ""
     session_file: str = "session.json"
@@ -36,6 +61,23 @@ class Settings(BaseModel):
     warmup_enabled: bool = True
     warmup_days: int = 14
     ignore_business_accounts: bool = True
+    whitelist: list[str] = Field(default_factory=list)
+    blacklist: list[str] = Field(default_factory=list)
+    proxy: str | None = None
+
+    def apply_preset(self, name: str) -> None:
+        """
+        Aplica um preset de comportamento, substituindo os rate_limits atuais.
+
+        Args:
+            name: nome do preset ('conservador', 'moderado', 'agressivo').
+
+        Raises:
+            ValueError: se o nome do preset nao existir.
+        """
+        if name not in PRESETS:
+            raise ValueError(f"Preset '{name}' nao encontrado. Opcoes: {list(PRESETS.keys())}")
+        self.rate_limits = {k: v.model_copy() for k, v in PRESETS[name].items()}
 
     @classmethod
     def load_from_file(cls, path: str) -> "Settings":
@@ -54,8 +96,3 @@ class Settings(BaseModel):
 
 
 _CONFIG_FILE = Path(__file__).parent / "config.json"
-
-if _CONFIG_FILE.exists():
-    settings = Settings.load_from_file(str(_CONFIG_FILE))
-else:
-    settings = Settings()

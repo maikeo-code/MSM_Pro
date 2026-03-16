@@ -134,7 +134,7 @@ class StoryManager:
         from insta_app.features.monitoring import FollowerMonitor
 
         monitor = FollowerMonitor(self._client, data_dir="data")
-        new_followers = monitor.get_new_followers()
+        new_followers = monitor.get_new_followers(update_snapshot=False)
 
         users_checked = 0
         stories_viewed = 0
@@ -322,7 +322,7 @@ class StoryManager:
         from insta_app.features.monitoring import FollowerMonitor
 
         monitor = FollowerMonitor(self._client, data_dir="data")
-        new_followers = monitor.get_new_followers()
+        new_followers = monitor.get_new_followers(update_snapshot=False)
 
         users_checked = 0
         stories_viewed = 0

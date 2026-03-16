@@ -14,10 +14,13 @@ except ImportError:
     )
     raise
 
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, MofNCompleteColumn
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from insta_app.core.action_log import ActionLog
+    from insta_app.config import Settings
 
 console = Console()
 
@@ -30,6 +33,8 @@ class LikeManager:
         client: Client,
         rate_limiter: RateLimiter,
         action_log: ActionLog | None = None,
+        dry_run: bool = False,
+        settings: Settings | None = None,
     ) -> None:
         """
         Gerencia curtidas de forma segura e com rate limiting.
@@ -38,10 +43,14 @@ class LikeManager:
             client: instagrapi.Client ja autenticado.
             rate_limiter: instancia de RateLimiter para controlar cadencia.
             action_log: instancia opcional de ActionLog para registrar acoes.
+            dry_run: se True, simula acoes sem executar de verdade.
+            settings: instancia de Settings para acesso a blacklist.
         """
         self._client = client
         self._rate_limiter = rate_limiter
         self._action_log = action_log
+        self._dry_run = dry_run
+        self._settings = settings
 
     # ------------------------------------------------------------------
     # Metodos publicos
@@ -65,7 +74,7 @@ class LikeManager:
         from insta_app.features.monitoring import FollowerMonitor
 
         monitor = FollowerMonitor(self._client, data_dir="data")
-        new_followers = monitor.get_new_followers()
+        new_followers = monitor.get_new_followers(update_snapshot=False)
 
         users_processed = 0
         likes_given = 0

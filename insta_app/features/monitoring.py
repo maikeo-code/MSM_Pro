@@ -71,11 +71,14 @@ class FollowerMonitor:
         console.print(f"[dim]Total seguindo: {len(following)}[/dim]")
         return following
 
-    def get_new_followers(self) -> list[UserShort]:
+    def get_new_followers(self, update_snapshot: bool = True) -> list[UserShort]:
         """
         Compara seguidores atuais com snapshot anterior.
         Retorna lista de NOVOS seguidores desde o ultimo snapshot.
-        Atualiza o snapshot apos a comparacao.
+
+        Args:
+            update_snapshot: Se True, atualiza o snapshot apos a comparacao.
+                            Se False, mantem o snapshot intacto para uso posterior.
         """
         current = self.get_followers()
         snapshot = self._load_snapshot()
@@ -90,9 +93,19 @@ class FollowerMonitor:
         previous_ids: set[int] = {int(uid) for uid in snapshot["followers"]}
         new_followers = [user for uid, user in current.items() if uid not in previous_ids]
 
-        # Atualiza snapshot com lista atual
-        self._save_snapshot(current)
+        # Atualiza snapshot com lista atual (se solicitado)
+        if update_snapshot:
+            self._save_snapshot(current)
         return new_followers
+
+    def commit_snapshot(self) -> None:
+        """
+        Salva o snapshot atual de seguidores explicitamente.
+        Use apos processar novos seguidores com update_snapshot=False
+        para marcar o snapshot como "processado".
+        """
+        current = self.get_followers()
+        self._save_snapshot(current)
 
     def get_unfollowers(self) -> list[dict]:
         """
