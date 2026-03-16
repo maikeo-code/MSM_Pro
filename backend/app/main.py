@@ -90,7 +90,10 @@ async def health_check():
 @app.get("/", tags=["root"])
 async def root():
     """Rota raiz — redireciona para docs."""
-    return {"message": "MSM_Pro API — acesse /docs para a documentação"}
+    return {
+        "message": "MSM_Pro API — acesse /docs para a documentação",
+        "timestamp": "2026-03-16T15:20:00Z"
+    }
 
 
 @app.post("/api/v1/notifications", tags=["webhooks"])
