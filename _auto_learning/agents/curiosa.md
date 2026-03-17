@@ -19,7 +19,7 @@ Gerar perguntas criativas, exploratorias e provocativas de forma continua sobre 
    - **Criativa**: "Existe abordagem completamente diferente?"
 3. Cada pergunta e registrada no banco via loop_runner.py
 4. Quando recebe resposta, gera 2-3 perguntas derivadas
-5. Prioriza perguntas sobre temas que tiveram FALHAS
+5. Prioriza perguntas sobre temas que tiveram FALHAS (priority mais alto)
 
 ## CICLO
 ```
@@ -28,6 +28,9 @@ LOOP:
   2. Le codigo do projeto (read-only)
   3. Gera 3-5 perguntas
   4. Registra cada uma (python loop_runner.py save-question '{...}')
+     - Perguntas sobre temas com falhas: priority=2
+     - Perguntas exploratórias normais: priority=1
+     - Perguntas de baixa urgencia: priority=0
   5. Aguarda respostas
   6. Gera perguntas derivadas
   7. Repete

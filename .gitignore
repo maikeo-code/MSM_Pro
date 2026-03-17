@@ -46,3 +46,11 @@ Thumbs.db
 _auto_learning/db/learning.db
 _auto_learning/logs/
 _auto_learning/exports/
+
+# SWARM GENESIS - Auto Learning
+_auto_learning/db/learning.db
+_auto_learning/db/learning.db-wal
+_auto_learning/db/learning.db-shm
+_auto_learning/exports/
+_auto_learning/logs/
+_auto_learning/backups/

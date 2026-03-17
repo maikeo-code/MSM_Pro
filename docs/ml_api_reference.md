@@ -692,6 +692,358 @@ Retorna dados completos do usuario ML, incluindo reputacao.
 
 ---
 
+---
+
+## 16. OAuth — Trocar Codigo por Token
+
+### POST /oauth/token (grant_type=authorization_code)
+
+Usado no callback do OAuth apos o usuario autorizar o app.
+
+**Body (form-urlencoded):**
+| Param | Tipo | Obrigatorio |
+|-------|------|-------------|
+| `grant_type` | string | Sim — `"authorization_code"` |
+| `client_id` | string | Sim |
+| `client_secret` | string | Sim |
+| `code` | string | Sim — codigo recebido no callback |
+| `redirect_uri` | string | Sim — deve ser identico ao cadastrado no app |
+
+**Resposta real:**
+```json
+{
+  "access_token": "APP_USR-...",
+  "token_type": "Bearer",
+  "expires_in": 21600,
+  "scope": "offline_access read write",
+  "user_id": 2050442871,
+  "refresh_token": "TG-..."
+}
+```
+
+**Gotchas:**
+- `user_id` vem no proprio token response — nao precisa de chamada extra a /users/me
+- Em producao, ML retorna sempre o novo `refresh_token` — salvar imediatamente
+- Se `code` ja foi usado: 400 bad_request
+
+**Validado com curl:** Sim (producao)
+**Ultima validacao:** 2026-03-12
+
+---
+
+## 17. Informacoes do Usuario ML Autenticado
+
+### GET /users/me
+
+Retorna informacoes do usuario dono do token. Usado apos OAuth para pegar nickname e email.
+
+**Parametros:** Nenhum. Token no header obrigatorio.
+
+**Resposta real (campos relevantes):**
+```json
+{
+  "id": 2050442871,
+  "nickname": "MSM_PRIME",
+  "email": "maikeo@example.com",
+  "country_id": "BR",
+  "site_id": "MLB",
+  "seller_reputation": { ... }
+}
+```
+
+**Gotchas:**
+- Em `save_ml_account()`, o `user_id` ja vem no token response. `/users/me` e chamado para pegar `nickname` e `email`.
+- `email` pode ser `null` se usuario nao autorizou scope de email.
+
+**Validado com curl:** Sim (via auth flow)
+**Ultima validacao:** 2026-03-12
+
+---
+
+## 18. Estoque Full (Fulfillment)
+
+### GET /user-products/{ITEM_ID}/stock/fulfillment
+
+Retorna o estoque Full de um item no centro de distribuicao do ML.
+
+**Parametros:** Nenhum (item_id no path).
+
+**Resposta real:**
+```json
+{
+  "available": 42,
+  "in_transit": 5,
+  "not_available": 0
+}
+```
+
+**Gotchas:**
+- Retorna 404 se o item nao e Full — tratar com fallback `{"available": 0, "in_transit": 0}`.
+- `available` = estoque pronto para venda no CD do ML.
+- `in_transit` = estoque a caminho do CD, ainda nao disponivel.
+- Requer token do vendedor dono do anuncio.
+- Nao confundir com `available_quantity` do `/items/{id}` (que e o estoque total).
+
+**Validado com curl:** Pendente validacao real
+**Ultima validacao:** —
+
+---
+
+## 19. Taxas por Listing (listing_prices)
+
+### GET /sites/MLB/listing_prices
+
+Referencia: ver secao 11 acima. Este endpoint retorna a comissao ESTIMADA.
+
+**AVISO CRITICO:** Os valores em `sale_fee_amount` e `sale_fee_details.percentage_fee` podem estar em CENTAVOS (dividir por 100) ou ja em unidades dependendo da versao da API. Validar com curl antes de usar em producao.
+
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
+## 20. Product Ads — Advertiser ID
+
+### GET /advertising/advertisers
+
+Verifica se a conta tem acesso a Product Ads e retorna o `advertiser_id`.
+
+**Parametros:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `product_id` | string | Sim | `PADS` (Product Ads), `DISPLAY`, `BADS` (Brand Ads) |
+
+**Headers obrigatorios:**
+- `Authorization: Bearer {access_token}`
+- `Api-Version: 1` (recomendado)
+
+**Resposta real (validada via doc oficial):**
+```json
+{
+  "advertisers": [
+    {
+      "advertiser_id": 123456,
+      "site_id": "MLB",
+      "advertiser_name": "NOME_DO_ANUNCIANTE",
+      "account_name": "NOME_DA_CONTA - ID"
+    }
+  ]
+}
+```
+
+**ATENCAO — BUG CRITICO NO client.py:**
+O codigo atual em `get_advertiser_id()` trata a resposta como `list` direta:
+```python
+if isinstance(data, list) and len(data) > 0:
+    return str(data[0].get("advertiser_id"))
+```
+Mas a resposta REAL e um dict com chave `"advertisers"` (lista dentro do dict).
+O codigo NAO acessa `data["advertisers"][0]` — portanto SEMPRE retorna `None`.
+
+**Correcao necessaria:**
+```python
+# A resposta e: {"advertisers": [...]}
+advertisers = data.get("advertisers", [])
+if isinstance(advertisers, list) and advertisers:
+    return str(advertisers[0].get("advertiser_id"))
+return None
+```
+
+**Erros possiveis:**
+- `404 No permissions found for user_id` = conta sem Product Ads habilitado (usuario precisa ir em ML > Mi perfil > Publicidad)
+- `403 Forbidden` = token sem scope de publicidade
+
+**Validado com curl:** Nao (API de ads nao e publica — requer conta com PADS ativo)
+**Doc oficial:** https://developers.mercadolivre.com.br/en_us/product-ads-us-read
+**Ultima validacao:** 2026-03-16 (via doc oficial)
+
+---
+
+## 21. Product Ads — Campanhas
+
+### GET /advertising/advertisers/{ADVERTISER_ID}/product_ads/campaigns
+
+Retorna campanhas de Product Ads com metricas de um anunciante.
+
+**AVISO:** Existe versao mais nova do endpoint com sufixo `/search`. A versao sem `/search` foi deprecada em junho 2025. Verificar se o endpoint atual ainda funciona ou migrar para `/search`.
+
+**Parametros:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `date_from` | string | Sim | Formato `YYYY-MM-DD` |
+| `date_to` | string | Sim | Formato `YYYY-MM-DD`. Range maximo: 90 dias retroativos. |
+| `metrics` | string | Sim | Lista separada por virgula. Ver metricas abaixo. |
+| `metrics_summary` | string | Opcional | `"true"` (STRING, nao boolean) — inclui totais agregados |
+| `limit` | int | Opcional | Max por pagina |
+
+**Metricas validas confirmadas pela doc oficial:**
+`clicks, prints, ctr, cost, cpc, acos, organic_units_quantity, organic_units_amount, organic_items_quantity, direct_items_quantity, indirect_items_quantity, advertising_items_quantity, cvr, roas, sov, direct_units_quantity, indirect_units_quantity, units_quantity, direct_amount, indirect_amount, total_amount, impression_share, top_impression_share, lost_impression_share_by_budget, lost_impression_share_by_ad_rank, acos_benchmark`
+
+**AVISO — Metricas no client.py:**
+O client.py usa `"units_quantity,total_amount,cpc,ctr,cvr"` — esses nomes estao corretos.
+POREM `"roas"` e `"acos"` sao metricas validas. `"cost"` e o correto (nao `"spend"`).
+
+**Resposta esperada:**
+```json
+{
+  "results": [
+    {
+      "id": "campaign_123",
+      "name": "Campanha Principal",
+      "status": "active",
+      "daily_budget": 50.00,
+      "metrics": {
+        "clicks": 120,
+        "prints": 5000,
+        "cost": 35.50,
+        "roas": 4.2,
+        "acos": 23.8
+      }
+    }
+  ],
+  "paging": { "total": 1, "offset": 0, "limit": 50 }
+}
+```
+
+**ATENCAO — BUG no client.py:**
+O campo de gasto e `"cost"` na API ML, nao `"spend"`.
+O `ads/service.py` usa `metric.get("spend", 0)` — **sempre retorna 0**.
+Corrigir para `metric.get("cost", 0)`.
+
+**Gotchas:**
+- `metrics_summary: "true"` e STRING, nao boolean Python `True`.
+- Metricas sao atualizadas diariamente as 10:00 GMT-3.
+- `prints` = impressoes (nao confundir com `impressions`).
+- Se conta nao tem PADS: 404.
+
+**Validado com curl:** Nao (requer conta com PADS ativo)
+**Doc oficial:** https://developers.mercadolivre.com.br/en_us/product-ads-us-read
+**Ultima validacao:** 2026-03-16 (via doc oficial)
+
+---
+
+## 22. Product Ads — Metricas por Item
+
+### GET /advertising/advertisers/{ADVERTISER_ID}/product_ads/items
+
+Retorna metricas de ads agrupadas por item (anuncio MLB).
+
+**Parametros:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `date_from` | string | Sim | `YYYY-MM-DD` |
+| `date_to` | string | Sim | `YYYY-MM-DD` |
+| `metrics` | string | Sim | Lista separada por virgula |
+| `item_id` | string | Opcional | Filtrar por MLB ID especifico |
+| `limit` | int | Opcional | Paginacao |
+
+**Formato do `item_id` na resposta:**
+O campo retornado para identificar o anuncio e `"item_id"` (com hifen) ou `"id"` (sem hifen).
+**DEVE-SE NORMALIZAR** antes de comparar: `.upper().replace("-", "")`.
+
+**Resposta esperada:**
+```json
+{
+  "results": [
+    {
+      "item_id": "MLB1234567890",
+      "title": "Produto X",
+      "metrics": {
+        "clicks": 45,
+        "prints": 2000,
+        "cost": 12.30,
+        "roas": 3.8
+      }
+    }
+  ]
+}
+```
+
+**Gotchas:**
+- O campo de gasto e `"cost"` (nao `"spend"`). O client.py nao usa esse endpoint diretamente para salvar snapshots — mas o `ads/service.py` vai encontrar `"spend"` como 0 sempre.
+- `item_id` pode ou nao ter hifen — normalizar sempre.
+
+**Validado com curl:** Nao (requer conta com PADS ativo)
+**Doc oficial:** https://developers.mercadolivre.com.br/en_us/product-ads-us-read
+**Ultima validacao:** 2026-03-16 (via doc oficial)
+
+---
+
+## 23. Campanhas de Publicidade (endpoint legado)
+
+### GET /advertising/campaigns
+
+**STATUS: POSSIVELMENTE DEPRECATED / NAO DOCUMENTADO OFICIALMENTE**
+
+O client.py usa este endpoint em `get_campaigns()`:
+```
+GET /advertising/campaigns?user_id={seller_id}
+```
+
+**PROBLEMA:** Este endpoint NAO aparece na documentacao oficial atual do ML.
+A doc oficial de Product Ads usa `/advertising/advertisers/{id}/product_ads/campaigns`.
+O endpoint `/advertising/campaigns` provavelmente pertencia a uma versao antiga pre-PADS.
+
+**Recomendacao:** Substituir por:
+1. `get_advertiser_id()` — obter advertiser_id
+2. `get_product_ads_campaigns(advertiser_id, ...)` — obter campanhas reais
+
+O `ads/service.py` ja tenta `get_campaigns()` como primeiro passo — e correto ter fallback quando retorna 403/404.
+
+**Validado com curl:** Nao
+**Ultima validacao:** —
+
+---
+
+## 24. Metricas de Campanha (endpoint legado)
+
+### GET /advertising/campaigns/{CAMPAIGN_ID}/metrics
+
+**STATUS: POSSIVELMENTE DEPRECATED / NAO DOCUMENTADO OFICIALMENTE**
+
+Usado em `get_campaign_metrics()` no client.py.
+Nao encontrado na doc oficial atual. A doc atual usa o endpoint de campanhas com metricas embutidas (`/advertising/advertisers/{id}/product_ads/campaigns` com param `metrics=...`).
+
+**Campos que o ads/service.py espera na resposta:**
+```python
+metric.get("impressions")  # ATENCAO: campo correto pode ser "prints"
+metric.get("clicks")       # OK
+metric.get("spend")        # ERRADO: campo correto e "cost"
+metric.get("attributed_sales")   # campo pode nao existir
+metric.get("attributed_revenue") # campo pode nao existir
+metric.get("organic_sales")      # campo pode nao existir
+```
+
+**Recomendacao:** Migrar para endpoint novo de campanhas com metricas.
+
+**Validado com curl:** Nao
+**Ultima validacao:** —
+
+---
+
+## 25. Product Ads Individual (deprecated)
+
+### GET /advertising/product_ads
+
+Usado no metodo `get_item_ads()` no client.py (marcado como DEPRECATED no proprio docstring).
+Substituido por `get_product_ads_items()` com `advertiser_id`.
+
+**Status no client.py:** DEPRECATED — nao usar.
+
+---
+
+## Resumo de Bugs Criticos Identificados
+
+| # | Endpoint | Bug | Impacto | Arquivo |
+|---|---------|-----|---------|---------|
+| 1 | `GET /advertising/advertisers` | Resposta e `{"advertisers": [...]}` mas codigo trata como lista direta | `get_advertiser_id()` SEMPRE retorna None | client.py:379-383 |
+| 2 | `GET /advertising/.../campaigns` | Campo de gasto e `"cost"` nao `"spend"` | `spend` sempre 0 no banco | ads/service.py:233 |
+| 3 | `GET /advertising/.../campaigns` | Campo de impressoes e `"prints"` nao `"impressions"` | `impressions` sempre 0 no banco | ads/service.py:231 |
+| 4 | `GET /visits/items` | Resposta e dict `{item_id: visits}` mas codigo trata os dois formatos (ok) | Nenhum — codigo ja trata | client.py:601-610 |
+| 5 | `GET /advertising/campaigns?user_id=` | Endpoint legado nao documentado oficialmente | Retorna 404 em contas sem PADS legado | client.py:625 |
+
+---
+
 ## Checklist para novo endpoint
 
 Antes de usar qualquer endpoint novo no projeto:

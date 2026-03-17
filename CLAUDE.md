@@ -573,3 +573,29 @@ Leia o arquivo `_auto_learning/INSTRUCOES_IA.md` para instruções completas.
 3. **SEMPRE confronte** respostas antes de aceitar
 4. **Planos e docs** são gerados APENAS dentro de `_auto_learning/`
 5. O código do projeto é READ-ONLY para este sistema
+
+---
+
+## SWARM GENESIS v6.0
+## Sistema de Auto-Aprendizado Instalado
+
+- **Pasta do sistema**: `_auto_learning/`
+- **Para ativar**: veja `_auto_learning/ATIVAR.md`
+- **Instrucoes completas**: `_auto_learning/INSTRUCOES_IA.md`
+
+### Regras do Sistema
+1. O sistema pode LER qualquer arquivo do projeto para analise
+2. O sistema pode EDITAR arquivos do projeto SOMENTE com backup automatico
+3. Use `_auto_learning/loop_runner.py` para todas as operacoes no banco
+4. Gere planos em `_auto_learning/planos/`
+5. Ao iniciar o Claude Code neste projeto, leia `_auto_learning/INSTRUCOES_IA.md`
+6. SEMPRE salve checkpoint antes de encerrar uma sessao
+
+### Comandos Rapidos
+```bash
+python _auto_learning/loop_runner.py status
+python _auto_learning/loop_runner.py report
+python _auto_learning/loop_runner.py get-context
+python _auto_learning/loop_runner.py get-human-questions
+python _auto_learning/loop_runner.py help
+```
