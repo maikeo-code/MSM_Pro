@@ -61,11 +61,18 @@ async def get_funnel_analytics(db: AsyncSession, user_id: UUID, period_days: int
         .subquery()
     )
 
+    # Use COALESCE(revenue, price * sales_today) para calcular receita
+    # quando revenue é null (snapshots antigos sem dados de orders)
+    receita_expr = func.coalesce(
+        ListingSnapshot.revenue,
+        ListingSnapshot.price * ListingSnapshot.sales_today,
+    )
+
     result = await db.execute(
         select(
             func.coalesce(func.sum(ListingSnapshot.visits), 0).label("visitas"),
             func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label("vendas"),
-            func.coalesce(func.sum(ListingSnapshot.revenue), 0).label("receita"),
+            func.coalesce(func.sum(receita_expr), 0).label("receita"),
         )
         .join(
             latest_per_day,

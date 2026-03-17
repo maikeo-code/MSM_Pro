@@ -41,12 +41,31 @@ async def list_listings(db: AsyncSession, user_id: UUID, period: str = "today") 
     if is_period_mode:
         # Período atual: [today - N+1 .. today]
         date_from = today_date - timedelta(days=period_days - 1)
-        period_snaps_result = await db.execute(
-            select(ListingSnapshot)
+
+        # BUG FIX: Deduplicar por dia — pegar apenas o ÚLTIMO snapshot de cada listing
+        # por cada dia, evitando somar N snapshots do mesmo dia (inflava dados 10x)
+        latest_per_day_subq = (
+            select(
+                ListingSnapshot.listing_id,
+                cast(ListingSnapshot.captured_at, Date).label("snap_date"),
+                func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+            )
             .where(
                 ListingSnapshot.listing_id.in_(listing_ids),
                 cast(ListingSnapshot.captured_at, Date) >= date_from,
+                cast(ListingSnapshot.captured_at, Date) <= today_date,
             )
+            .group_by(ListingSnapshot.listing_id, cast(ListingSnapshot.captured_at, Date))
+            .subquery()
+        )
+        period_snaps_result = await db.execute(
+            select(ListingSnapshot)
+            .join(
+                latest_per_day_subq,
+                (ListingSnapshot.listing_id == latest_per_day_subq.c.listing_id)
+                & (ListingSnapshot.captured_at == latest_per_day_subq.c.max_captured_at),
+            )
+            .where(ListingSnapshot.listing_id.in_(listing_ids))
             .order_by(ListingSnapshot.listing_id, ListingSnapshot.captured_at.desc())
         )
         period_snaps_all = period_snaps_result.scalars().all()
@@ -59,16 +78,31 @@ async def list_listings(db: AsyncSession, user_id: UUID, period: str = "today") 
                 period_snaps_by_listing[lid] = []
             period_snaps_by_listing[lid].append(snap)
 
-        # Período anterior equivalente para variação
+        # Período anterior equivalente para variação (também deduplicado por dia)
         prev_date_from = date_from - timedelta(days=period_days)
         prev_date_to = date_from - timedelta(days=1)
-        prev_snaps_result = await db.execute(
-            select(ListingSnapshot)
+        prev_latest_subq = (
+            select(
+                ListingSnapshot.listing_id,
+                cast(ListingSnapshot.captured_at, Date).label("snap_date"),
+                func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+            )
             .where(
                 ListingSnapshot.listing_id.in_(listing_ids),
                 cast(ListingSnapshot.captured_at, Date) >= prev_date_from,
                 cast(ListingSnapshot.captured_at, Date) <= prev_date_to,
             )
+            .group_by(ListingSnapshot.listing_id, cast(ListingSnapshot.captured_at, Date))
+            .subquery()
+        )
+        prev_snaps_result = await db.execute(
+            select(ListingSnapshot)
+            .join(
+                prev_latest_subq,
+                (ListingSnapshot.listing_id == prev_latest_subq.c.listing_id)
+                & (ListingSnapshot.captured_at == prev_latest_subq.c.max_captured_at),
+            )
+            .where(ListingSnapshot.listing_id.in_(listing_ids))
             .order_by(ListingSnapshot.listing_id)
         )
         prev_snaps_all = prev_snaps_result.scalars().all()
@@ -155,7 +189,10 @@ async def list_listings(db: AsyncSession, user_id: UUID, period: str = "today") 
         """Retorna dict com campos agregados de uma lista de snapshots."""
         total_sales = sum(s.sales_today or 0 for s in snaps)
         total_visits = sum(s.visits or 0 for s in snaps)
-        total_revenue = sum(float(s.revenue or 0) for s in snaps)
+        total_revenue = sum(
+            float(s.revenue or 0) or (float(s.price or 0) * (s.sales_today or 0))
+            for s in snaps
+        )
         total_orders = sum(s.orders_count or 0 for s in snaps)
         total_cancelled = sum(s.cancelled_orders or 0 for s in snaps)
         total_cancelled_rev = sum(float(s.cancelled_revenue or 0) for s in snaps)
@@ -339,7 +376,18 @@ async def list_listings(db: AsyncSession, user_id: UUID, period: str = "today") 
         rev = getattr(snap, "revenue", None)
         if rev is None and isinstance(snap, dict):
             rev = snap.get("revenue")
-        return float(rev) if rev else 0.0
+        if rev and float(rev) > 0:
+            return float(rev)
+        # Fallback: estimate revenue from price * sales_today
+        price = getattr(snap, "price", None)
+        if price is None and isinstance(snap, dict):
+            price = snap.get("price")
+        sales = getattr(snap, "sales_today", None)
+        if sales is None and isinstance(snap, dict):
+            sales = snap.get("sales_today")
+        if price and sales:
+            return float(price) * int(sales)
+        return 0.0
 
     total_revenue_all = sum(_get_revenue(item) for item in output)
     for item in output:
@@ -375,7 +423,7 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
             func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.stock), 0).label("valor_estoque"),
             func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.sales_today), 0).label("receita"),
             func.coalesce(func.sum(ListingSnapshot.orders_count), 0).label("pedidos"),
-            func.coalesce(func.sum(ListingSnapshot.revenue), 0).label("receita_total"),
+            func.coalesce(func.sum(func.coalesce(ListingSnapshot.revenue, ListingSnapshot.price * ListingSnapshot.sales_today)), 0).label("receita_total"),
             func.coalesce(func.sum(ListingSnapshot.cancelled_orders), 0).label("cancelados"),
             func.coalesce(func.sum(ListingSnapshot.cancelled_revenue), 0).label("cancelados_valor"),
             func.coalesce(func.sum(ListingSnapshot.returns_count), 0).label("devolucoes_qtd"),
@@ -451,7 +499,7 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
             func.count(func.distinct(ListingSnapshot.listing_id)).label("anuncios"),
             func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.sales_today), 0).label("receita"),
             func.coalesce(func.sum(ListingSnapshot.orders_count), 0).label("pedidos"),
-            func.coalesce(func.sum(ListingSnapshot.revenue), 0).label("receita_total"),
+            func.coalesce(func.sum(func.coalesce(ListingSnapshot.revenue, ListingSnapshot.price * ListingSnapshot.sales_today)), 0).label("receita_total"),
             func.coalesce(func.sum(ListingSnapshot.cancelled_orders), 0).label("cancelados"),
             func.coalesce(func.sum(ListingSnapshot.cancelled_revenue), 0).label("cancelados_valor"),
             func.coalesce(func.sum(ListingSnapshot.returns_count), 0).label("devolucoes_qtd"),

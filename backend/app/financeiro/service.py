@@ -125,11 +125,34 @@ async def get_financeiro_resumo(
     prev_inicio = prev_fim - timedelta(days=days - 1)
 
     async def _aggregate(d_inicio: date, d_fim: date) -> dict:
-        """Agrega metricas de snapshots no intervalo [d_inicio, d_fim]."""
-        d_inicio_dt = datetime(d_inicio.year, d_inicio.month, d_inicio.day, tzinfo=timezone.utc)
-        d_fim_dt = datetime(d_fim.year, d_fim.month, d_fim.day, 23, 59, 59, tzinfo=timezone.utc)
+        """Agrega metricas de snapshots no intervalo [d_inicio, d_fim].
 
-        # Join listings -> snapshots, filtrar por user e periodo
+        Uses latest-per-day deduplication to avoid counting multiple
+        snapshots from the same day.
+        """
+        from sqlalchemy import cast, Date
+
+        # Subquery: latest snapshot per listing per day (deduplication)
+        latest_per_day = (
+            select(
+                ListingSnapshot.listing_id,
+                cast(ListingSnapshot.captured_at, Date).label("snap_date"),
+                func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+            )
+            .where(
+                cast(ListingSnapshot.captured_at, Date) >= d_inicio,
+                cast(ListingSnapshot.captured_at, Date) <= d_fim,
+            )
+            .group_by(ListingSnapshot.listing_id, cast(ListingSnapshot.captured_at, Date))
+            .subquery()
+        )
+
+        # Revenue fallback: use price * sales_today when revenue is null
+        revenue_expr = func.coalesce(
+            ListingSnapshot.revenue,
+            ListingSnapshot.price * ListingSnapshot.sales_today,
+        )
+
         rows = await db.execute(
             select(
                 Listing.id,
@@ -137,16 +160,19 @@ async def get_financeiro_resumo(
                 Listing.sale_fee_pct,
                 Listing.avg_shipping_cost,
                 Listing.product_id,
-                func.sum(ListingSnapshot.revenue).label("revenue"),
-                func.sum(ListingSnapshot.orders_count).label("orders"),
+                func.sum(revenue_expr).label("revenue"),
+                func.sum(func.coalesce(ListingSnapshot.orders_count, ListingSnapshot.sales_today)).label("orders"),
                 func.sum(ListingSnapshot.cancelled_orders).label("cancelled"),
                 func.sum(ListingSnapshot.returns_count).label("returns"),
             )
             .join(ListingSnapshot, ListingSnapshot.listing_id == Listing.id)
+            .join(
+                latest_per_day,
+                (ListingSnapshot.listing_id == latest_per_day.c.listing_id)
+                & (ListingSnapshot.captured_at == latest_per_day.c.max_captured_at),
+            )
             .where(
                 Listing.user_id == user_id,
-                ListingSnapshot.captured_at >= d_inicio_dt,
-                ListingSnapshot.captured_at <= d_fim_dt,
             )
             .group_by(
                 Listing.id,
