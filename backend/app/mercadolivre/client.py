@@ -372,14 +372,24 @@ class MLClient:
         """
         Verifica se a conta tem acesso a Product Ads e retorna o advertiser_id.
         GET /advertising/advertisers?product_id=PADS
+        Header obrigatório: Api-Version: 2
         Retorna None se account não tem acesso a Product Ads.
         """
         try:
-            data = await self._request("GET", "/advertising/advertisers", params={"product_id": "PADS"})
+            data = await self._request(
+                "GET",
+                "/advertising/advertisers",
+                params={"product_id": "PADS"},
+                headers={"Api-Version": "2"},
+            )
             if isinstance(data, list) and len(data) > 0:
                 return str(data[0].get("advertiser_id"))
             if isinstance(data, dict):
-                return str(data.get("advertiser_id"))
+                # Formato: {"advertisers": [...]} ou {"advertiser_id": "..."}
+                advertisers = data.get("advertisers", [])
+                if advertisers:
+                    return str(advertisers[0].get("advertiser_id"))
+                return str(data.get("advertiser_id")) if data.get("advertiser_id") else None
             return None
         except MLClientError:
             return None
@@ -388,6 +398,7 @@ class MLClient:
         """
         Busca campanhas de Product Ads com métricas.
         GET /advertising/advertisers/{advertiser_id}/product_ads/campaigns
+        Header obrigatório: Api-Version: 2
         Parâmetros: date_from, date_to, metrics, metrics_summary.
         Retorna lista de campanhas com métricas ou lista vazia se falhar.
         """
@@ -402,6 +413,7 @@ class MLClient:
                     "metrics_summary": "true",
                     "limit": 50,
                 },
+                headers={"Api-Version": "2"},
             )
             if isinstance(data, dict):
                 return data.get("results", [])
@@ -415,6 +427,7 @@ class MLClient:
         """
         Busca métricas de ads por item (anúncio).
         GET /advertising/advertisers/{advertiser_id}/product_ads/items
+        Header obrigatório: Api-Version: 2
         Parâmetros: date_from, date_to, metrics, item_id (opcional).
         Retorna lista de items com métricas ou lista vazia se falhar.
         """
@@ -431,6 +444,7 @@ class MLClient:
                 "GET",
                 f"/advertising/advertisers/{advertiser_id}/product_ads/items",
                 params=params,
+                headers={"Api-Version": "2"},
             )
             if isinstance(data, dict):
                 return data.get("results", [])
@@ -694,6 +708,14 @@ class MLClient:
                 "limit": limit,
             },
         )
+
+    async def get_shipment(self, shipment_id: int | str) -> dict:
+        """
+        Busca dados de um envio pelo ID.
+        GET /shipments/{shipment_id}
+        Retorna dados incluindo cost_components (sender_cost), base_cost, etc.
+        """
+        return await self._request("GET", f"/shipments/{shipment_id}")
 
     async def close(self):
         """Fecha o cliente HTTP."""
