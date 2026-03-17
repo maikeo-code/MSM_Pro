@@ -21,3 +21,25 @@ ML_FEES_FLOAT: dict[str, float] = {
     "premium": 0.17,
     "full": 0.17,
 }
+
+# Default ML fee for unknown listing types
+ML_FEE_DEFAULT = Decimal("0.16")  # 16%
+
+# ML API pagination
+ML_PAGINATION_LIMIT = 50
+
+# Health score thresholds
+HEALTH_TITLE_MIN_LEN = 60
+HEALTH_MIN_CONVERSION_PCT = 3
+HEALTH_MIN_STOCK = 10
+HEALTH_RECENT_DAYS_CHECK = 3
+
+# Stock projection thresholds
+STOCK_CRITICAL_DAYS = 7
+STOCK_WARNING_DAYS = 14
+STOCK_EXCESS_DAYS = 60
+
+# Health score status thresholds
+HEALTH_EXCELLENT_THRESHOLD = 80
+HEALTH_GOOD_THRESHOLD = 60
+HEALTH_WARNING_THRESHOLD = 40
