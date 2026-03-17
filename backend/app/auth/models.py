@@ -5,6 +5,7 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.crypto import EncryptedString
 from app.core.database import Base
 
 
@@ -60,9 +61,9 @@ class MLAccount(Base):
     ml_user_id: Mapped[str] = mapped_column(String(100), nullable=False)
     nickname: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Tokens armazenados criptografados
-    access_token: Mapped[str | None] = mapped_column(String(2000), nullable=True)
-    refresh_token: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    # Tokens armazenados criptografados via Fernet (EncryptedString)
+    access_token: Mapped[str | None] = mapped_column(EncryptedString(2000), nullable=True)
+    refresh_token: Mapped[str | None] = mapped_column(EncryptedString(2000), nullable=True)
     token_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

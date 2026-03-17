@@ -4,7 +4,7 @@ from uuid import UUID
 
 import bcrypt
 import httpx
-from jose import jwt
+import jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

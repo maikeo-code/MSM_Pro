@@ -63,10 +63,10 @@ async def get_campaign_detail(
     snapshots = list(snaps_result.scalars().all())
 
     # Calcula resumo agregado
-    total_spend = sum(s.spend for s in snapshots) or Decimal("0")
-    total_revenue = sum(s.attributed_revenue for s in snapshots) or Decimal("0")
-    total_clicks = sum(s.clicks for s in snapshots)
-    total_impressions = sum(s.impressions for s in snapshots)
+    total_spend = sum(s.spend or Decimal("0") for s in snapshots) or Decimal("0")
+    total_revenue = sum(s.attributed_revenue or Decimal("0") for s in snapshots) or Decimal("0")
+    total_clicks = sum(s.clicks or 0 for s in snapshots)
+    total_impressions = sum(s.impressions or 0 for s in snapshots)
     roas_geral = (total_revenue / total_spend) if total_spend > 0 else None
     acos_geral = (total_spend / total_revenue * 100) if total_revenue > 0 else None
 
@@ -124,10 +124,10 @@ async def get_ads_dashboard(
     )
     all_snapshots = list(snaps_result.scalars().all())
 
-    total_spend = sum((s.spend for s in all_snapshots), Decimal("0"))
-    total_revenue = sum((s.attributed_revenue for s in all_snapshots), Decimal("0"))
-    total_clicks = sum(s.clicks for s in all_snapshots)
-    total_impressions = sum(s.impressions for s in all_snapshots)
+    total_spend = sum((s.spend or Decimal("0") for s in all_snapshots), Decimal("0"))
+    total_revenue = sum((s.attributed_revenue or Decimal("0") for s in all_snapshots), Decimal("0"))
+    total_clicks = sum(s.clicks or 0 for s in all_snapshots)
+    total_impressions = sum(s.impressions or 0 for s in all_snapshots)
 
     roas_geral = (total_revenue / total_spend) if total_spend > 0 else None
     acos_geral = (total_spend / total_revenue * 100) if total_revenue > 0 else None

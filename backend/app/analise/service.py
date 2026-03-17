@@ -346,45 +346,45 @@ async def get_analysis_listings(
 
     # Para cada conta, buscar advertiser_id e métricas
     for account in ml_accounts:
-        client = MLClient(account.access_token)
-        advertiser_id = await client.get_advertiser_id()
+        async with MLClient(account.access_token) as client:
+            advertiser_id = await client.get_advertiser_id()
 
-        if not advertiser_id:
-            # Conta não tem acesso a Product Ads — skip
-            continue
-
-        # Buscar métricas para 7d, 15d, 30d
-        for period_name, date_start in [
-            ("7d", date_7d_ago),
-            ("15d", date_15d_ago),
-            ("30d", date_30d_ago),
-        ]:
-            try:
-                items = await client.get_product_ads_items(
-                    advertiser_id,
-                    date_from=date_start.isoformat(),
-                    date_to=today.isoformat(),
-                )
-
-                for item in items:
-                    # Normalizar item_id (remover hífens, maiúsculas)
-                    item_id_raw = item.get("item_id", "").upper().replace("-", "")
-                    if not item_id_raw:
-                        continue
-
-                    # Garantir que começa com MLB
-                    if not item_id_raw.startswith("MLB"):
-                        item_id_raw = f"MLB{item_id_raw}"
-
-                    if item_id_raw not in ads_by_item:
-                        ads_by_item[item_id_raw] = {}
-
-                    # Armazenar ROAS e ACOS (já em %)
-                    ads_by_item[item_id_raw][f"roas_{period_name}"] = item.get("roas")
-                    ads_by_item[item_id_raw][f"acos_{period_name}"] = item.get("acos")
-            except Exception:
-                # Erro ao buscar métricas de uma conta — continua com outras contas
+            if not advertiser_id:
+                # Conta não tem acesso a Product Ads — skip
                 continue
+
+            # Buscar métricas para 7d, 15d, 30d
+            for period_name, date_start in [
+                ("7d", date_7d_ago),
+                ("15d", date_15d_ago),
+                ("30d", date_30d_ago),
+            ]:
+                try:
+                    items = await client.get_product_ads_items(
+                        advertiser_id,
+                        date_from=date_start.isoformat(),
+                        date_to=today.isoformat(),
+                    )
+
+                    for item in items:
+                        # Normalizar item_id (remover hífens, maiúsculas)
+                        item_id_raw = item.get("item_id", "").upper().replace("-", "")
+                        if not item_id_raw:
+                            continue
+
+                        # Garantir que começa com MLB
+                        if not item_id_raw.startswith("MLB"):
+                            item_id_raw = f"MLB{item_id_raw}"
+
+                        if item_id_raw not in ads_by_item:
+                            ads_by_item[item_id_raw] = {}
+
+                        # Armazenar ROAS e ACOS (já em %)
+                        ads_by_item[item_id_raw][f"roas_{period_name}"] = item.get("roas")
+                        ads_by_item[item_id_raw][f"acos_{period_name}"] = item.get("acos")
+                except Exception:
+                    # Erro ao buscar métricas de uma conta — continua com outras contas
+                    continue
 
     # Converter rows em AnuncioAnalise
     anuncios = []

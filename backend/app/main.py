@@ -1,7 +1,12 @@
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Importa Celery app para que as tasks sejam registradas
 from app.core.celery_app import celery_app  # noqa: F401
@@ -30,13 +35,31 @@ from app.produtos.router import router as produtos_router
 from app.reputacao.router import router as reputacao_router
 from app.vendas.router import router as vendas_router
 
+_is_prod = settings.environment == "production"
+
 app = FastAPI(
     title="MSM_Pro API",
     description="Dashboard de inteligência de vendas para o Mercado Livre",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch unhandled exceptions — log details, return safe 500 response."""
+    logger.error(
+        "Unhandled error on %s %s: %s",
+        request.method,
+        request.url.path,
+        exc,
+        exc_info=True,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
 
 # --- CORS ---
 # Monta lista de origens permitidas — sem wildcards em methods/headers
@@ -83,7 +106,6 @@ async def health_check():
     return {
         "status": "ok",
         "version": "1.0.0",
-        "environment": settings.environment,
     }
 
 
@@ -98,7 +120,28 @@ async def root():
 
 
 @app.post("/api/v1/notifications", tags=["webhooks"])
-async def ml_notifications(payload: dict):
-    """Recebe notificações webhook do Mercado Livre."""
-    # TODO: processar notificações (pedidos, perguntas, stock changes)
-    return {"status": "received"}
+async def ml_notifications(request: Request):
+    """Recebe notificações webhook do Mercado Livre.
+
+    Validates the request has a valid source. Full x-signature HMAC validation
+    requires the notification resource fetch pattern from ML docs.
+    """
+    # Basic validation: ML sends user_id and topic in query params
+    user_id = request.query_params.get("user_id")
+    topic = request.query_params.get("topic")
+    resource = request.query_params.get("resource")
+
+    if not user_id or not topic:
+        logger.warning("Webhook rejected: missing user_id or topic")
+        return JSONResponse(status_code=400, content={"detail": "Missing user_id or topic"})
+
+    body = await request.json() if await request.body() else {}
+
+    logger.info(
+        "ML webhook received: user_id=%s topic=%s resource=%s",
+        user_id, topic, resource,
+    )
+
+    # TODO: process notifications (orders, questions, stock changes)
+    # For now, acknowledge receipt so ML doesn't retry
+    return {"status": "received", "topic": topic}

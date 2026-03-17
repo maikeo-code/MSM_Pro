@@ -515,7 +515,7 @@ async def get_cashflow(
         if data_liberacao not in by_date:
             by_date[data_liberacao] = {"amount": Decimal("0"), "orders_count": 0}
 
-        by_date[data_liberacao]["amount"] += order.net_amount
+        by_date[data_liberacao]["amount"] += order.net_amount or Decimal("0")
         by_date[data_liberacao]["orders_count"] += 1
 
     # Monta a timeline e os totais por faixa

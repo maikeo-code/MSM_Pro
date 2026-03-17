@@ -497,6 +497,9 @@ Por favor, analise esses dados e me de:
             )
 
     data = response.json()
-    analise = data["content"][0]["text"]
+    try:
+        analise = data["content"][0]["text"]
+    except (KeyError, IndexError, TypeError):
+        analise = data.get("error", {}).get("message", "Resposta inesperada da API Claude.")
 
     return analise, total_analisados

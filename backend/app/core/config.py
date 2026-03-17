@@ -12,8 +12,9 @@ class Settings(BaseSettings):
 
     # --- App ---
     environment: str = "development"
-    debug: bool = True
+    debug: bool = False
     frontend_url: str = "http://localhost:5173"
+    cors_origins: str = ""
 
     # --- Banco de Dados ---
     database_url: str = "postgresql+asyncpg://msm:msm@localhost:5432/msm_pro"
@@ -43,6 +44,9 @@ class Settings(BaseSettings):
     ml_api_base: str = "https://api.mercadolibre.com"
     ml_auth_url: str = "https://auth.mercadolivre.com.br/authorization"
     ml_token_url: str = "https://api.mercadolibre.com/oauth/token"
+
+    # --- Token Encryption ---
+    token_encryption_key: Optional[str] = None  # Fernet key; derived from secret_key if not set
 
     # --- Anthropic (Consultor IA) ---
     anthropic_api_key: str = ""
