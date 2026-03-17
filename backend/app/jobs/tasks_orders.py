@@ -143,9 +143,27 @@ async def _sync_orders_async():
                                     shipping_data.get("status", "to_be_agreed")
                                     or "to_be_agreed"
                                 )
-                                # shipping_cost nao vem no /orders/search — padrao 0
-                                # O frete real e calculado pelo listing.avg_shipping_cost
+                                # Busca custo real de frete via /shipments/{id}
                                 shipping_cost = Decimal("0")
+                                shipment_id = shipping_data.get("id")
+                                if shipment_id:
+                                    try:
+                                        shipment_detail = await client.get_shipment(shipment_id)
+                                        # cost_components tem o custo do lado do vendedor
+                                        cost_comps = shipment_detail.get("cost_components", {})
+                                        sender_cost = (
+                                            cost_comps.get("sender_cost")
+                                            or cost_comps.get("loyal_discount")
+                                            or 0
+                                        )
+                                        # Fallback: campo direto base_cost
+                                        if not sender_cost:
+                                            sender_cost = shipment_detail.get("base_cost", 0)
+                                        shipping_cost = Decimal(str(sender_cost or 0))
+                                    except Exception as e:
+                                        logger.debug(
+                                            f"Nao conseguiu buscar frete do shipment {shipment_id}: {e}"
+                                        )
                                 delivery_date = None
                                 delivery_date_str = (
                                     shipping_data.get("date_delivered")
