@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import service
 from app.auth.models import MLAccount, User
+from app.auth.oauth_state import generate_oauth_state, verify_oauth_state
 from app.auth.schemas import MLAccountOut, MLConnectURL, Token, UserCreate, UserLogin, UserOut
 from app.core.config import settings
 from app.core.database import get_db
@@ -63,14 +64,9 @@ async def get_me(
 @router.get("/ml/connect", response_model=MLConnectURL)
 async def ml_connect(
     current_user: Annotated[User, Depends(get_current_user)],
-    state: str | None = Query(default=None, description="Estado opcional para CSRF"),
 ):
     """Retorna a URL para autorizar conta do Mercado Livre via OAuth."""
-    # Embed user_id no state para recuperar no callback
-    state_value = f"{current_user.id}"
-    if state:
-        state_value = f"{current_user.id}:{state}"
-
+    state_value = generate_oauth_state(current_user.id)
     auth_url = service.get_ml_auth_url(state=state_value)
     return MLConnectURL(auth_url=auth_url)
 
@@ -91,15 +87,8 @@ async def ml_callback(
             detail="State inválido ou ausente",
         )
 
-    # Extrai user_id do state
-    user_id_str = state.split(":")[0]
-    try:
-        user_id = UUID(user_id_str)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="State inválido",
-        )
+    # Verify CSRF state (HMAC signature + TTL)
+    user_id = verify_oauth_state(state)
 
     # Verifica se usuário existe
     result = await db.execute(select(User).where(User.id == user_id))
