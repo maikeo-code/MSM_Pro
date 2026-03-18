@@ -64,6 +64,51 @@ def _build_html(subject: str, body: str) -> str:
     )
 
 
+def send_html_email(to: str, subject: str, html: str) -> bool:
+    """
+    Envia email com HTML arbitrário (sem wrapper do template de alertas).
+    Usado pelo weekly digest e outros emails transacionais com layout próprio.
+
+    Retorna True se enviado com sucesso, False caso contrário.
+    Se SMTP não estiver configurado, apenas loga e retorna False sem falhar.
+    """
+    if not settings.smtp_host or not settings.smtp_user or not settings.smtp_pass:
+        logger.warning(
+            "SMTP não configurado — email não enviado. Destinatário: %s | Assunto: %s",
+            to,
+            subject,
+        )
+        return False
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = settings.smtp_user
+        msg["To"] = to
+
+        part_html = MIMEText(html, "html", "utf-8")
+        msg.attach(part_html)
+
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(settings.smtp_user, settings.smtp_pass)
+            server.sendmail(settings.smtp_user, [to], msg.as_string())
+
+        logger.info("Email HTML enviado para %s: %s", to, subject)
+        return True
+
+    except smtplib.SMTPAuthenticationError:
+        logger.error("Falha de autenticação SMTP ao enviar para %s", to)
+    except smtplib.SMTPConnectError as exc:
+        logger.error("Erro de conexão SMTP: %s", exc)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Erro inesperado ao enviar email HTML para %s: %s", to, exc)
+
+    return False
+
+
 def send_alert_email(to: str, subject: str, body: str) -> bool:
     """
     Envia email de alerta para o destinatário.

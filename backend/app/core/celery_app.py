@@ -108,4 +108,13 @@ celery_app.conf.beat_schedule = {
             "expires": 3600,
         },
     },
+    # Envia digest semanal todo domingo as 20:00 BRT (23:00 UTC)
+    # day_of_week=0 = domingo no Celery (isoweekday: 0=segunda no Python, mas Celery usa 0=domingo)
+    "send-weekly-digest": {
+        "task": "app.jobs.tasks.send_weekly_digest",
+        "schedule": crontab(hour=23, minute=0, day_of_week=0),
+        "options": {
+            "expires": 3600,
+        },
+    },
 }

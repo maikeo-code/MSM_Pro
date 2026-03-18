@@ -11,6 +11,7 @@ A lógica assíncrona está nos submódulos:
   - tasks_ads.py        — _sync_ads_async
   - tasks_alerts.py     — _evaluate_alerts_async
   - tasks_reputation.py — _sync_reputation_async
+  - tasks_digest.py     — _send_weekly_digest_async
 
 Tasks agendadas (beat schedule em core/celery_app.py):
   - sync_all_snapshots:       diariamente às 06:00 BRT (09:00 UTC)
@@ -21,6 +22,7 @@ Tasks agendadas (beat schedule em core/celery_app.py):
   - evaluate_alerts:          a cada 2 horas
   - sync_orders:              a cada 2 horas
   - sync_ads:                 diariamente às 10:00 UTC (07:00 BRT)
+  - send_weekly_digest:       todo domingo às 20:00 BRT (23:00 UTC)
 """
 import asyncio
 import logging
@@ -31,6 +33,7 @@ from .tasks_lock import acquire_task_lock, release_task_lock
 from .tasks_ads import _sync_ads_async
 from .tasks_alerts import _evaluate_alerts_async
 from .tasks_competitors import _sync_competitor_snapshots_async
+from .tasks_digest import _send_weekly_digest_async
 from .tasks_helpers import run_async
 from .tasks_listings import (
     _sync_all_snapshots_async,
@@ -185,6 +188,21 @@ def sync_orders(self):
     finally:
         loop.run_until_complete(release_task_lock("sync_orders"))
         loop.close()
+
+
+# --- Task: Enviar digest semanal ---
+
+@celery_app.task(name="app.jobs.tasks.send_weekly_digest", bind=True)
+def send_weekly_digest(self):
+    """
+    Envia o resumo semanal por email para todos os usuários ativos.
+    Executado todo domingo às 20:00 BRT (23:00 UTC).
+    """
+    try:
+        return run_async(_send_weekly_digest_async())
+    except Exception as exc:
+        logger.error("Erro em send_weekly_digest: %s", exc)
+        raise
 
 
 # --- Task: Sincronizar campanhas de ads ---
