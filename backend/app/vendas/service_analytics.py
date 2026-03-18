@@ -140,6 +140,50 @@ async def _fetch_ads_for_listing(db: AsyncSession, listing) -> dict:
         return {}
 
 
+async def _fetch_promotions_for_listing(db: AsyncSession, listing) -> list[dict]:
+    """
+    Busca promoções ativas de um anúncio via ML API.
+    Usa get_item_promotions() do MLClient com o token da conta ML vinculada.
+    Retorna [] graciosamente se não tiver token, permissão (403) ou dado.
+    """
+    try:
+        from app.auth.models import MLAccount
+        from app.mercadolivre.client import MLClient
+
+        result = await db.execute(
+            select(MLAccount).where(MLAccount.id == listing.ml_account_id)
+        )
+        ml_account = result.scalar_one_or_none()
+        if not ml_account or not ml_account.access_token:
+            return []
+
+        async with MLClient(ml_account.access_token) as ml_client:
+            promo_data = await ml_client.get_item_promotions(listing.mlb_id)
+            if not isinstance(promo_data, list):
+                return []
+
+            promotions = []
+            for p in promo_data[:5]:  # max 5 promoções
+                # Calcula desconto percentual quando preços estão disponíveis
+                discount_pct = None
+                orig = p.get("original_price") or p.get("price")
+                promo_price = p.get("price")
+                if orig and promo_price and float(orig) > 0:
+                    discount_pct = round((1 - float(promo_price) / float(orig)) * 100, 1)
+
+                promotions.append({
+                    "id": p.get("id", ""),
+                    "type": p.get("type", ""),
+                    "status": p.get("status", ""),
+                    "start_date": p.get("start_date"),
+                    "end_date": p.get("finish_date"),
+                    "discount_pct": discount_pct,
+                })
+            return promotions
+    except Exception:
+        return []
+
+
 async def get_listing_analysis(
     db: AsyncSession,
     mlb_id: str,
@@ -285,7 +329,7 @@ async def get_listing_analysis(
         "snapshots": snapshots,
         "price_bands": price_bands,
         "full_stock": stock_projection,
-        "promotions": [],  # TODO: integrar com ML API quando tiver token
+        "promotions": await _fetch_promotions_for_listing(db, listing),
         "ads": await _fetch_ads_for_listing(db, listing),
         "competitor": {
             "mlb_id": competitor.mlb_id,
