@@ -765,6 +765,143 @@ class MLClient:
             params={"q": query, "offset": offset, "limit": limit},
         )
 
+    # -----------------------------------------------------------------------
+    # Claims (Reclamações)
+    # -----------------------------------------------------------------------
+
+    async def get_claims(
+        self,
+        seller_id: str,
+        status: str = "open",
+        offset: int = 0,
+        limit: int = 50,
+    ) -> dict:
+        """
+        Busca reclamações do vendedor.
+        GET /v1/claims/search?status={status}&offset={offset}&limit={limit}
+        O seller_id é derivado do token (autenticação implícita).
+        """
+        try:
+            return await self._request(
+                "GET",
+                "/v1/claims/search",
+                params={
+                    "status": status,
+                    "offset": offset,
+                    "limit": limit,
+                    "sort": "date_created:DESC",
+                },
+            )
+        except MLClientError:
+            return {"data": [], "paging": {"total": 0}}
+
+    async def get_claim_detail(self, claim_id: int) -> dict:
+        """
+        Busca detalhes de uma reclamação.
+        GET /v1/claims/{claim_id}
+        """
+        return await self._request("GET", f"/v1/claims/{claim_id}")
+
+    async def send_claim_message(self, claim_id: int, message: str) -> dict:
+        """
+        Envia mensagem numa reclamação.
+        POST /v1/claims/{claim_id}/messages
+        """
+        return await self._request(
+            "POST",
+            f"/v1/claims/{claim_id}/messages",
+            json={"message": message},
+        )
+
+    # -----------------------------------------------------------------------
+    # Messages (Mensagens pós-venda)
+    # -----------------------------------------------------------------------
+
+    async def get_messages(
+        self,
+        pack_id: str | None = None,
+        order_id: str | None = None,
+        seller_id: str | None = None,
+    ) -> dict:
+        """
+        Busca mensagens de um pack ou order.
+        GET /messages/packs/{pack_id}/sellers/{seller_id}
+        GET /messages/orders/{order_id}
+        """
+        try:
+            if pack_id and seller_id:
+                return await self._request(
+                    "GET",
+                    f"/messages/packs/{pack_id}/sellers/{seller_id}",
+                )
+            elif order_id:
+                return await self._request("GET", f"/messages/orders/{order_id}")
+            return {"messages": []}
+        except MLClientError:
+            return {"messages": []}
+
+    async def send_message(self, pack_id: str, text: str, seller_id: str) -> dict:
+        """
+        Envia mensagem num pack de conversa pós-venda.
+        POST /messages/packs/{pack_id}/sellers/{seller_id}
+        """
+        return await self._request(
+            "POST",
+            f"/messages/packs/{pack_id}/sellers/{seller_id}",
+            json={"from": {"user_id": seller_id}, "text": text},
+        )
+
+    async def get_message_packs(
+        self,
+        seller_id: str,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> dict:
+        """
+        Busca conversas (packs) de mensagens pós-venda do vendedor.
+        GET /messages/search?seller_id={seller_id}&limit={limit}&offset={offset}
+        """
+        try:
+            return await self._request(
+                "GET",
+                "/messages/search",
+                params={
+                    "seller_id": seller_id,
+                    "offset": offset,
+                    "limit": limit,
+                },
+            )
+        except MLClientError:
+            return {"data": [], "paging": {"total": 0}}
+
+    # -----------------------------------------------------------------------
+    # Returns (Devoluções)
+    # -----------------------------------------------------------------------
+
+    async def get_returns(
+        self,
+        seller_id: str,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> dict:
+        """
+        Busca devoluções — no ML são claims com claim_type=return.
+        GET /v1/claims/search?claim_type=return
+        """
+        try:
+            return await self._request(
+                "GET",
+                "/v1/claims/search",
+                params={
+                    "claim_type": "return",
+                    "offset": offset,
+                    "limit": limit,
+                    "sort": "date_created:DESC",
+                },
+            )
+        except MLClientError:
+            return {"data": [], "paging": {"total": 0}}
+
     async def close(self):
         """Fecha o cliente HTTP."""
         await self._client.aclose()

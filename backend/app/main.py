@@ -24,6 +24,7 @@ import app.ads.models  # noqa: F401
 import app.jobs.tasks  # noqa: F401
 
 # Importa routers
+from app.atendimento.router import router as atendimento_router
 from app.ads.router import router as ads_router
 from app.alertas.router import router as alertas_router
 from app.analise.router import router as analise_router
@@ -99,6 +100,7 @@ app.include_router(reputacao_router, prefix=API_PREFIX)
 app.include_router(ads_router, prefix=API_PREFIX)
 app.include_router(financeiro_router, prefix=API_PREFIX)
 app.include_router(perguntas_router, prefix=API_PREFIX)
+app.include_router(atendimento_router, prefix=API_PREFIX, tags=["Atendimento"])
 
 
 # --- Health Check ---
