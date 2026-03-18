@@ -86,6 +86,72 @@ async def create_listing(
 
 # ─── Fixed-path routes MUST come before /{mlb_id} to avoid path conflicts ────
 
+@router.get("/export")
+async def export_listings(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    period: str = Query(
+        default="today",
+        pattern=r"^(today|7d|15d|30d|60d)$",
+        description="Periodo: today (padrao), 7d, 15d, 30d, 60d",
+    ),
+):
+    """Exporta listings em formato CSV com metricas do periodo solicitado."""
+    import csv
+    import io
+
+    from fastapi.responses import StreamingResponse
+
+    listings = await service.list_listings(db, current_user.id, period=period)
+
+    def _snap_get(snap, key, default=""):
+        """Lê campo de snapshot que pode ser ORM ou dict."""
+        if snap is None:
+            return default
+        val = getattr(snap, key, None)
+        if val is None and isinstance(snap, dict):
+            val = snap.get(key)
+        return val if val is not None else default
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "MLB ID",
+        "Titulo",
+        "Preco",
+        "Estoque",
+        "Vendas",
+        "Visitas",
+        "Conversao %",
+        "Receita",
+        "Voce Recebe",
+    ])
+
+    for item in listings:
+        snap = item.get("last_snapshot")
+        conv = _snap_get(snap, "conversion_rate")
+        conv_str = f"{float(conv):.2f}" if conv not in ("", None) else ""
+        writer.writerow([
+            item.get("mlb_id", ""),
+            item.get("title", ""),
+            item.get("price", ""),
+            _snap_get(snap, "stock"),
+            _snap_get(snap, "sales_today"),
+            _snap_get(snap, "visits"),
+            conv_str,
+            _snap_get(snap, "revenue"),
+            item.get("voce_recebe", ""),
+        ])
+
+    output.seek(0)
+    filename = f"listings_{period}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/kpi/summary")
 async def get_kpi_summary(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -335,6 +401,43 @@ async def suggestion_apply(
     return await service.apply_price_suggestion(
         db, mlb_id, current_user.id, payload.new_price, payload.justification
     )
+
+
+@router.get("/{mlb_id}/price-history")
+async def get_price_history(
+    mlb_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: int = Query(default=50, ge=1, le=200, description="Numero maximo de registros"),
+):
+    """Retorna historico de mudancas de preco de um anuncio, mais recentes primeiro."""
+    from sqlalchemy import desc, select
+
+    from app.vendas.models import PriceChangeLog
+
+    listing = await service.get_listing(db, mlb_id, current_user.id)
+
+    result = await db.execute(
+        select(PriceChangeLog)
+        .where(PriceChangeLog.listing_id == listing.id)
+        .order_by(desc(PriceChangeLog.created_at))
+        .limit(limit)
+    )
+    changes = result.scalars().all()
+    return [
+        {
+            "id": str(c.id),
+            "mlb_id": c.mlb_id,
+            "old_price": float(c.old_price) if c.old_price is not None else None,
+            "new_price": float(c.new_price) if c.new_price is not None else None,
+            "source": c.source,
+            "justification": c.justification,
+            "success": c.success,
+            "error_message": c.error_message,
+            "changed_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in changes
+    ]
 
 
 @router.patch("/{mlb_id}/sku", response_model=ListingOut)
