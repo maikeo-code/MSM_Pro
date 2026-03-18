@@ -536,7 +536,9 @@ async def update_repricing_rule(
     """
     Atualiza regra de reprecificação.
 
-    Apenas campos enviados (non-None) são alterados.
+    Usa model_dump(exclude_unset=True) para aplicar apenas os campos
+    explicitamente enviados pelo cliente — incluindo None explícito para
+    limpar campos opcionais como min_price e max_price.
     Verifica ownership via user_id.
     """
     from app.vendas.models import RepricingRule
@@ -554,16 +556,12 @@ async def update_repricing_rule(
             detail="Regra de reprecificação não encontrada",
         )
 
-    if payload.rule_type is not None:
-        rule.rule_type = payload.rule_type
-    if payload.value is not None:
-        rule.value = payload.value
-    if payload.min_price is not None:
-        rule.min_price = payload.min_price
-    if payload.max_price is not None:
-        rule.max_price = payload.max_price
-    if payload.is_active is not None:
-        rule.is_active = payload.is_active
+    # exclude_unset=True garante que campos não enviados não sobrescrevem nada.
+    # Campos enviados explicitamente como null (ex: min_price=null) são
+    # incluídos e aplicados, permitindo limpar valores opcionais.
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(rule, field, value)
 
     await db.flush()
     await db.refresh(rule)

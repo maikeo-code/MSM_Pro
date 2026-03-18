@@ -125,38 +125,119 @@ async def root():
 async def ml_notifications(request: Request):
     """Recebe notificações webhook do Mercado Livre.
 
-    Validates the request has a valid source. Full x-signature HMAC validation
-    requires the notification resource fetch pattern from ML docs.
+    Validações aplicadas:
+    1. user_id e topic devem estar presentes nos query params.
+    2. user_id (ml_user_id) deve existir em ml_accounts (evita processar
+       notificações de contas desconhecidas).
+    3. Rate limiting: ignora notificações duplicadas para o mesmo
+       user_id+topic nos últimos 30s (usa Redis; fallback in-memory).
+    4. Loga resource e user_id para auditoria.
     """
-    # Basic validation: ML sends user_id and topic in query params
+    from sqlalchemy import select as sa_select
+
+    from app.auth.models import MLAccount
+    from app.core.database import AsyncSessionLocal
+
+    # ── 1. Parâmetros obrigatórios ─────────────────────────────────────────
     user_id = request.query_params.get("user_id")
     topic = request.query_params.get("topic")
-    resource = request.query_params.get("resource")
+    resource = request.query_params.get("resource", "")
 
     if not user_id or not topic:
-        logger.warning("Webhook rejected: missing user_id or topic")
+        logger.warning(
+            "Webhook rejeitado: parametros ausentes user_id=%s topic=%s",
+            user_id, topic,
+        )
         return JSONResponse(status_code=400, content={"detail": "Missing user_id or topic"})
 
-    body = await request.json() if await request.body() else {}
-
     logger.info(
-        "ML webhook received: user_id=%s topic=%s resource=%s",
+        "ML webhook recebido: user_id=%s topic=%s resource=%s",
         user_id, topic, resource,
     )
 
-    # Processar por tópico
+    # ── 2. Validar que o ml_user_id existe no banco ────────────────────────
+    async with AsyncSessionLocal() as db:
+        acc_result = await db.execute(
+            sa_select(MLAccount.id).where(
+                MLAccount.ml_user_id == user_id,
+                MLAccount.is_active == True,  # noqa: E712
+            ).limit(1)
+        )
+        if acc_result.scalar_one_or_none() is None:
+            logger.warning(
+                "Webhook rejeitado: ml_user_id=%s nao encontrado em ml_accounts",
+                user_id,
+            )
+            # Retorna 200 para o ML não retentar em loop — mas não processa.
+            return JSONResponse(
+                status_code=200,
+                content={"status": "ignored", "reason": "unknown_user"},
+            )
+
+    # ── 3. Rate limiting (30s por user_id+topic) ──────────────────────────
+    rate_key = f"wh_rl:{user_id}:{topic}"
+    _rate_limited = False
+
+    try:
+        import redis as _redis_lib
+        _r = _redis_lib.from_url(settings.redis_url, decode_responses=True)
+        # SET key 1 NX EX 30 → retorna None se já existe (já foi processado)
+        result = _r.set(rate_key, "1", nx=True, ex=30)
+        if result is None:
+            _rate_limited = True
+        _r.close()
+    except Exception as _redis_err:
+        # Fallback: in-memory dict com TTL manual
+        import time as _time
+        _now = _time.monotonic()
+        # Limpa entradas expiradas (>30s)
+        _expired = [k for k, ts in _webhook_rate_cache.items() if _now - ts > 30]
+        for k in _expired:
+            _webhook_rate_cache.pop(k, None)
+        if rate_key in _webhook_rate_cache:
+            _rate_limited = True
+        else:
+            _webhook_rate_cache[rate_key] = _now
+        logger.debug("Webhook rate-limit via in-memory (Redis indisponivel: %s)", _redis_err)
+
+    if _rate_limited:
+        logger.info(
+            "Webhook ignorado (rate-limit 30s): user_id=%s topic=%s",
+            user_id, topic,
+        )
+        return JSONResponse(
+            status_code=200,
+            content={"status": "ignored", "reason": "rate_limited"},
+        )
+
+    # ── 4. Processar por tópico ───────────────────────────────────────────
     if topic in ("orders_v2", "orders"):
         from app.jobs.tasks import sync_orders
         sync_orders.delay()
-        logger.info("ML webhook: sync_orders enfileirado para user_id=%s", user_id)
+        logger.info(
+            "Webhook: sync_orders enfileirado — user_id=%s resource=%s",
+            user_id, resource,
+        )
     elif topic == "questions":
-        # Perguntas são buscadas sob demanda — apenas registrar
-        logger.info("ML webhook: nova pergunta para user_id=%s", user_id)
+        logger.info(
+            "Webhook: nova pergunta registrada — user_id=%s resource=%s",
+            user_id, resource,
+        )
     elif topic == "items":
         from app.jobs.tasks import sync_recent_snapshots
         sync_recent_snapshots.delay()
-        logger.info("ML webhook: sync_recent_snapshots enfileirado para user_id=%s", user_id)
+        logger.info(
+            "Webhook: sync_recent_snapshots enfileirado — user_id=%s resource=%s",
+            user_id, resource,
+        )
     else:
-        logger.info("ML webhook: tópico não tratado topic=%s user_id=%s", topic, user_id)
+        logger.info(
+            "Webhook: topico nao tratado topic=%s user_id=%s resource=%s",
+            topic, user_id, resource,
+        )
 
     return {"status": "processed", "topic": topic}
+
+
+# Cache in-memory para rate-limiting de webhook (fallback sem Redis)
+_webhook_rate_cache: dict[str, float] = {}

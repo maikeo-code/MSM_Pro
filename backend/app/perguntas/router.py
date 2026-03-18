@@ -1,4 +1,4 @@
-import uuid
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,11 +9,14 @@ from app.auth.models import MLAccount, User
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.mercadolivre.client import MLClient, MLClientError
+from app.perguntas.schemas import AnswerQuestionIn, AnswerQuestionOut, QuestionListOut
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/perguntas", tags=["perguntas"])
 
 
-@router.get("/")
+@router.get("/", response_model=QuestionListOut)
 async def list_questions(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -22,6 +25,7 @@ async def list_questions(
         pattern=r"^(UNANSWERED|ANSWERED|CLOSED_UNANSWERED|UNDER_REVIEW)$",
     ),
     limit: int = Query(default=20, ge=1, le=50),
+    offset: int = Query(default=0, ge=0),
 ):
     """Lista perguntas recebidas de todas as contas ML ativas do usuario."""
     result = await db.execute(
@@ -47,8 +51,15 @@ async def list_questions(
                     q["_account_nickname"] = account.nickname
                     q["_account_id"] = str(account.id)
                 all_questions.extend(questions)
-        except Exception:
-            # Falha silenciosa por conta — outras contas continuam
+        except Exception as exc:
+            logger.error(
+                "Falha ao buscar perguntas da conta %s (user=%s): %s",
+                account.id,
+                current_user.id,
+                exc,
+                exc_info=True,
+            )
+            # Falha por conta — outras contas continuam
             continue
 
     # Ordenar por data mais recente
@@ -56,40 +67,21 @@ async def list_questions(
         key=lambda q: q.get("date_created", ""), reverse=True
     )
 
-    return {"total": len(all_questions), "questions": all_questions[:limit]}
+    paginated = all_questions[offset : offset + limit]
+    return QuestionListOut(total=len(all_questions), questions=paginated)
 
 
-@router.post("/{question_id}/answer")
+@router.post("/{question_id}/answer", response_model=AnswerQuestionOut)
 async def answer_question(
     question_id: int,
+    body: AnswerQuestionIn,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    body: dict,
 ):
-    """Responde uma pergunta especifica do ML.
-
-    Body esperado: {"text": "resposta", "account_id": "uuid-da-conta-ml"}
-    """
-    text: str = body.get("text", "").strip()
-    account_id_raw: str | None = body.get("account_id")
-
-    if not text:
-        raise HTTPException(
-            status_code=400, detail="Texto da resposta e obrigatorio"
-        )
-    if not account_id_raw:
-        raise HTTPException(
-            status_code=400, detail="account_id e obrigatorio"
-        )
-
-    try:
-        account_uuid = uuid.UUID(account_id_raw)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="account_id invalido")
-
+    """Responde uma pergunta especifica do ML."""
     result = await db.execute(
         select(MLAccount).where(
-            MLAccount.id == account_uuid,
+            MLAccount.id == body.account_id,
             MLAccount.user_id == current_user.id,
         )
     )
@@ -102,8 +94,8 @@ async def answer_question(
 
     try:
         async with MLClient(account.access_token) as client:
-            response = await client.answer_question(question_id, text)
-            return {"status": "answered", "response": response}
+            response = await client.answer_question(question_id, body.text)
+            return AnswerQuestionOut(status="answered", response=response)
     except MLClientError as e:
         raise HTTPException(
             status_code=502, detail=f"Erro ao responder pergunta: {str(e)}"

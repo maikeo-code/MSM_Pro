@@ -5,7 +5,7 @@ Consolida os dados da semana (vendas, receita, visitas, conversão)
 e envia um resumo por email para cada usuário ativo com anúncios.
 """
 import logging
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import cast, func, select
 from sqlalchemy import Date as SADate
@@ -38,7 +38,7 @@ async def _build_digest_for_user(user_id) -> dict | None:
             return None
 
         listing_ids = [l.id for l in listings]
-        today = date.today()
+        today = datetime.now(timezone.utc).date()
         week_start = today - timedelta(days=7)
         prev_week_start = week_start - timedelta(days=7)
 
@@ -134,23 +134,44 @@ async def _build_digest_for_user(user_id) -> dict | None:
         )
 
         # --- Estoque crítico (< 5 unidades) ---
-        low_stock: list[dict] = []
-        for listing in listings:
-            snap_result = await db.execute(
-                select(ListingSnapshot)
-                .where(ListingSnapshot.listing_id == listing.id)
-                .order_by(ListingSnapshot.captured_at.desc())
-                .limit(1)
+        # Uma única query que pega o snapshot mais recente de cada listing
+        # usando subquery de max(captured_at), evitando N+1.
+        latest_snap_subq = (
+            select(
+                ListingSnapshot.listing_id,
+                func.max(ListingSnapshot.captured_at).label("max_captured_at"),
             )
-            snap = snap_result.scalar_one_or_none()
-            if snap is not None and snap.stock < 5:
-                low_stock.append(
-                    {
-                        "mlb_id": listing.mlb_id,
-                        "title": listing.title[:50],
-                        "stock": snap.stock,
-                    }
-                )
+            .where(ListingSnapshot.listing_id.in_(listing_ids))
+            .group_by(ListingSnapshot.listing_id)
+            .subquery()
+        )
+
+        low_stock_result = await db.execute(
+            select(Listing.mlb_id, Listing.title, ListingSnapshot.stock)
+            .join(
+                ListingSnapshot,
+                ListingSnapshot.listing_id == Listing.id,
+            )
+            .join(
+                latest_snap_subq,
+                (ListingSnapshot.listing_id == latest_snap_subq.c.listing_id)
+                & (ListingSnapshot.captured_at == latest_snap_subq.c.max_captured_at),
+            )
+            .where(
+                Listing.id.in_(listing_ids),
+                ListingSnapshot.stock < 5,
+            )
+            .order_by(ListingSnapshot.stock.asc())
+        )
+
+        low_stock: list[dict] = [
+            {
+                "mlb_id": row.mlb_id,
+                "title": row.title[:50],
+                "stock": row.stock,
+            }
+            for row in low_stock_result.fetchall()
+        ]
 
         return {
             "vendas": vendas,
