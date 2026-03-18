@@ -487,3 +487,110 @@ async def get_sales_heatmap(
         has_hourly_data=False,
         data=cells,
     ).model_dump()
+
+
+async def get_search_position(
+    db: AsyncSession,
+    mlb_id: str,
+    user_id: UUID,
+    keyword: str,
+) -> dict:
+    """
+    Busca a posicao de um anuncio nos resultados de busca do ML para uma keyword.
+
+    Pagina ate 200 resultados (4 paginas x 50) usando a Search API publica.
+    Retorna posicao 1-based se encontrado, ou found=False se nao aparecer.
+
+    Verifica ownership: o listing deve pertencer ao usuario autenticado.
+    O endpoint de busca do ML e publico — nao precisa de token ML.
+    """
+    from app.auth.models import MLAccount
+    from app.mercadolivre.client import MLClient, MLClientError
+    from app.vendas.service import get_listing
+
+    # Verificar que o listing pertence ao usuario
+    try:
+        listing = await get_listing(db, mlb_id, user_id)
+    except HTTPException:
+        raise
+
+    # Normalizar o mlb_id alvo para comparacao
+    target_id = mlb_id.upper().replace("-", "")
+    if not target_id.startswith("MLB"):
+        target_id = f"MLB{target_id}"
+
+    # Buscar conta ML do listing para usar o cliente (precisamos de token para o rate-limiter)
+    # O endpoint /sites/MLB/search e publico, mas o MLClient exige token no construtor.
+    # Buscamos qualquer conta ativa do usuario para construir o cliente.
+    acc_result = await db.execute(
+        select(MLAccount).where(
+            MLAccount.user_id == user_id,
+            MLAccount.is_active == True,  # noqa: E712
+        ).limit(1)
+    )
+    account = acc_result.scalar_one_or_none()
+
+    if account is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Nenhuma conta ML conectada. Conecte uma conta ML para usar esta funcionalidade.",
+        )
+
+    # Paginacao: ate 4 paginas de 50 = 200 resultados maximos
+    MAX_PAGES = 4
+    PAGE_SIZE = 50
+
+    total_results: int | None = None
+    searched_pages = 0
+
+    async with MLClient(access_token=account.access_token) as client:
+        for page_idx in range(MAX_PAGES):
+            offset = page_idx * PAGE_SIZE
+            try:
+                data = await client.search_items(
+                    query=keyword,
+                    offset=offset,
+                    limit=PAGE_SIZE,
+                )
+            except MLClientError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Erro ao consultar Search API do ML: {exc}",
+                )
+
+            searched_pages += 1
+
+            paging = data.get("paging", {})
+            if total_results is None:
+                total_results = paging.get("total", 0)
+
+            results = data.get("results", [])
+
+            for idx, item in enumerate(results):
+                item_id = str(item.get("id", "")).upper().replace("-", "")
+                if item_id == target_id:
+                    position = offset + idx + 1  # 1-based
+                    return {
+                        "mlb_id": target_id,
+                        "keyword": keyword,
+                        "found": True,
+                        "position": position,
+                        "page": page_idx + 1,
+                        "total_results": total_results,
+                        "searched_pages": searched_pages,
+                    }
+
+            # Se esta pagina retornou menos de PAGE_SIZE, nao ha mais resultados
+            if len(results) < PAGE_SIZE:
+                break
+
+    # Nao encontrado nas paginas pesquisadas
+    return {
+        "mlb_id": target_id,
+        "keyword": keyword,
+        "found": False,
+        "position": None,
+        "page": None,
+        "total_results": total_results,
+        "searched_pages": searched_pages,
+    }

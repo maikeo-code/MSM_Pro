@@ -750,6 +750,21 @@ class MLClient:
             json={"question_id": question_id, "text": text},
         )
 
+    async def search_items(self, query: str, offset: int = 0, limit: int = 50) -> dict:
+        """
+        Busca items no ML por palavra-chave.
+        GET /sites/MLB/search?q={query}&offset={offset}&limit={limit}
+
+        Endpoint público — não requer autenticação.
+        Retorna: {"results": [...], "paging": {"total": N, "offset": N, "limit": N}}
+        Cada item em results contém: {"id": "MLBXXXXXXXX", "title": ..., "price": ..., ...}
+        """
+        return await self._request(
+            "GET",
+            "/sites/MLB/search",
+            params={"q": query, "offset": offset, "limit": limit},
+        )
+
     async def close(self):
         """Fecha o cliente HTTP."""
         await self._client.aclose()

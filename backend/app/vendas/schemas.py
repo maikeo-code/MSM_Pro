@@ -340,3 +340,13 @@ class OrderOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class SearchPositionOut(BaseModel):
+    mlb_id: str
+    keyword: str
+    found: bool
+    position: int | None = None  # 1-based; None quando nao encontrado
+    page: int | None = None       # qual pagina de 50 resultados (1-based)
+    total_results: int | None = None
+    searched_pages: int           # quantas paginas foram buscadas (max 4 = 200 resultados)

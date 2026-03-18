@@ -21,6 +21,7 @@ from app.vendas.schemas import (
     ListingOut,
     MargemResult,
     OrderOut,
+    SearchPositionOut,
     SimulatePriceIn,
     SimulatePriceOut,
     SnapshotOut,
@@ -283,26 +284,25 @@ async def list_orders(
 
 # ─── Dynamic path routes ─────────────────────────────────────────────────────
 
-@router.get("/{mlb_id}/title-analysis")
-async def get_title_analysis(
+@router.get("/{mlb_id}/search-position", response_model=SearchPositionOut)
+async def get_search_position(
     mlb_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    keyword: str = Query(..., min_length=2, max_length=200, description="Palavra-chave para buscar no ML"),
 ):
     """
-    Analisa a qualidade do titulo de um anuncio.
+    Retorna a posicao de um anuncio nos resultados de busca do ML para uma keyword.
 
-    Retorna score 0-100 com checklist acionavel:
-    - Comprimento (ideal: 60-120 chars)
-    - Marca/modelo em posicao de destaque
-    - Palavras descritivas (cor, tamanho, especificacoes)
-    - Ausencia de termos genericos inuteis
+    Busca ate 200 resultados (4 paginas x 50) na Search API publica do ML.
+    Se o anuncio aparecer, retorna sua posicao (1-based), a pagina e o total de resultados.
+    Se nao aparecer nos primeiros 200, retorna found=false.
+
+    Util para monitorar visibilidade organica: se voce esta em top-5, top-10, etc.
     """
-    from app.vendas.service_health import analyze_title_quality
+    from app.vendas.service_analytics import get_search_position as _get_search_position
 
-    # get_listing ja lanca HTTPException 404 se nao encontrado ou ownership falhar
-    listing = await service.get_listing(db, mlb_id, current_user.id)
-    return analyze_title_quality(listing.title)
+    return await _get_search_position(db, mlb_id, current_user.id, keyword)
 
 
 @router.get("/{mlb_id}", response_model=ListingOut)
