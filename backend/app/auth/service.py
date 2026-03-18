@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 from uuid import UUID
@@ -10,6 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import MLAccount, User
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+# Suppress httpx DEBUG logs to prevent token leakage in Authorization headers
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 # --- Utilitários de senha ---
 
@@ -178,6 +185,7 @@ async def save_ml_account(
         account.nickname = nickname
         account.email = email
         account.is_active = True
+        logger.info("Token OAuth atualizado: account=%s nickname=%s expires=%s", account.id, nickname, token_expires_at)
     else:
         account = MLAccount(
             user_id=user_id,
@@ -189,6 +197,7 @@ async def save_ml_account(
             token_expires_at=token_expires_at,
         )
         db.add(account)
+        logger.info("Nova conta ML criada: ml_user_id=%s nickname=%s", ml_user_id, nickname)
 
     await db.flush()
     await db.refresh(account)

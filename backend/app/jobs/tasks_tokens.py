@@ -50,7 +50,7 @@ async def _refresh_expired_tokens_async():
                     seconds=expires_in
                 )
 
-                logger.info(f"Token renovado para conta {account.nickname}")
+                logger.info("Token renovado: account=%s nickname=%s expires=%s", account.id, account.nickname, account.token_expires_at)
                 refreshed.append(str(account.id))
 
             except Exception as e:
