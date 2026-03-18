@@ -21,6 +21,9 @@ from app.vendas.schemas import (
     ListingOut,
     MargemResult,
     OrderOut,
+    RepricingRuleCreate,
+    RepricingRuleOut,
+    RepricingRuleUpdate,
     SearchPositionOut,
     SimulatePriceIn,
     SimulatePriceOut,
@@ -280,6 +283,93 @@ async def list_orders(
     )
     orders = result.scalars().all()
     return orders
+
+
+# ─── Repricing Rules ─────────────────────────────────────────────────────────
+
+
+@router.get("/repricing-rules", response_model=list[RepricingRuleOut])
+async def list_repricing_rules(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    listing_id: UUID | None = Query(default=None, description="Filtrar por listing UUID"),
+    active_only: bool = Query(default=False, description="Retornar apenas regras ativas"),
+):
+    """
+    Lista todas as regras de reprecificação do usuário.
+
+    Filtros opcionais:
+    - listing_id: restringir a um anúncio específico
+    - active_only: retornar apenas regras ativas (padrão false = todas)
+    """
+    from app.vendas.service_price import list_repricing_rules as _list
+
+    return await _list(db, current_user.id, listing_id=listing_id, active_only=active_only)
+
+
+@router.post(
+    "/repricing-rules",
+    response_model=RepricingRuleOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_repricing_rule(
+    payload: RepricingRuleCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Cria nova regra de reprecificação para um anúncio.
+
+    Tipos suportados:
+    - FIXED_MARKUP: preço = custo * value (ex: value=1.4 → 40% markup)
+    - COMPETITOR_DELTA: preço = preco_concorrente + value (ex: value=-2.00 → R$2 abaixo)
+    - FLOOR_CEILING: limita o preço entre min_price e max_price
+
+    Apenas uma regra ativa por tipo por anúncio é permitida.
+    """
+    from app.vendas.service_price import create_repricing_rule as _create
+
+    result = await _create(db, current_user.id, payload)
+    await db.commit()
+    return result
+
+
+@router.put("/repricing-rules/{rule_id}", response_model=RepricingRuleOut)
+async def update_repricing_rule(
+    rule_id: UUID,
+    payload: RepricingRuleUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Atualiza campos de uma regra de reprecificação existente.
+
+    Apenas os campos enviados no body são alterados (patch semântico via PUT).
+    Para desativar a regra, envie is_active=false.
+    """
+    from app.vendas.service_price import update_repricing_rule as _update
+
+    result = await _update(db, current_user.id, rule_id, payload)
+    await db.commit()
+    return result
+
+
+@router.delete("/repricing-rules/{rule_id}")
+async def delete_repricing_rule(
+    rule_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Desativa (soft delete) uma regra de reprecificação.
+
+    O registro é mantido no banco para auditoria — apenas is_active=false é aplicado.
+    """
+    from app.vendas.service_price import delete_repricing_rule as _delete
+
+    result = await _delete(db, current_user.id, rule_id)
+    await db.commit()
+    return result
 
 
 # ─── Dynamic path routes ─────────────────────────────────────────────────────

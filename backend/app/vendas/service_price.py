@@ -426,3 +426,198 @@ async def create_or_update_promotion(
         "end_date": end_date,
         "status": "active" if promotion_id else "pending",
     }
+
+
+# ─── Repricing Rules CRUD ─────────────────────────────────────────────────────
+
+
+async def list_repricing_rules(
+    db: AsyncSession,
+    user_id: UUID,
+    listing_id: UUID | None = None,
+    active_only: bool = False,
+) -> list[dict]:
+    """
+    Lista regras de reprecificação do usuário.
+
+    Parâmetros:
+    - listing_id: filtrar por anúncio específico (opcional)
+    - active_only: retornar apenas regras ativas (padrão: False = todas)
+    """
+    from sqlalchemy.orm import selectinload
+
+    from app.vendas.models import RepricingRule
+
+    conditions = [RepricingRule.user_id == user_id]
+    if listing_id is not None:
+        conditions.append(RepricingRule.listing_id == listing_id)
+    if active_only:
+        conditions.append(RepricingRule.is_active == True)  # noqa: E712
+
+    result = await db.execute(
+        select(RepricingRule)
+        .options(selectinload(RepricingRule.listing))
+        .where(*conditions)
+        .order_by(RepricingRule.created_at.desc())
+    )
+    rules = result.scalars().all()
+
+    return [_rule_to_dict(r) for r in rules]
+
+
+async def create_repricing_rule(
+    db: AsyncSession,
+    user_id: UUID,
+    payload,  # RepricingRuleCreate
+) -> dict:
+    """
+    Cria nova regra de reprecificação para um anúncio.
+
+    Valida:
+    - O listing pertence ao usuário
+    - Não existe regra do mesmo tipo já ativa para esse listing
+    """
+    from app.vendas.models import RepricingRule
+
+    # Verificar ownership do listing
+    listing_result = await db.execute(
+        select(Listing).where(
+            Listing.id == payload.listing_id,
+            Listing.user_id == user_id,
+        )
+    )
+    listing = listing_result.scalar_one_or_none()
+    if listing is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Anúncio não encontrado ou não pertence ao usuário",
+        )
+
+    # Checar duplicidade: mesmo tipo ativo para o mesmo listing
+    existing_result = await db.execute(
+        select(RepricingRule).where(
+            RepricingRule.listing_id == payload.listing_id,
+            RepricingRule.rule_type == payload.rule_type,
+            RepricingRule.is_active == True,  # noqa: E712
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Já existe uma regra ativa do tipo '{payload.rule_type}' para este anúncio. "
+                "Desative a regra existente antes de criar uma nova do mesmo tipo."
+            ),
+        )
+
+    rule = RepricingRule(
+        user_id=user_id,
+        listing_id=payload.listing_id,
+        rule_type=payload.rule_type,
+        value=payload.value,
+        min_price=payload.min_price,
+        max_price=payload.max_price,
+        is_active=payload.is_active,
+    )
+    db.add(rule)
+    await db.flush()
+    await db.refresh(rule)
+
+    return _rule_to_dict(rule, listing=listing)
+
+
+async def update_repricing_rule(
+    db: AsyncSession,
+    user_id: UUID,
+    rule_id: UUID,
+    payload,  # RepricingRuleUpdate
+) -> dict:
+    """
+    Atualiza regra de reprecificação.
+
+    Apenas campos enviados (non-None) são alterados.
+    Verifica ownership via user_id.
+    """
+    from app.vendas.models import RepricingRule
+
+    result = await db.execute(
+        select(RepricingRule).where(
+            RepricingRule.id == rule_id,
+            RepricingRule.user_id == user_id,
+        )
+    )
+    rule = result.scalar_one_or_none()
+    if rule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Regra de reprecificação não encontrada",
+        )
+
+    if payload.rule_type is not None:
+        rule.rule_type = payload.rule_type
+    if payload.value is not None:
+        rule.value = payload.value
+    if payload.min_price is not None:
+        rule.min_price = payload.min_price
+    if payload.max_price is not None:
+        rule.max_price = payload.max_price
+    if payload.is_active is not None:
+        rule.is_active = payload.is_active
+
+    await db.flush()
+    await db.refresh(rule)
+
+    return _rule_to_dict(rule)
+
+
+async def delete_repricing_rule(
+    db: AsyncSession,
+    user_id: UUID,
+    rule_id: UUID,
+) -> dict:
+    """
+    Desativa (soft delete) uma regra de reprecificação.
+
+    Não remove o registro do banco para manter histórico de auditoria.
+    Para remoção definitiva, use delete_repricing_rule_hard.
+    """
+    from app.vendas.models import RepricingRule
+
+    result = await db.execute(
+        select(RepricingRule).where(
+            RepricingRule.id == rule_id,
+            RepricingRule.user_id == user_id,
+        )
+    )
+    rule = result.scalar_one_or_none()
+    if rule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Regra de reprecificação não encontrada",
+        )
+
+    rule.is_active = False
+    await db.flush()
+
+    return {"id": str(rule_id), "is_active": False, "message": "Regra desativada com sucesso"}
+
+
+def _rule_to_dict(rule, listing=None) -> dict:
+    """Serializa RepricingRule para dict compatível com RepricingRuleOut."""
+    listing_obj = listing or getattr(rule, "listing", None)
+    return {
+        "id": rule.id,
+        "user_id": rule.user_id,
+        "listing_id": rule.listing_id,
+        "rule_type": rule.rule_type,
+        "value": rule.value,
+        "min_price": rule.min_price,
+        "max_price": rule.max_price,
+        "is_active": rule.is_active,
+        "last_applied_at": rule.last_applied_at,
+        "last_applied_price": rule.last_applied_price,
+        "created_at": rule.created_at,
+        "mlb_id": listing_obj.mlb_id if listing_obj else None,
+        "listing_title": listing_obj.title if listing_obj else None,
+    }

@@ -350,3 +350,82 @@ class SearchPositionOut(BaseModel):
     page: int | None = None       # qual pagina de 50 resultados (1-based)
     total_results: int | None = None
     searched_pages: int           # quantas paginas foram buscadas (max 4 = 200 resultados)
+
+
+# ============== Schemas para Reprecificação Automática ==============
+
+VALID_RULE_TYPES = {"FIXED_MARKUP", "COMPETITOR_DELTA", "FLOOR_CEILING"}
+
+
+class RepricingRuleCreate(BaseModel):
+    listing_id: UUID
+    rule_type: str = Field(
+        description="Tipo da regra: FIXED_MARKUP | COMPETITOR_DELTA | FLOOR_CEILING"
+    )
+    # FIXED_MARKUP: multiplicador sobre custo (ex: 1.4 = 40% markup)
+    # COMPETITOR_DELTA: delta em R$ (ex: -2.00 = R$2 abaixo do concorrente)
+    # FLOOR_CEILING: nao usa value, usa min_price / max_price
+    value: Decimal | None = Field(default=None, decimal_places=2)
+    min_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    max_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    is_active: bool = True
+
+    def model_post_init(self, __context) -> None:  # type: ignore[override]
+        if self.rule_type not in VALID_RULE_TYPES:
+            raise ValueError(
+                f"rule_type deve ser um de: {', '.join(sorted(VALID_RULE_TYPES))}"
+            )
+        if self.rule_type == "FIXED_MARKUP" and self.value is None:
+            raise ValueError("FIXED_MARKUP requer o campo 'value' (multiplicador > 0)")
+        if self.rule_type == "COMPETITOR_DELTA" and self.value is None:
+            raise ValueError("COMPETITOR_DELTA requer o campo 'value' (delta em R$)")
+        if self.rule_type == "FLOOR_CEILING":
+            if self.min_price is None and self.max_price is None:
+                raise ValueError(
+                    "FLOOR_CEILING requer ao menos 'min_price' ou 'max_price'"
+                )
+            if (
+                self.min_price is not None
+                and self.max_price is not None
+                and self.min_price >= self.max_price
+            ):
+                raise ValueError("min_price deve ser menor que max_price")
+
+
+class RepricingRuleUpdate(BaseModel):
+    rule_type: str | None = Field(default=None)
+    value: Decimal | None = Field(default=None, decimal_places=2)
+    min_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    max_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    is_active: bool | None = None
+
+    def model_post_init(self, __context) -> None:  # type: ignore[override]
+        if self.rule_type is not None and self.rule_type not in VALID_RULE_TYPES:
+            raise ValueError(
+                f"rule_type deve ser um de: {', '.join(sorted(VALID_RULE_TYPES))}"
+            )
+        if (
+            self.min_price is not None
+            and self.max_price is not None
+            and self.min_price >= self.max_price
+        ):
+            raise ValueError("min_price deve ser menor que max_price")
+
+
+class RepricingRuleOut(BaseModel):
+    id: UUID
+    user_id: UUID
+    listing_id: UUID
+    rule_type: str
+    value: Decimal | None = None
+    min_price: Decimal | None = None
+    max_price: Decimal | None = None
+    is_active: bool
+    last_applied_at: datetime | None = None
+    last_applied_price: Decimal | None = None
+    created_at: datetime
+    # Campos denormalizados para facilitar o frontend
+    mlb_id: str | None = None
+    listing_title: str | None = None
+
+    model_config = {"from_attributes": True}

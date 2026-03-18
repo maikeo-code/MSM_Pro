@@ -144,6 +144,19 @@ async def ml_notifications(request: Request):
         user_id, topic, resource,
     )
 
-    # TODO: process notifications (orders, questions, stock changes)
-    # For now, acknowledge receipt so ML doesn't retry
-    return {"status": "received", "topic": topic}
+    # Processar por tópico
+    if topic in ("orders_v2", "orders"):
+        from app.jobs.tasks import sync_orders
+        sync_orders.delay()
+        logger.info("ML webhook: sync_orders enfileirado para user_id=%s", user_id)
+    elif topic == "questions":
+        # Perguntas são buscadas sob demanda — apenas registrar
+        logger.info("ML webhook: nova pergunta para user_id=%s", user_id)
+    elif topic == "items":
+        from app.jobs.tasks import sync_recent_snapshots
+        sync_recent_snapshots.delay()
+        logger.info("ML webhook: sync_recent_snapshots enfileirado para user_id=%s", user_id)
+    else:
+        logger.info("ML webhook: tópico não tratado topic=%s user_id=%s", topic, user_id)
+
+    return {"status": "processed", "topic": topic}

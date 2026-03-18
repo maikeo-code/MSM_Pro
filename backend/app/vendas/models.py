@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -229,3 +229,46 @@ class PriceChangeLog(Base):
 
     def __repr__(self) -> str:
         return f"<PriceChangeLog mlb_id={self.mlb_id} {self.old_price}->{self.new_price}>"
+
+
+class RepricingRule(Base):
+    __tablename__ = "repricing_rules"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    listing_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("listings.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Tipos suportados: FIXED_MARKUP | COMPETITOR_DELTA | FLOOR_CEILING
+    rule_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # FIXED_MARKUP: multiplicador sobre custo (ex: 1.4 = 40% markup)
+    # COMPETITOR_DELTA: delta em R$ sobre preco do concorrente (ex: -2.00 = R$2 abaixo)
+    # FLOOR_CEILING: usa min_price e max_price como limites
+    value: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    min_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    max_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    last_applied_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_applied_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Relacionamentos
+    listing: Mapped["Listing"] = relationship("Listing")
+    user: Mapped["User"] = relationship("User")  # type: ignore[name-defined]
+
+    def __repr__(self) -> str:
+        return f"<RepricingRule id={self.id} listing_id={self.listing_id} type={self.rule_type} active={self.is_active}>"
