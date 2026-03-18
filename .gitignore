@@ -54,3 +54,6 @@ _auto_learning/db/learning.db-shm
 _auto_learning/exports/
 _auto_learning/logs/
 _auto_learning/backups/
+data/
+CLAUDE_backup_*.md
+*.jpg

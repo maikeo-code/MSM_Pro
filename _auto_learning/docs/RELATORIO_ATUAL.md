@@ -1,17 +1,17 @@
 # SWARM GENESIS v6.0 — RELATORIO COMPLETO
-Gerado em: 17/03/2026 14:56
+Gerado em: 17/03/2026 21:44
 
 ## SAUDE DO SISTEMA
-  Ciclos completos: 9
-  Regras: 8 ativas | 0 deprecadas
-  Feedbacks: 8 | Sucessos: 4 | Falhas abertas: 0
+  Ciclos completos: 97
+  Regras: 10 ativas | 0 deprecadas
+  Feedbacks: 8 | Sucessos: 5 | Falhas abertas: 0
   Agentes: 20 ativos | 0 elite | 0 aposentados
   Memoria: 2 episodios | 7 fatos | 3 padroes
 
 ## CHECKPOINT DA SESSAO (v6)
 
-  Ultimo checkpoint: ID=9 | Ciclo=9 | Fase=validation
-  Registrado em: 2026-03-17 17:56:03
+  Ultimo checkpoint: ID=13 | Ciclo=27 | Fase=correction
+  Registrado em: 2026-03-17 19:22:30
   Sessao retomada de checkpoint: NAO
 
 ## MUDANCAS DE CODIGO (v6)
@@ -28,46 +28,27 @@ Gerado em: 17/03/2026 14:56
 
 ## LOG DE ACOES — RESUMO POR AGENTE (v6)
 
-  Total de acoes registradas: 3
-  unknown                        ### (3)
-
-## BLOQUEANTE — Preciso de voce AGORA (1)
-
-### Pergunta 1 — deploy
-Agente: orchestrator | Ciclo: 9
-
-Posso fazer git commit + push de todas as mudancas? 15+ arquivos, 42 testes, auto-deploy Railway.
-
-Por que: crypto.py, PyJWT, error handlers, bug fixes, frontend fix
-Se nao responder: Deploy em producao
-
-Responder: answer-human-question {"question_id":4,"answer":"..."}
-
-## IMPORTANTES — Quando puder (4)
-
-  [Q5] testing: Reescrever test_health.py para nao depender de Celery (mock), ou deixar ignorado?
-  [Q6] devops: Criar CI/CD pipeline GitHub Actions (.github/workflows/test.yml) com os 42 testes?
-  [Q7] refactoring: Refatorar vendas/service.py (2109 linhas) em 6 modulos?
-  [Q8] security: Implementar validacao x-signature no webhook /notifications?
+  Total de acoes registradas: 6
+  unknown                        ###### (6)
 
 ## SCORES POR AREA
 
   #######     75.0 | features
-  #######     70.7 | deploy
-  ######      62.3 | frontend
-  #####       55.0 | architecture
-  #####       51.1 | security
-  ####        47.5 | code_quality
-  ####        47.0 | error_handling
-  ##          25.0 | testing
+  #######     72.5 | deploy
+  ######      67.0 | frontend
+  ######      64.4 | architecture
+  ######      63.9 | code_quality
+  #####       57.7 | security
+  #####       51.7 | error_handling
+  ####        48.1 | testing
 
 ## EVOLUCAO ENTRE CICLOS
 
-  Ciclo   5 | Score:  55 | Q:0 F:0 I:0 | Ciclo 5 - SINTESE. Criadas 5 regras aprendidas, 3 padroes, m
-  Ciclo   6 | Score:  58 | Q:0 F:0 I:0 | Ciclo 6 - Bug fixes profundos. Encontrados 11 pontos de falh
-  Ciclo   7 | Score:  60 | Q:0 F:0 I:0 | Ciclo 7 - Mais testes + build check. Novos: test_financeiro 
-  Ciclo   8 | Score:  61 | Q:0 F:0 I:0 | Ciclo 8 - Config segura. debug default False (era True). Sco
-  Ciclo   9 | Score:  61 | Q:0 F:0 I:0 | Ciclo 9 - Verificacao final. 42 testes passando. Frontend bu
+  Ciclo  93 | Score:  92 | Q:0 F:0 I:0 | Ciclo 93 - Verificacao testes - 172 passando, cobertura ~45%
+  Ciclo  94 | Score:  92 | Q:0 F:0 I:0 | Ciclo 94 - Verificacao arquitetura - vendas 7 modulos, tasks
+  Ciclo  95 | Score:  92 | Q:0 F:0 I:0 | Ciclo 95 - Verificacao deploy - supervisord 3 processos, Rai
+  Ciclo  96 | Score:  92 | Q:0 F:0 I:0 | Ciclo 96 - Verificacao frontend - error states, empty states
+  Ciclo  97 | Score:  92 | Q:0 F:0 I:0 | Ciclo 97 - Verificacao financeiro - P&L dedup, revenue fallb
 
 ## PERFORMANCE DOS AGENTES
 
