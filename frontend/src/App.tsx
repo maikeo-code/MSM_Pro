@@ -9,6 +9,7 @@ import Alertas from "@/pages/Alertas";
 import Configuracoes from "@/pages/Configuracoes";
 import Reputacao from "@/pages/Reputacao";
 import Produtos from "@/pages/Produtos";
+import Pedidos from "@/pages/Pedidos";
 import Login from "@/pages/Login";
 import Layout from "@/components/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -27,6 +28,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/anuncios" element={<Anuncios />} />
             <Route path="/anuncios/:mlbId" element={<AnuncioDetalhe />} />
+            <Route path="/pedidos" element={<Pedidos />} />
             <Route path="/analise-anuncios" element={<AnaliseAnuncios />} />
             <Route path="/produtos" element={<Produtos />} />
             <Route path="/concorrencia" element={<Concorrencia />} />
