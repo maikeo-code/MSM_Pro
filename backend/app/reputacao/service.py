@@ -217,7 +217,7 @@ async def get_reputation_history(
     if ml_account_id:
         query = query.where(ReputationSnapshot.ml_account_id == ml_account_id)
 
-    query = query.order_by(ReputationSnapshot.captured_at.asc())
+    query = query.order_by(ReputationSnapshot.captured_at.asc()).limit(365)
     result = await db.execute(query)
     return list(result.scalars().all())
 

@@ -120,7 +120,7 @@ export interface HeatmapData {
 export type HeatmapDay = HeatmapCell;
 
 export interface ListingCreate {
-  product_id: string;
+  product_id?: string | null;
   ml_account_id: string;
   mlb_id: string;
   title: string;

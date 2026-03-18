@@ -309,25 +309,25 @@ function CashFlowSection({ cashflow, loading }: { cashflow: CashFlow | undefined
 export default function Financeiro() {
   const [period, setPeriod] = useState<Period>("30d");
 
-  const { data: resumo, isLoading: loadingResumo } = useQuery({
+  const { data: resumo, isLoading: loadingResumo, isError: errorResumo } = useQuery({
     queryKey: ["financeiro-resumo", period],
     queryFn: () => financeiroService.getResumo(period),
     retry: 2,
   });
 
-  const { data: timeline, isLoading: loadingTimeline } = useQuery({
+  const { data: timeline, isLoading: loadingTimeline, isError: errorTimeline } = useQuery({
     queryKey: ["financeiro-timeline", period],
     queryFn: () => financeiroService.getTimeline(period),
     retry: 2,
   });
 
-  const { data: detalhado, isLoading: loadingDetalhado } = useQuery({
+  const { data: detalhado, isLoading: loadingDetalhado, isError: errorDetalhado } = useQuery({
     queryKey: ["financeiro-detalhado", period],
     queryFn: () => financeiroService.getDetalhado(period),
     retry: 2,
   });
 
-  const { data: cashflow, isLoading: loadingCashflow } = useQuery({
+  const { data: cashflow, isLoading: loadingCashflow, isError: errorCashflow } = useQuery({
     queryKey: ["financeiro-cashflow"],
     queryFn: () => financeiroService.getCashflow(),
     retry: 2,
@@ -336,6 +336,17 @@ export default function Financeiro() {
   const sortedDetalhado = [...(detalhado ?? [])].sort(
     (a, b) => b.receita_liquida - a.receita_liquida
   );
+
+  if (errorResumo || errorTimeline || errorDetalhado || errorCashflow) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-lg font-semibold text-red-600">Erro ao carregar dados financeiros</p>
+          <p className="text-sm text-gray-500 mt-2">Tente novamente em alguns segundos.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8">

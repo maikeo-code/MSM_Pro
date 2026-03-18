@@ -55,8 +55,7 @@ async def list_listings(
     ),
 ):
     """Lista todos os anuncios do usuario com o ultimo snapshot ou dados agregados por periodo."""
-    # page/per_page aceitos mas ainda nao aplicados — comportamento atual preservado com default 200
-    return await service.list_listings(db, current_user.id, period=period)
+    return await service.list_listings(db, current_user.id, period=period, page=page, per_page=per_page)
 
 
 @router.post("/", response_model=ListingOut, status_code=status.HTTP_201_CREATED)

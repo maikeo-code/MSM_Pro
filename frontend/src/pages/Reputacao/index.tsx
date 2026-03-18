@@ -320,6 +320,7 @@ export default function Reputacao() {
   const [errorRisk, setErrorRisk] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const fetchRisk = async () => {
     setLoadingRisk(true);
@@ -359,11 +360,12 @@ export default function Reputacao() {
 
   const handleSync = async () => {
     setSyncing(true);
+    setSyncError(null);
     try {
       await reputacaoService.sync();
       await fetchData();
     } catch {
-      // ignore
+      setSyncError("Erro ao sincronizar reputacao. Tente novamente.");
     } finally {
       setSyncing(false);
     }
@@ -433,6 +435,13 @@ export default function Reputacao() {
           {syncing ? "Sincronizando..." : "Atualizar"}
         </button>
       </div>
+
+      {syncError && (
+        <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {syncError}
+        </div>
+      )}
 
       {/* Badge + Resumo */}
       <div className="rounded-lg border bg-card p-6 shadow-sm">

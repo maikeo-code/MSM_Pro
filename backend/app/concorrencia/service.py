@@ -75,6 +75,7 @@ async def get_all_competitors(
             Competitor.is_active == True,  # noqa: E712
         )
         .order_by(Competitor.created_at.desc())
+        .limit(200)
     )
     return list(result.scalars().all())
 

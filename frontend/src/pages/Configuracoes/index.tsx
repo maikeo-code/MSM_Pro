@@ -14,7 +14,7 @@ export default function Configuracoes() {
     queryFn: () => authService.getMe(),
   });
 
-  const { data: mlAccounts, isLoading } = useQuery({
+  const { data: mlAccounts, isLoading, isError: mlError } = useQuery({
     queryKey: ["ml-accounts"],
     queryFn: () => authService.listMLAccounts(),
   });
@@ -129,6 +129,11 @@ export default function Configuracoes() {
         <div className="p-6">
           {isLoading ? (
             <p className="text-muted-foreground text-sm">Carregando contas...</p>
+          ) : mlError ? (
+            <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              Erro ao carregar contas do Mercado Livre. Tente recarregar a pagina.
+            </div>
           ) : !mlAccounts || mlAccounts.length === 0 ? (
             <div className="text-center py-8">
               <Settings className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />

@@ -12,7 +12,13 @@ from app.core.constants import ML_FEES_FLOAT
 from app.vendas.models import Listing, ListingSnapshot
 
 
-async def list_listings(db: AsyncSession, user_id: UUID, period: str = "today") -> list[dict]:
+async def list_listings(
+    db: AsyncSession,
+    user_id: UUID,
+    period: str = "today",
+    page: int = 1,
+    per_page: int = 200,
+) -> list[dict]:
     """Lista anúncios com o último snapshot ou dados agregados por período.
 
     period: "today" (padrão) | "7d" | "15d" | "30d" | "60d"
@@ -397,7 +403,9 @@ async def list_listings(db: AsyncSession, user_id: UUID, period: str = "today") 
         else:
             item["participacao_pct"] = None
 
-    return output
+    # Aplica paginação no output final (após cálculo de participacao_pct que precisa de todos)
+    start = (page - 1) * per_page
+    return output[start : start + per_page]
 
 
 async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:

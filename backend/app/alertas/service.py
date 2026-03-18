@@ -176,6 +176,7 @@ async def list_alert_events(
             AlertEvent.triggered_at >= threshold,
         )
         .order_by(AlertEvent.triggered_at.desc())
+        .limit(500)
     )
     return list(result.scalars().all())
 
