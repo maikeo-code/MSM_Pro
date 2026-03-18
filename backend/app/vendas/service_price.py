@@ -2,6 +2,7 @@
 Preço, margem e promoções de anúncios.
 """
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
@@ -9,6 +10,8 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.financeiro.service import calcular_margem
 from app.produtos.models import Product
@@ -112,9 +115,10 @@ async def apply_price_suggestion(
             )
             await db.flush()
         except Exception as e:
+            logger.error("Token refresh failed for account %s: %s", ml_account.id, e)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Falha ao renovar token ML: {e}",
+                detail="Falha ao renovar token ML. Tente novamente.",
             )
 
     # Chamar API ML para alterar preço
@@ -175,9 +179,10 @@ async def apply_price_suggestion(
     await db.refresh(log)
 
     if not ml_api_success:
+        logger.error("ML API rejected price update for %s: %s", mlb_id, error_msg)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"API ML rejeitou alteração: {error_msg}",
+            detail="A API do Mercado Livre recusou a alteração de preço. Verifique os dados e tente novamente.",
         )
 
     return {
@@ -403,8 +408,8 @@ async def create_or_update_promotion(
     mlb_id: str,
     user_id: UUID,
     discount_pct: float,
-    start_date: str,
-    end_date: str,
+    start_date,  # datetime
+    end_date,    # datetime
     promotion_id: str | None = None,
 ) -> dict:
     """Cria ou renova promoção (será integrado com ML API)."""
@@ -422,8 +427,8 @@ async def create_or_update_promotion(
         "discount_pct": discount_pct,
         "original_price": original_price,
         "final_price": final_price,
-        "start_date": start_date,
-        "end_date": end_date,
+        "start_date": start_date.isoformat() if hasattr(start_date, "isoformat") else str(start_date),
+        "end_date": end_date.isoformat() if hasattr(end_date, "isoformat") else str(end_date),
         "status": "active" if promotion_id else "pending",
     }
 

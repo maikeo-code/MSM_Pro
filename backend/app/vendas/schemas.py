@@ -2,7 +2,62 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+# ============== Schemas genéricos de resposta ==============
+
+
+class SyncOut(BaseModel):
+    synced: int
+    errors: int | None = None
+    message: str | None = None
+
+
+class UpdatePriceOut(BaseModel):
+    mlb_id: str
+    new_price: float
+    updated_at: str
+
+
+class PromotionOut(BaseModel):
+    id: str
+    type: str
+    discount_pct: float
+    original_price: float
+    final_price: float
+    start_date: str
+    end_date: str
+    status: str
+
+
+class HealthCheckOut(BaseModel):
+    mlb_id: str
+    listing_title: str | None = None
+    score: int
+    max_score: int
+    status: str
+    label: str
+    color: str
+    checks: list[dict]
+
+
+class PriceHistoryItemOut(BaseModel):
+    id: str
+    mlb_id: str
+    old_price: float | None
+    new_price: float | None
+    source: str | None = None
+    justification: str | None = None
+    success: bool
+    error_message: str | None = None
+    changed_at: str | None = None
+
+
+class DeleteRuleOut(BaseModel):
+    id: str
+    is_active: bool
+    message: str
 
 
 class ListingCreate(BaseModel):
@@ -231,8 +286,8 @@ class FunnelOut(BaseModel):
 
 class CreatePromotionIn(BaseModel):
     discount_pct: float = Field(ge=5, le=60)
-    start_date: str
-    end_date: str
+    start_date: datetime
+    end_date: datetime
     promotion_id: str | None = None
 
 
@@ -399,17 +454,35 @@ class RepricingRuleUpdate(BaseModel):
     max_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     is_active: bool | None = None
 
-    def model_post_init(self, __context) -> None:  # type: ignore[override]
+    @model_validator(mode="after")
+    def validate_rule_type_fields(self) -> "RepricingRuleUpdate":
         if self.rule_type is not None and self.rule_type not in VALID_RULE_TYPES:
             raise ValueError(
                 f"rule_type deve ser um de: {', '.join(sorted(VALID_RULE_TYPES))}"
             )
-        if (
+        if self.rule_type in {"FIXED_MARKUP", "COMPETITOR_DELTA"} and self.value is None:
+            raise ValueError(
+                f"{self.rule_type} requer o campo 'value' ao alterar o tipo da regra"
+            )
+        if self.rule_type == "FLOOR_CEILING":
+            if self.min_price is None and self.max_price is None:
+                raise ValueError(
+                    "FLOOR_CEILING requer ao menos 'min_price' ou 'max_price' "
+                    "ao alterar o tipo da regra"
+                )
+            if (
+                self.min_price is not None
+                and self.max_price is not None
+                and self.min_price >= self.max_price
+            ):
+                raise ValueError("min_price deve ser menor que max_price")
+        elif (
             self.min_price is not None
             and self.max_price is not None
             and self.min_price >= self.max_price
         ):
             raise ValueError("min_price deve ser menor que max_price")
+        return self
 
 
 class RepricingRuleOut(BaseModel):

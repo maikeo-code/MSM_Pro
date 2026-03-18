@@ -192,7 +192,12 @@ def sync_orders(self):
 
 # --- Task: Enviar digest semanal ---
 
-@celery_app.task(name="app.jobs.tasks.send_weekly_digest", bind=True)
+@celery_app.task(
+    name="app.jobs.tasks.send_weekly_digest",
+    bind=True,
+    max_retries=2,
+    default_retry_delay=120,
+)
 def send_weekly_digest(self):
     """
     Envia o resumo semanal por email para todos os usuários ativos.

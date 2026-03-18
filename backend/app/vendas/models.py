@@ -80,6 +80,12 @@ class Listing(Base):
     alert_configs: Mapped[list] = relationship(
         "AlertConfig", back_populates="listing"
     )
+    repricing_rules: Mapped[list["RepricingRule"]] = relationship(
+        "RepricingRule", back_populates="listing", cascade="all, delete-orphan"
+    )
+    price_change_logs: Mapped[list["PriceChangeLog"]] = relationship(
+        "PriceChangeLog", back_populates="listing", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Listing id={self.id} mlb_id={self.mlb_id} title={self.title[:30]}>"
@@ -224,7 +230,7 @@ class PriceChangeLog(Base):
     )
 
     # Relacionamentos
-    listing: Mapped["Listing"] = relationship("Listing")
+    listing: Mapped["Listing"] = relationship("Listing", back_populates="price_change_logs")
     user: Mapped["User"] = relationship("User")  # type: ignore[name-defined]
 
     def __repr__(self) -> str:
@@ -267,7 +273,7 @@ class RepricingRule(Base):
     )
 
     # Relacionamentos
-    listing: Mapped["Listing"] = relationship("Listing")
+    listing: Mapped["Listing"] = relationship("Listing", back_populates="repricing_rules")
     user: Mapped["User"] = relationship("User")  # type: ignore[name-defined]
 
     def __repr__(self) -> str:

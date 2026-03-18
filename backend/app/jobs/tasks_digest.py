@@ -4,6 +4,7 @@ Weekly digest email — enviado todo domingo às 20:00 BRT (23:00 UTC).
 Consolida os dados da semana (vendas, receita, visitas, conversão)
 e envia um resumo por email para cada usuário ativo com anúncios.
 """
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -323,7 +324,7 @@ async def _send_weekly_digest_async() -> dict:
                 f"R$ {digest['receita']:,.2f} receita"
             )
 
-            send_html_email(to=user.email, subject=subject, html=html)
+            await asyncio.to_thread(send_html_email, to=user.email, subject=subject, html=html)
             sent += 1
             logger.info("Digest semanal enviado para %s.", user.email)
 

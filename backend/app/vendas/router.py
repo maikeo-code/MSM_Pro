@@ -12,15 +12,20 @@ from app.core.deps import get_current_user
 from app.vendas import service
 from app.vendas.schemas import (
     CreatePromotionIn,
+    DeleteRuleOut,
     FunnelOut,
+    HealthCheckOut,
     HeatmapOut,
     KpiCompareOut,
+    KpiPeriodOut,
     LinkSkuIn,
     ListingAnalysisOut,
     ListingCreate,
     ListingOut,
     MargemResult,
     OrderOut,
+    PriceHistoryItemOut,
+    PromotionOut,
     RepricingRuleCreate,
     RepricingRuleOut,
     RepricingRuleUpdate,
@@ -29,13 +34,18 @@ from app.vendas.schemas import (
     SimulatePriceOut,
     SnapshotOut,
     SuggestionApplyIn,
+    SuggestionApplyOut,
+    SyncOut,
     UpdatePriceIn,
+    UpdatePriceOut,
 )
+
+# KpiSummaryOut usa dict[str, KpiPeriodOut] para aceitar chaves como "7dias"
 
 router = APIRouter(prefix="/listings", tags=["listings"])
 
 
-@router.post("/sync")
+@router.post("/sync", response_model=SyncOut)
 async def sync_listings(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -159,7 +169,7 @@ async def export_listings(
     )
 
 
-@router.get("/kpi/summary")
+@router.get("/kpi/summary", response_model=dict[str, KpiPeriodOut])
 async def get_kpi_summary(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -168,7 +178,7 @@ async def get_kpi_summary(
     return await service.get_kpi_by_period(db, current_user.id)
 
 
-@router.get("/kpi/compare")
+@router.get("/kpi/compare", response_model=KpiCompareOut)
 async def get_kpi_compare(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -354,7 +364,7 @@ async def update_repricing_rule(
     return result
 
 
-@router.delete("/repricing-rules/{rule_id}")
+@router.delete("/repricing-rules/{rule_id}", response_model=DeleteRuleOut)
 async def delete_repricing_rule(
     rule_id: UUID,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -449,7 +459,7 @@ async def get_margem(
     return await service.get_margem(db, mlb_id, current_user.id, preco)
 
 
-@router.get("/{mlb_id}/health")
+@router.get("/{mlb_id}/health", response_model=HealthCheckOut)
 async def get_listing_health(
     mlb_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -496,7 +506,7 @@ async def get_listing_health(
     return health
 
 
-@router.patch("/{mlb_id}/price")
+@router.patch("/{mlb_id}/price", response_model=UpdatePriceOut)
 async def update_price(
     mlb_id: str,
     payload: UpdatePriceIn,
@@ -509,7 +519,7 @@ async def update_price(
     )
 
 
-@router.post("/{mlb_id}/promotions")
+@router.post("/{mlb_id}/promotions", response_model=PromotionOut)
 async def create_promotion(
     mlb_id: str,
     payload: CreatePromotionIn,
@@ -528,7 +538,7 @@ async def create_promotion(
     )
 
 
-@router.post("/{mlb_id}/suggestion_apply")
+@router.post("/{mlb_id}/suggestion_apply", response_model=SuggestionApplyOut)
 async def suggestion_apply(
     mlb_id: str,
     payload: SuggestionApplyIn,
@@ -544,7 +554,7 @@ async def suggestion_apply(
     )
 
 
-@router.get("/{mlb_id}/price-history")
+@router.get("/{mlb_id}/price-history", response_model=list[PriceHistoryItemOut])
 async def get_price_history(
     mlb_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
