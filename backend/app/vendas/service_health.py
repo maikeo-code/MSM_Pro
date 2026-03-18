@@ -1,6 +1,7 @@
 """
-Health score e quality score de anúncios.
+Health score, quality score e analise de titulo de anuncios.
 """
+import re
 
 
 def _calculate_health_score(
@@ -180,3 +181,145 @@ def calculate_quality_score_quick(listing) -> int:
     if float(getattr(listing, 'price', 0) or 0) > 0:
         score += 5  # preço parcial (sem concorrente)
     return min(100, score)
+
+
+# ─── Palavras genericas indesejadas em titulos de anuncios ────────────────────
+_GENERIC_WORDS = frozenset([
+    "otimo", "ótimo", "melhor", "promocao", "promoção", "oferta",
+    "imperdivel", "imperdível", "imperdivel", "super", "mega",
+    "incrivel", "incrível", "barato", "barata", "economize",
+    "novidade", "exclusivo", "exclusiva", "original", "lancamento",
+    "lançamento", "top", "excelente", "perfeito", "perfeita",
+    "qualidade", "especial", "imperdivel", "produto", "item",
+])
+
+# Palavras descritivas relevantes (cor, tamanho, materiais, etc.)
+_DESCRIPTIVE_PATTERNS = [
+    r'\b(preto|branco|azul|vermelho|verde|amarelo|rosa|cinza|prata|dourado|bege|laranja|roxo|marrom)\b',
+    r'\b(pequeno|medio|grande|xl|xxl|xs|xg|p\b|m\b|g\b)\b',
+    r'\b(\d+\s*(cm|mm|m\b|kg|g\b|l\b|ml|w\b|v\b|hz|gb|tb|mb))\b',
+    r'\b(inox|aluminio|alumínio|plastico|plástico|madeira|couro|tecido|borracha)\b',
+    r'\b(sem fio|wireless|bluetooth|usb|hdmi|wifi|wi-fi)\b',
+]
+
+
+def analyze_title_quality(title: str) -> dict:
+    """
+    Analisa a qualidade do titulo de um anuncio e retorna score 0-100 com checklist.
+
+    Criterios:
+    - Comprimento: ideal 60-120 chars (25 pts)
+    - Marca/modelo aparece nos primeiros 2 termos (25 pts)
+    - Contem palavras descritivas (cor, tamanho, modelo) (25 pts)
+    - Nao contem termos genericos inuteis (25 pts)
+
+    Retorna dict com: title, score, length, checks, suggested_title (sempre null por ora).
+    """
+    title = (title or "").strip()
+    length = len(title)
+    checks = []
+    score = 0
+
+    # 1. Comprimento ideal: 60-120 chars (25 pts, parcial 60-120 vs extremos)
+    if 60 <= length <= 120:
+        score += 25
+        checks.append({
+            "item": "Comprimento",
+            "ok": True,
+            "detail": f"{length} chars (ideal: 60-120)",
+        })
+    elif length > 120:
+        score += 10
+        checks.append({
+            "item": "Comprimento",
+            "ok": False,
+            "detail": f"{length} chars (ideal: 60-120)",
+            "action": "Titulo muito longo — o ML corta apos ~120 chars na busca",
+        })
+    elif length >= 40:
+        score += 10
+        checks.append({
+            "item": "Comprimento",
+            "ok": False,
+            "detail": f"{length} chars (ideal: 60-120)",
+            "action": "Adicione mais palavras-chave relevantes ao titulo",
+        })
+    else:
+        checks.append({
+            "item": "Comprimento",
+            "ok": False,
+            "detail": f"{length} chars (ideal: 60-120)",
+            "action": "Titulo muito curto — adicione marca, modelo, cor e tamanho",
+        })
+
+    # 2. Marca/modelo nos primeiros 2 termos (25 pts)
+    # Heuristica: primeiro ou segundo token com mais de 2 chars e sem numeros puros
+    tokens = [t for t in re.split(r'[\s\-_,]+', title) if len(t) > 2]
+    first_tokens = tokens[:2]
+    has_brand_position = bool(first_tokens) and any(
+        not t.isdigit() and re.search(r'[a-zA-ZÀ-ú]', t) for t in first_tokens
+    )
+    if has_brand_position:
+        score += 25
+        brand_sample = first_tokens[0] if first_tokens else ""
+        checks.append({
+            "item": "Marca/modelo em posicao destaque",
+            "ok": True,
+            "detail": f"Iniciado com: {brand_sample}",
+        })
+    else:
+        checks.append({
+            "item": "Marca/modelo em posicao destaque",
+            "ok": False,
+            "action": "Coloque a marca ou modelo no inicio do titulo para melhor indexacao",
+        })
+
+    # 3. Palavras descritivas (cor, tamanho, material, etc.) (25 pts)
+    title_lower = title.lower()
+    found_descriptive: list[str] = []
+    for pattern in _DESCRIPTIVE_PATTERNS:
+        matches = re.findall(pattern, title_lower)
+        found_descriptive.extend([m if isinstance(m, str) else m[0] for m in matches])
+
+    found_descriptive = list(dict.fromkeys(found_descriptive))  # dedup mantendo ordem
+
+    if found_descriptive:
+        score += 25
+        sample = ", ".join(found_descriptive[:3])
+        checks.append({
+            "item": "Palavras descritivas",
+            "ok": True,
+            "detail": f"Contem: {sample}",
+        })
+    else:
+        checks.append({
+            "item": "Palavras descritivas",
+            "ok": False,
+            "action": "Adicione cor, tamanho, material ou especificacoes tecnicas ao titulo",
+        })
+
+    # 4. Sem termos genericos inuteis (25 pts)
+    title_words = set(re.findall(r'\b\w+\b', title_lower))
+    generic_found = sorted(title_words & _GENERIC_WORDS)
+    if not generic_found:
+        score += 25
+        checks.append({
+            "item": "Sem termos genericos",
+            "ok": True,
+        })
+    else:
+        sample_generic = ", ".join(f'"{w}"' for w in generic_found[:3])
+        checks.append({
+            "item": "Sem termos genericos",
+            "ok": False,
+            "detail": f"Encontrados: {sample_generic}",
+            "action": "Remova palavras genericas — o ML as ignora na indexacao",
+        })
+
+    return {
+        "title": title,
+        "score": score,
+        "length": length,
+        "checks": checks,
+        "suggested_title": None,  # futuro: sugestao via IA
+    }

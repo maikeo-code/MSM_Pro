@@ -8,7 +8,7 @@ from app.auth.models import User, MLAccount
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.reputacao import service
-from app.reputacao.schemas import ReputationCurrentOut, ReputationRiskOut, ReputationSnapshotOut, ReputationThresholdsOut
+from app.reputacao.schemas import HealthDimensionItem, ReputationCurrentOut, ReputationRiskOut, ReputationSnapshotOut, ReputationThresholdsOut
 from app.reputacao.service import REPUTATION_THRESHOLDS
 
 router = APIRouter(prefix="/reputation", tags=["reputation"])
@@ -59,15 +59,45 @@ async def get_current_reputation(
     account = acc_result.scalar_one_or_none()
     nickname = account.nickname if account else None
 
+    # Calcula score de saude por dimensao com thresholds granulares
+    _health_thresholds = {
+        "claims": {"good": 0.5, "warning": 2.0},
+        "mediations": {"good": 0.3, "warning": 1.0},
+        "cancellations": {"good": 1.0, "warning": 3.0},
+        "late_shipments": {"good": 2.0, "warning": 5.0},
+    }
+    _rate_fields = {
+        "claims": float(snapshot.claims_rate) if snapshot.claims_rate is not None else 0.0,
+        "mediations": float(snapshot.mediations_rate) if snapshot.mediations_rate is not None else 0.0,
+        "cancellations": float(snapshot.cancellations_rate) if snapshot.cancellations_rate is not None else 0.0,
+        "late_shipments": float(snapshot.late_shipments_rate) if snapshot.late_shipments_rate is not None else 0.0,
+    }
+    health_by_dimension = []
+    for dim, limits in _health_thresholds.items():
+        rate = _rate_fields[dim]
+        if rate <= limits["good"]:
+            dim_status = "good"
+        elif rate <= limits["warning"]:
+            dim_status = "warning"
+        else:
+            dim_status = "critical"
+        health_by_dimension.append(HealthDimensionItem(
+            dimension=dim,
+            rate=rate,
+            status=dim_status,
+            threshold_good=limits["good"],
+            threshold_warning=limits["warning"],
+        ))
+
     return ReputationCurrentOut(
         ml_account_id=snapshot.ml_account_id,
         nickname=nickname,
         seller_level=snapshot.seller_level,
         power_seller_status=snapshot.power_seller_status,
-        claims_rate=float(snapshot.claims_rate) if snapshot.claims_rate is not None else 0.0,
-        mediations_rate=float(snapshot.mediations_rate) if snapshot.mediations_rate is not None else 0.0,
-        cancellations_rate=float(snapshot.cancellations_rate) if snapshot.cancellations_rate is not None else 0.0,
-        late_shipments_rate=float(snapshot.late_shipments_rate) if snapshot.late_shipments_rate is not None else 0.0,
+        claims_rate=_rate_fields["claims"],
+        mediations_rate=_rate_fields["mediations"],
+        cancellations_rate=_rate_fields["cancellations"],
+        late_shipments_rate=_rate_fields["late_shipments"],
         claims_value=snapshot.claims_value or 0,
         mediations_value=snapshot.mediations_value or 0,
         cancellations_value=snapshot.cancellations_value or 0,
@@ -82,6 +112,7 @@ async def get_current_reputation(
             cancellations=float(REPUTATION_THRESHOLDS["cancellations"]),
             late_shipments=float(REPUTATION_THRESHOLDS["late_shipments"]),
         ),
+        health_by_dimension=health_by_dimension,
     )
 
 

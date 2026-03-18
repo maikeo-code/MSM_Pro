@@ -35,6 +35,15 @@ class ReputationThresholdsOut(BaseModel):
     late_shipments: float = 6.0  # Atrasos envio: max 6%
 
 
+class HealthDimensionItem(BaseModel):
+    """Score de saude para uma dimensao especifica da reputacao."""
+    dimension: str                           # "claims", "mediations", "cancellations", "late_shipments"
+    rate: float                              # Taxa atual em %
+    status: Literal["good", "warning", "critical"]
+    threshold_good: float                    # Limite para status 'good' em %
+    threshold_warning: float                 # Limite para status 'warning' em %
+
+
 class ReputationCurrentOut(BaseModel):
     """Resposta da reputacao atual com campos formatados para o frontend."""
     ml_account_id: UUID
@@ -58,6 +67,8 @@ class ReputationCurrentOut(BaseModel):
     captured_at: datetime | None = None
     # Thresholds de nivel para comparacao visual
     thresholds: ReputationThresholdsOut = ReputationThresholdsOut()
+    # Score de saude por dimensao (granularidade por KPI)
+    health_by_dimension: list[HealthDimensionItem] = []
 
     model_config = {"from_attributes": True}
 

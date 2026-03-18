@@ -283,6 +283,28 @@ async def list_orders(
 
 # ─── Dynamic path routes ─────────────────────────────────────────────────────
 
+@router.get("/{mlb_id}/title-analysis")
+async def get_title_analysis(
+    mlb_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Analisa a qualidade do titulo de um anuncio.
+
+    Retorna score 0-100 com checklist acionavel:
+    - Comprimento (ideal: 60-120 chars)
+    - Marca/modelo em posicao de destaque
+    - Palavras descritivas (cor, tamanho, especificacoes)
+    - Ausencia de termos genericos inuteis
+    """
+    from app.vendas.service_health import analyze_title_quality
+
+    # get_listing ja lanca HTTPException 404 se nao encontrado ou ownership falhar
+    listing = await service.get_listing(db, mlb_id, current_user.id)
+    return analyze_title_quality(listing.title)
+
+
 @router.get("/{mlb_id}", response_model=ListingOut)
 async def get_listing(
     mlb_id: str,
