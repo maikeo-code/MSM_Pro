@@ -14,12 +14,15 @@ from app.vendas.schemas import (
     CreatePromotionIn,
     FunnelOut,
     HeatmapOut,
+    KpiCompareOut,
     LinkSkuIn,
     ListingAnalysisOut,
     ListingCreate,
     ListingOut,
     MargemResult,
     OrderOut,
+    SimulatePriceIn,
+    SimulatePriceOut,
     SnapshotOut,
     SuggestionApplyIn,
     UpdatePriceIn,
@@ -159,6 +162,32 @@ async def get_kpi_summary(
 ):
     """Retorna KPIs agregados para hoje, ontem e anteontem."""
     return await service.get_kpi_by_period(db, current_user.id)
+
+
+@router.get("/kpi/compare")
+async def get_kpi_compare(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    period_a: str = Query(
+        default="7d",
+        pattern=r"^(7d|15d|30d)$",
+        description="Periodo A: 7d, 15d ou 30d",
+    ),
+    period_b: str = Query(
+        default="prev",
+        pattern=r"^(prev|7d|15d|30d)$",
+        description="Periodo B: prev (anterior equivalente), 7d, 15d ou 30d",
+    ),
+):
+    """
+    Compara KPIs entre dois periodos e retorna variacao percentual para cada metrica.
+
+    Exemplos:
+    - period_a=7d&period_b=prev  → ultimos 7 dias vs 7 dias anteriores
+    - period_a=30d&period_b=7d   → ultimos 30 dias vs ultimos 7 dias
+    - period_a=15d&period_b=prev → ultimos 15 dias vs 15 dias anteriores
+    """
+    return await service.get_kpi_compare(db, current_user.id, period_a, period_b)
 
 
 @router.get("/analytics/funnel", response_model=FunnelOut)
@@ -438,6 +467,24 @@ async def get_price_history(
         }
         for c in changes
     ]
+
+
+@router.post("/{mlb_id}/simulate-price", response_model=SimulatePriceOut)
+async def simulate_price(
+    mlb_id: str,
+    payload: SimulatePriceIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Simula o impacto financeiro de alterar o preco de um anuncio.
+
+    Analisa historico de 90 dias de snapshots, calcula elasticidade por faixa de preco,
+    interpola vendas estimadas para o preco alvo e retorna receita e margem projetadas.
+
+    Se houver menos de 7 snapshots historicos, retorna estimativa com is_estimated=true.
+    """
+    return await service.simulate_price(db, mlb_id, current_user.id, payload.target_price)
 
 
 @router.patch("/{mlb_id}/sku", response_model=ListingOut)

@@ -574,6 +574,106 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
     }
 
 
+def _period_to_dates(period: str, today: date) -> tuple[date, date, str]:
+    """
+    Converte string de período em (date_from, date_to, label).
+
+    Aceita: "7d", "15d", "30d"
+    Retorna tupla (date_from, date_to, label_legível).
+    """
+    period_map = {"7d": 7, "15d": 15, "30d": 30}
+    days = period_map.get(period, 7)
+    date_from = today - timedelta(days=days - 1)
+    date_to = today
+    label = f"Últimos {days} dias"
+    return date_from, date_to, label
+
+
+async def get_kpi_compare(
+    db: AsyncSession,
+    user_id: UUID,
+    period_a: str = "7d",
+    period_b: str = "prev",
+) -> dict:
+    """
+    Compara KPIs entre dois períodos e retorna variação percentual.
+
+    period_a: "7d" | "15d" | "30d"
+    period_b: "prev" (período anterior equivalente a period_a) | "7d" | "15d" | "30d"
+    """
+    today = date.today()
+
+    # Busca listing_ids do usuário
+    listings_result = await db.execute(
+        select(Listing.id).where(Listing.user_id == user_id)
+    )
+    listing_ids = [row[0] for row in listings_result.fetchall()]
+
+    empty_kpi = {
+        "vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0,
+        "valor_estoque": 0.0, "receita": 0.0, "pedidos": 0,
+        "receita_total": 0.0, "preco_medio": 0.0, "taxa_cancelamento": 0.0,
+        "preco_medio_por_venda": 0.0, "vendas_concluidas": 0.0,
+        "cancelamentos_valor": 0.0, "devolucoes_valor": 0.0, "devolucoes_qtd": 0,
+    }
+
+    if not listing_ids:
+        return {
+            "period_a": empty_kpi,
+            "period_b": empty_kpi,
+            "period_a_label": period_a,
+            "period_b_label": period_b,
+            "variacao": {
+                "vendas_pct": None, "receita_pct": None,
+                "visitas_pct": None, "conversao_pct": None,
+            },
+        }
+
+    # Calcular datas do período A
+    period_a_days = {"7d": 7, "15d": 15, "30d": 30}.get(period_a, 7)
+    a_date_to = today
+    a_date_from = today - timedelta(days=period_a_days - 1)
+    a_label = f"Últimos {period_a_days} dias"
+
+    # Calcular datas do período B
+    if period_b == "prev":
+        # Período anterior equivalente: imediatamente antes do período A
+        b_date_to = a_date_from - timedelta(days=1)
+        b_date_from = b_date_to - timedelta(days=period_a_days - 1)
+        b_label = f"Período anterior ({period_a_days} dias)"
+    else:
+        period_b_days = {"7d": 7, "15d": 15, "30d": 30}.get(period_b, 7)
+        b_date_to = today
+        b_date_from = today - timedelta(days=period_b_days - 1)
+        b_label = f"Últimos {period_b_days} dias"
+
+    # Buscar KPIs de cada período
+    kpi_a = await _kpi_date_range(db, listing_ids, a_date_from, a_date_to)
+    kpi_b = await _kpi_date_range(db, listing_ids, b_date_from, b_date_to)
+
+    def _var_pct(current: float, previous: float) -> float | None:
+        if previous == 0:
+            return None
+        return round(((current - previous) / previous) * 100, 2)
+
+    variacao = {
+        "vendas_pct": _var_pct(kpi_a["vendas"], kpi_b["vendas"]),
+        "receita_pct": _var_pct(kpi_a["receita_total"], kpi_b["receita_total"]),
+        "visitas_pct": _var_pct(kpi_a["visitas"], kpi_b["visitas"]),
+        "conversao_pct": _var_pct(kpi_a["conversao"], kpi_b["conversao"]),
+        "pedidos_pct": _var_pct(kpi_a["pedidos"], kpi_b["pedidos"]),
+        "cancelamentos_pct": _var_pct(kpi_a["cancelamentos_valor"], kpi_b["cancelamentos_valor"]),
+    }
+
+    return {
+        "period_a": kpi_a,
+        "period_b": kpi_b,
+        "period_a_label": a_label,
+        "period_b_label": b_label,
+        "variacao": variacao,
+    }
+
+
 async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
     """Retorna KPIs agregados para hoje, ontem, anteontem, 7 dias e 30 dias."""
     today = date.today()

@@ -261,6 +261,42 @@ class HeatmapOut(BaseModel):
 # ============== Schemas para Orders ==============
 
 
+class SimulatePriceIn(BaseModel):
+    target_price: float = Field(gt=0, description="Preco alvo para simular")
+
+
+class MargemSimulada(BaseModel):
+    taxa_ml_pct: float
+    taxa_ml_valor: float
+    frete: float
+    margem_bruta: float
+    margem_pct: float
+    lucro: float
+
+
+class SimulatePriceOut(BaseModel):
+    target_price: float
+    current_price: float
+    estimated_sales_per_day: float
+    current_sales_per_day: float
+    estimated_monthly_revenue: float
+    current_monthly_revenue: float
+    estimated_margin: MargemSimulada | None
+    current_margin: MargemSimulada | None
+    recommendation: str
+    is_estimated: bool
+    data_points: int
+    message: str | None = None
+
+
+class KpiCompareOut(BaseModel):
+    period_a: dict
+    period_b: dict
+    period_a_label: str
+    period_b_label: str
+    variacao: dict
+
+
 class SuggestionApplyIn(BaseModel):
     new_price: float = Field(gt=0, description="Novo preco a aplicar no anuncio")
     justification: str = Field(

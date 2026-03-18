@@ -49,6 +49,7 @@ from app.vendas.service_kpi import (  # noqa: F401
     _kpi_date_range,
     _kpi_single_day,
     get_kpi_by_period,
+    get_kpi_compare,
     list_listings,
 )
 
@@ -66,6 +67,7 @@ from app.vendas.service_price import (  # noqa: F401
     apply_price_suggestion,
     create_or_update_promotion,
     get_margem,
+    simulate_price,
     update_listing_price,
 )
 

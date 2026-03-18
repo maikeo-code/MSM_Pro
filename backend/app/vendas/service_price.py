@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.financeiro.service import calcular_margem
 from app.produtos.models import Product
-from app.vendas.models import Listing
-from app.vendas.schemas import MargemResult
+from app.vendas.models import Listing, ListingSnapshot
+from app.vendas.schemas import MargemResult, SimulatePriceOut, MargemSimulada
 
 
 async def get_margem(
@@ -192,6 +192,210 @@ async def apply_price_suggestion(
         "log_id": str(log.id),
         "applied_at": log.created_at.isoformat(),
     }
+
+
+async def simulate_price(
+    db: AsyncSession,
+    mlb_id: str,
+    user_id: UUID,
+    target_price: float,
+) -> SimulatePriceOut:
+    """
+    Simula o impacto de alterar o preço de um anúncio.
+
+    1. Busca snapshots dos últimos 90 dias
+    2. Calcula elasticidade agrupando por faixa de preço → média vendas/dia por faixa
+    3. Interpola vendas estimadas no target_price via regressão linear simples
+    4. Retorna receita e margem estimadas vs atuais
+    """
+    from app.vendas.service import get_listing
+
+    listing = await get_listing(db, mlb_id, user_id)
+
+    # Buscar snapshots dos últimos 90 dias
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+    snaps_result = await db.execute(
+        select(ListingSnapshot)
+        .where(
+            ListingSnapshot.listing_id == listing.id,
+            ListingSnapshot.captured_at >= cutoff,
+        )
+        .order_by(ListingSnapshot.captured_at.asc())
+    )
+    snapshots = snaps_result.scalars().all()
+
+    current_price = float(listing.price)
+    MIN_SNAPSHOTS = 7
+    is_estimated = len(snapshots) < MIN_SNAPSHOTS
+
+    # Busca custo do SKU
+    product = None
+    if listing.product_id:
+        prod_result = await db.execute(
+            select(Product).where(Product.id == listing.product_id)
+        )
+        product = prod_result.scalar_one_or_none()
+    custo = Decimal(str(product.cost)) if product and product.cost else Decimal("0")
+    frete = listing.avg_shipping_cost or Decimal("0")
+    sale_fee_pct = listing.sale_fee_pct if listing.sale_fee_pct and float(listing.sale_fee_pct) > 0 else None
+
+    def _calcular_margem_simples(preco: float) -> MargemSimulada | None:
+        """Retorna margem calculada para um preço, ou None se custo não disponível."""
+        resultado = calcular_margem(
+            preco=Decimal(str(preco)),
+            custo=custo,
+            listing_type=listing.listing_type,
+            frete=Decimal(str(frete)),
+            sale_fee_pct=sale_fee_pct,
+        )
+        return MargemSimulada(
+            taxa_ml_pct=float(resultado["taxa_ml_pct"]),
+            taxa_ml_valor=float(resultado["taxa_ml_valor"]),
+            frete=float(resultado["frete"]),
+            margem_bruta=float(resultado["margem_bruta"]),
+            margem_pct=float(resultado["margem_pct"]),
+            lucro=float(resultado["lucro"]),
+        )
+
+    # Caso sem dados suficientes: retornar com is_estimated=True e sem interpolação
+    if is_estimated:
+        # Usa vendas médias disponíveis (mesmo que poucas)
+        if snapshots:
+            avg_sales = sum(s.sales_today or 0 for s in snapshots) / len(snapshots)
+        else:
+            avg_sales = 0.0
+
+        return SimulatePriceOut(
+            target_price=target_price,
+            current_price=current_price,
+            estimated_sales_per_day=round(avg_sales, 2),
+            current_sales_per_day=round(avg_sales, 2),
+            estimated_monthly_revenue=round(target_price * avg_sales * 30, 2),
+            current_monthly_revenue=round(current_price * avg_sales * 30, 2),
+            estimated_margin=_calcular_margem_simples(target_price),
+            current_margin=_calcular_margem_simples(current_price),
+            recommendation=(
+                f"Dados insuficientes para calcular elasticidade com precisão "
+                f"({len(snapshots)} snapshots de {MIN_SNAPSHOTS} necessários). "
+                "Os valores são estimativas baseadas na média atual."
+            ),
+            is_estimated=True,
+            data_points=len(snapshots),
+            message=f"Necessário pelo menos {MIN_SNAPSHOTS} dias de histórico para simulação precisa.",
+        )
+
+    # ── Agrupamento por faixa de preço (bandas de 5%) ──────────────────────────
+    # Encontrar amplitude de preços
+    prices = [float(s.price) for s in snapshots if s.price and float(s.price) > 0]
+    if not prices:
+        prices = [current_price]
+
+    min_price = min(prices)
+    max_price = max(prices)
+    price_range = max_price - min_price
+
+    # Se variação de preço muito pequena, usar bandas fixas de R$10
+    band_size = max(price_range * 0.05, 10.0)
+
+    # Agrupa snapshots por faixa
+    bands: dict[float, list[float]] = {}
+    for snap in snapshots:
+        p = float(snap.price) if snap.price else current_price
+        band_key = round((p // band_size) * band_size, 2)
+        if band_key not in bands:
+            bands[band_key] = []
+        bands[band_key].append(snap.sales_today or 0)
+
+    # Calcula média de vendas por banda
+    band_stats: list[tuple[float, float]] = [
+        (band_key, sum(sales) / len(sales))
+        for band_key, sales in bands.items()
+    ]
+    band_stats.sort(key=lambda x: x[0])
+
+    # Vendas atuais (média dos últimos 7 dias de snapshot)
+    recent = sorted(snapshots, key=lambda s: s.captured_at, reverse=True)[:7]
+    current_sales_per_day = sum(s.sales_today or 0 for s in recent) / len(recent) if recent else 0.0
+
+    # ── Interpolação linear para target_price ──────────────────────────────────
+    estimated_sales_per_day: float
+
+    if len(band_stats) == 1:
+        # Só uma banda: sem variação de preço → assumir vendas iguais
+        estimated_sales_per_day = band_stats[0][1]
+    else:
+        # Interpolar/extrapolar entre bandas mais próximas do target_price
+        # Ordenado por preço crescente
+        target = target_price
+
+        # Achar as bandas que enquadram o target
+        lower = None
+        upper = None
+        for bp, bsales in band_stats:
+            if bp <= target:
+                lower = (bp, bsales)
+            else:
+                upper = (bp, bsales)
+                break
+
+        if lower is None:
+            # target abaixo de todas as bandas: extrapolar pela inclinação das duas primeiras
+            estimated_sales_per_day = band_stats[0][1]
+        elif upper is None:
+            # target acima de todas as bandas: extrapolar pela inclinação das duas últimas
+            estimated_sales_per_day = band_stats[-1][1]
+        else:
+            # Interpolação linear entre lower e upper
+            lp, ls = lower
+            up, us = upper
+            if up != lp:
+                t = (target - lp) / (up - lp)
+                estimated_sales_per_day = ls + t * (us - ls)
+            else:
+                estimated_sales_per_day = ls
+
+    # Garantir que não seja negativo
+    estimated_sales_per_day = max(0.0, round(estimated_sales_per_day, 2))
+    current_sales_per_day = round(current_sales_per_day, 2)
+
+    estimated_monthly_revenue = round(target_price * estimated_sales_per_day * 30, 2)
+    current_monthly_revenue = round(current_price * current_sales_per_day * 30, 2)
+
+    # ── Recomendação textual ───────────────────────────────────────────────────
+    sales_diff_pct = (
+        round(((estimated_sales_per_day - current_sales_per_day) / current_sales_per_day) * 100, 1)
+        if current_sales_per_day > 0
+        else 0.0
+    )
+    rev_diff_pct = (
+        round(((estimated_monthly_revenue - current_monthly_revenue) / current_monthly_revenue) * 100, 1)
+        if current_monthly_revenue > 0
+        else 0.0
+    )
+
+    direction = "Reduzir" if target_price < current_price else "Aumentar"
+    sales_dir = "aumentar" if sales_diff_pct > 0 else "reduzir"
+    rev_dir = "aumentar" if rev_diff_pct > 0 else "reduzir"
+
+    recommendation = (
+        f"{direction} preço de R${current_price:.2f} para R${target_price:.2f} "
+        f"pode {sales_dir} vendas em {abs(sales_diff_pct):.1f}% "
+        f"e {rev_dir} receita mensal em {abs(rev_diff_pct):.1f}%."
+    )
+
+    return SimulatePriceOut(
+        target_price=target_price,
+        current_price=current_price,
+        estimated_sales_per_day=estimated_sales_per_day,
+        current_sales_per_day=current_sales_per_day,
+        estimated_monthly_revenue=estimated_monthly_revenue,
+        current_monthly_revenue=current_monthly_revenue,
+        estimated_margin=_calcular_margem_simples(target_price),
+        current_margin=_calcular_margem_simples(current_price),
+        recommendation=recommendation,
+        is_estimated=False,
+        data_points=len(snapshots),
+    )
 
 
 async def create_or_update_promotion(
