@@ -717,6 +717,39 @@ class MLClient:
         """
         return await self._request("GET", f"/shipments/{shipment_id}")
 
+    async def get_received_questions(
+        self, status: str = "UNANSWERED", offset: int = 0, limit: int = 50
+    ) -> dict:
+        """
+        Busca perguntas recebidas pelo vendedor.
+        GET /my/received_questions/search?status={status}&offset={offset}&limit={limit}
+        Retorna dict com "total", "limit", "questions" (lista de perguntas).
+        """
+        return await self._request(
+            "GET",
+            "/my/received_questions/search",
+            params={
+                "status": status,
+                "offset": offset,
+                "limit": limit,
+                "sort_fields": "date_created",
+                "sort_types": "DESC",
+            },
+        )
+
+    async def answer_question(self, question_id: int, text: str) -> dict:
+        """
+        Responde uma pergunta do comprador.
+        POST /answers
+        Body: {"question_id": id, "text": "resposta"}
+        Retorna o objeto da resposta criada com status e date_created.
+        """
+        return await self._request(
+            "POST",
+            "/answers",
+            json={"question_id": question_id, "text": text},
+        )
+
     async def close(self):
         """Fecha o cliente HTTP."""
         await self._client.aclose()

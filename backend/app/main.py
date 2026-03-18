@@ -31,6 +31,7 @@ from app.auth.router import router as auth_router
 from app.concorrencia.router import router as concorrencia_router
 from app.consultor.router import router as consultor_router
 from app.financeiro.router import router as financeiro_router
+from app.perguntas.router import router as perguntas_router
 from app.produtos.router import router as produtos_router
 from app.reputacao.router import router as reputacao_router
 from app.vendas.router import router as vendas_router
@@ -97,6 +98,7 @@ app.include_router(consultor_router, prefix=API_PREFIX)
 app.include_router(reputacao_router, prefix=API_PREFIX)
 app.include_router(ads_router, prefix=API_PREFIX)
 app.include_router(financeiro_router, prefix=API_PREFIX)
+app.include_router(perguntas_router, prefix=API_PREFIX)
 
 
 # --- Health Check ---
