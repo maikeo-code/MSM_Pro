@@ -303,45 +303,94 @@ function RecommendationCard({
         </div>
       </div>
 
-      {/* Mini Metrics */}
-      <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="rounded-md bg-muted/50 px-3 py-2">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Conversao 7d</p>
-          <p className="text-sm font-semibold text-foreground">
-            {rec.conversion_7d != null ? `${rec.conversion_7d.toFixed(1)}%` : "--"}
-          </p>
-        </div>
-        <div className="rounded-md bg-muted/50 px-3 py-2">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Visitas 7d</p>
-          <p className="text-sm font-semibold text-foreground flex items-center gap-1">
-            <Eye className="h-3 w-3 text-muted-foreground/50" />
-            {rec.visits_7d != null ? rec.visits_7d.toLocaleString("pt-BR") : "--"}
-          </p>
-        </div>
-        <div className="rounded-md bg-muted/50 px-3 py-2">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Vendas 7d</p>
-          <p className="text-sm font-semibold text-foreground flex items-center gap-1">
-            <ShoppingCart className="h-3 w-3 text-muted-foreground/50" />
-            {rec.sales_7d != null ? rec.sales_7d : "--"}
-          </p>
-        </div>
-        <div className="rounded-md bg-muted/50 px-3 py-2">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Estoque</p>
-          <p
-            className={cn(
-              "text-sm font-semibold",
-              rec.stock != null && rec.stock < 10 ? "text-red-600" : "text-foreground",
-            )}
-          >
-            {rec.stock != null ? rec.stock : "--"}
-            {rec.stock_days_projection != null && (
-              <span className="text-[10px] text-muted-foreground ml-1">({rec.stock_days_projection}d)</span>
-            )}
-          </p>
-        </div>
-        <div className="rounded-md bg-muted/50 px-3 py-2">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Health Score</p>
-          <HealthScoreBar score={rec.health_score} />
+      {/* Mini Metrics — Periods Table */}
+      <div className="mt-4 space-y-3">
+        {/* Periods comparison table */}
+        {rec.periods_data && (
+          <div className="rounded-md border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-muted/60">
+                  <th className="text-left px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Metrica</th>
+                  <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Hoje</th>
+                  <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Ontem</th>
+                  <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">7 dias</th>
+                  <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">15 dias</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t">
+                  <td className="px-3 py-1.5 text-muted-foreground font-medium">Conversao</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.today?.conversion != null ? `${rec.periods_data.today.conversion.toFixed(1)}%` : "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.yesterday?.conversion != null ? `${rec.periods_data.yesterday.conversion.toFixed(1)}%` : "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_7d?.conversion != null ? `${rec.periods_data.last_7d.conversion.toFixed(1)}%` : "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_15d?.conversion != null ? `${rec.periods_data.last_15d.conversion.toFixed(1)}%` : "--"}</td>
+                </tr>
+                <tr className="border-t">
+                  <td className="px-3 py-1.5 text-muted-foreground font-medium flex items-center gap-1"><Eye className="h-3 w-3" />Visitas</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.today?.visits != null ? rec.periods_data.today.visits.toLocaleString("pt-BR") : "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.yesterday?.visits != null ? rec.periods_data.yesterday.visits.toLocaleString("pt-BR") : "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_7d?.visits != null ? rec.periods_data.last_7d.visits.toLocaleString("pt-BR") : "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_15d?.visits != null ? rec.periods_data.last_15d.visits.toLocaleString("pt-BR") : "--"}</td>
+                </tr>
+                <tr className="border-t">
+                  <td className="px-3 py-1.5 text-muted-foreground font-medium flex items-center gap-1"><ShoppingCart className="h-3 w-3" />Vendas</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.today?.sales ?? "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.yesterday?.sales ?? "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_7d?.sales ?? "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_15d?.sales ?? "--"}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Fallback: old-style metrics when periods_data not available */}
+        {!rec.periods_data && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="rounded-md bg-muted/50 px-3 py-2">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Conversao 7d</p>
+              <p className="text-sm font-semibold text-foreground">
+                {rec.conversion_7d != null ? `${rec.conversion_7d.toFixed(1)}%` : "--"}
+              </p>
+            </div>
+            <div className="rounded-md bg-muted/50 px-3 py-2">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Visitas 7d</p>
+              <p className="text-sm font-semibold text-foreground flex items-center gap-1">
+                <Eye className="h-3 w-3 text-muted-foreground/50" />
+                {rec.visits_7d != null ? rec.visits_7d.toLocaleString("pt-BR") : "--"}
+              </p>
+            </div>
+            <div className="rounded-md bg-muted/50 px-3 py-2">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Vendas 7d</p>
+              <p className="text-sm font-semibold text-foreground flex items-center gap-1">
+                <ShoppingCart className="h-3 w-3 text-muted-foreground/50" />
+                {rec.sales_7d != null ? rec.sales_7d : "--"}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Stock + Health row */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-md bg-muted/50 px-3 py-2">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Estoque</p>
+            <p
+              className={cn(
+                "text-sm font-semibold",
+                rec.stock != null && rec.stock < 10 ? "text-red-600" : "text-foreground",
+              )}
+            >
+              {rec.stock != null ? rec.stock : "--"}
+              {rec.stock_days_projection != null && (
+                <span className="text-[10px] text-muted-foreground ml-1">({rec.stock_days_projection}d)</span>
+              )}
+            </p>
+          </div>
+          <div className="rounded-md bg-muted/50 px-3 py-2">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Health Score</p>
+            <HealthScoreBar score={rec.health_score} />
+          </div>
         </div>
       </div>
 
@@ -389,7 +438,7 @@ function RecommendationCard({
           </button>
         )}
         <a
-          href={`/anuncios/${rec.mlb_id}`}
+          href={`/anuncios/${rec.mlb_id}?simPreco=${rec.suggested_price}`}
           className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors"
         >
           <BarChart3 className="h-3.5 w-3.5" />

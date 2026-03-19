@@ -1,5 +1,5 @@
 import React from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -40,9 +40,11 @@ const AlertIconMap = {
 
 export default function AnuncioDetalhe() {
   const { mlbId } = useParams<{ mlbId: string }>();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [days, setDays] = React.useState(30);
-  const [simPreco, setSimPreco] = React.useState<string>("");
+  const initialSimPreco = searchParams.get("simPreco") ?? "";
+  const [simPreco, setSimPreco] = React.useState<string>(initialSimPreco);
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
   const [chartView, setChartView] = React.useState<ChartView>("vendas");
 

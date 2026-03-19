@@ -5,20 +5,24 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
-from sqlalchemy import and_, desc, func, select
+from sqlalchemy import and_, cast, desc, func, select
+from sqlalchemy import Date as SADate
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.intel.models import PriceRecommendation
-from app.vendas.models import Listing
+from app.produtos.models import Product
+from app.vendas.models import Listing, ListingSnapshot
 
 from .schemas import (
     ApplyRecommendationRequest,
     ApplyRecommendationResponse,
     DismissRecommendationRequest,
     GenerateResponse,
+    PeriodMetrics,
+    PeriodsData,
     RecommendationHistoryOut,
     RecommendationListResponse,
     RecommendationOut,
@@ -33,13 +37,15 @@ router = APIRouter(prefix="/intel/pricing", tags=["Intel - Pricing"])
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
 
-def _rec_to_out(rec: PriceRecommendation, listing: Listing) -> dict:
+def _rec_to_out(rec: PriceRecommendation, listing: Listing, product_sku: str | None = None) -> dict:
     """Converte um PriceRecommendation ORM + Listing em dict compativel com RecommendationOut."""
+    # Prioridade SKU: listing.seller_sku > product.sku (via product_id)
+    sku = listing.seller_sku or product_sku
     return {
         "id": rec.id,
         "listing_id": rec.listing_id,
         "mlb_id": listing.mlb_id,
-        "sku": listing.seller_sku,
+        "sku": sku,
         "title": listing.title,
         "thumbnail": listing.thumbnail,
         "current_price": float(rec.current_price),
@@ -70,6 +76,94 @@ def _rec_to_out(rec: PriceRecommendation, listing: Listing) -> dict:
         "report_date": rec.report_date,
         "created_at": rec.created_at,
     }
+
+
+async def _enrich_with_periods(
+    db: AsyncSession,
+    items: list[dict],
+) -> None:
+    """
+    Enriquece cada item (dict) com periods_data buscando direto dos snapshots.
+
+    Calcula metricas de today, yesterday, last_7d e last_15d sem precisar
+    de colunas extras no model PriceRecommendation (zero migrations).
+    """
+    listing_ids = [item["listing_id"] for item in items]
+    if not listing_ids:
+        return
+
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    date_7d_ago = today - timedelta(days=6)
+    date_15d_ago = today - timedelta(days=14)
+
+    async def _aggregate(
+        d_from: date, d_to: date
+    ) -> dict[UUID, dict]:
+        """Agrega visits/sales por listing no intervalo, deduplicando por dia."""
+        # Subquery: snapshot mais recente por listing por dia
+        latest_per_day = (
+            select(
+                ListingSnapshot.listing_id,
+                cast(ListingSnapshot.captured_at, SADate).label("snap_date"),
+                func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+            )
+            .where(
+                ListingSnapshot.listing_id.in_(listing_ids),
+                cast(ListingSnapshot.captured_at, SADate) >= d_from,
+                cast(ListingSnapshot.captured_at, SADate) <= d_to,
+            )
+            .group_by(
+                ListingSnapshot.listing_id,
+                cast(ListingSnapshot.captured_at, SADate),
+            )
+            .subquery()
+        )
+
+        result = await db.execute(
+            select(
+                ListingSnapshot.listing_id,
+                func.coalesce(func.sum(ListingSnapshot.visits), 0).label("visits"),
+                func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label("sales"),
+            )
+            .join(
+                latest_per_day,
+                (ListingSnapshot.listing_id == latest_per_day.c.listing_id)
+                & (ListingSnapshot.captured_at == latest_per_day.c.max_captured_at),
+            )
+            .where(ListingSnapshot.listing_id.in_(listing_ids))
+            .group_by(ListingSnapshot.listing_id)
+        )
+
+        out: dict[UUID, dict] = {}
+        for row in result.fetchall():
+            visits = int(row.visits)
+            sales = int(row.sales)
+            conversion = round((sales / visits * 100), 2) if visits > 0 else 0.0
+            out[row.listing_id] = {
+                "visits": visits,
+                "sales": sales,
+                "conversion": conversion,
+                "avg_price": 0.0,
+            }
+        return out
+
+    # Executar as 4 queries de periodo
+    p_today = await _aggregate(today, today)
+    p_yesterday = await _aggregate(yesterday, yesterday)
+    p_7d = await _aggregate(date_7d_ago, today)
+    p_15d = await _aggregate(date_15d_ago, today)
+
+    empty = {"visits": 0, "sales": 0, "conversion": 0.0, "avg_price": 0.0}
+
+    for item in items:
+        lid = item["listing_id"]
+        item["periods_data"] = PeriodsData(
+            today=PeriodMetrics(**(p_today.get(lid, empty))),
+            yesterday=PeriodMetrics(**(p_yesterday.get(lid, empty))),
+            last_7d=PeriodMetrics(**(p_7d.get(lid, empty))),
+            last_15d=PeriodMetrics(**(p_15d.get(lid, empty))),
+        )
 
 
 # ─── GET /intel/pricing/recommendations ────────────────────────────────────
@@ -138,7 +232,23 @@ async def list_recommendations(
     result = await db.execute(stmt)
     rows = result.all()
 
-    items = [_rec_to_out(rec, listing) for rec, listing in rows]
+    # Buscar SKUs dos Products vinculados (fallback quando listing.seller_sku e None)
+    product_ids = [listing.product_id for _, listing in rows if listing.product_id]
+    product_skus: dict[UUID, str] = {}
+    if product_ids:
+        prod_result = await db.execute(
+            select(Product.id, Product.sku).where(Product.id.in_(product_ids))
+        )
+        for p in prod_result.fetchall():
+            product_skus[p.id] = p.sku
+
+    items = [
+        _rec_to_out(rec, listing, product_skus.get(listing.product_id) if listing.product_id else None)
+        for rec, listing in rows
+    ]
+
+    # Enriquecer com dados de periodos (today, yesterday, 7d, 15d) dos snapshots
+    await _enrich_with_periods(db, items)
 
     # Summary
     total = len(items)
@@ -362,7 +472,15 @@ async def recommendation_history(
     result = await db.execute(stmt)
     recs = result.scalars().all()
 
-    items = [_rec_to_out(rec, listing) for rec in recs]
+    # Buscar SKU do Product vinculado (fallback)
+    product_sku = None
+    if listing.product_id:
+        prod_result = await db.execute(
+            select(Product.sku).where(Product.id == listing.product_id)
+        )
+        product_sku = prod_result.scalar_one_or_none()
+
+    items = [_rec_to_out(rec, listing, product_sku) for rec in recs]
 
     return RecommendationHistoryOut(items=items, total=len(items))
 

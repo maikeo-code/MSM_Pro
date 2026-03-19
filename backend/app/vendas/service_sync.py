@@ -118,7 +118,11 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         if not seller_sku and item.get("attributes"):
                             for attr in item["attributes"]:
                                 if attr.get("id") == "SELLER_SKU":
-                                    seller_sku = attr.get("value_name") or attr.get("value_id")
+                                    seller_sku = (
+                                        attr.get("value_name")
+                                        or attr.get("value_id")
+                                        or (attr.get("values", [{}])[0].get("name") if attr.get("values") else None)
+                                    )
                                     break
                         # Usar secure_thumbnail (HTTPS) quando disponível
                         thumbnail = item.get("secure_thumbnail") or item.get("thumbnail")

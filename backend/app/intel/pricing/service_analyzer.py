@@ -34,6 +34,34 @@ REGRAS:
    - Concorrente com preco agressivo que pode ser temporario
 4. Voce GERA uma justificativa clara e acionavel para cada anuncio.
 
+5. HISTORICO DE VENDAS (6 meses):
+   - Se o campo "historical" estiver presente, USE para contextualizar a recomendacao.
+   - Se media atual (avg_daily_sales_30d) < 50% do pico historico (peak_daily_sales):
+     produto em queda estrutural — NAO recomendar aumento de preco.
+     Exemplo: "Pico de 5 vendas/dia em dez/2025, media atual 1.8/dia — queda estrutural, aumentar preco nao recupera volume."
+   - Se preco atual esta FORA do range historico (price_range_180d), ALERTAR:
+     "Preco atual R$X esta acima/abaixo do range historico R$Y-R$Z."
+   - Se trend_180d == "declining": mencionar a tendencia no reasoning.
+   - Se trend_180d == "increasing": isso valida recomendacoes de aumento.
+   - Se preco baixo NAO aumentou vendas (preco atual proximo do min historico mas vendas abaixo da media):
+     produto pode ter teto natural de demanda — nao insistir em reducao.
+   - Mencione o pico historico e a tendencia no reasoning quando relevante.
+
+6. CONCORRENTES NAO VINCULADOS:
+   - Se competitor_prices esta VAZIO (lista vazia ou ausente), MENCIONAR no reasoning:
+     "Sem concorrentes vinculados — vincule para analise competitiva mais precisa (score competitivo zerado)."
+   - Isso e importante pois o score competitivo fica zerado sem concorrentes,
+     o que pode distorcer a recomendacao.
+
+7. ESTOQUE IDEAL = 30 DIAS:
+   - stock_days > 30: zona de alerta (excesso)
+   - stock_days > 45: critico (muito encalhado)
+   - stock_days < 5: urgente (risco de ruptura)
+
+8. URGENCIA PARA QUEDAS RECENTES:
+   - Se a queda de vendas tem menos de 7 dias, urgencia deve ser "monitor", nao "immediate".
+   - Flutuacoes de curto prazo sao normais no ML.
+
 SENSIBILIDADE DO ML A PRECOS:
 - Reducao > 10% pode acionar review automatico do ML
 - Aumento > 5% pode derrubar ranking temporariamente
@@ -141,7 +169,7 @@ def _simplify_for_ai(anuncios: list[dict]) -> list[dict]:
     """Reduz dados para enviar menos tokens."""
     result = []
     for a in anuncios:
-        result.append({
+        entry: dict[str, Any] = {
             "mlb_id": a.get("mlb_id"),
             "title": a.get("title", "")[:60],
             "current_price": a.get("current_price"),
@@ -159,7 +187,12 @@ def _simplify_for_ai(anuncios: list[dict]) -> list[dict]:
                 "confidence": a.get("recommendation", {}).get("confidence"),
                 "breakdown": a.get("recommendation", {}).get("breakdown"),
             },
-        })
+        }
+        # Incluir dados historicos se disponiveis (contexto crucial para IA)
+        historical = a.get("historical")
+        if historical:
+            entry["historical"] = historical
+        result.append(entry)
     return result
 
 
@@ -238,7 +271,7 @@ def _fallback_without_ai(anuncios: list[dict]) -> list[dict]:
 
 
 def _generate_fallback_reasoning(anuncio: dict, score_result: dict) -> str:
-    """Gera texto explicativo sem IA baseado nos scores."""
+    """Gera texto explicativo sem IA baseado nos scores e contexto historico."""
     action = score_result.get("action", "hold")
     pct = score_result.get("price_change_pct", 0)
     breakdown = score_result.get("breakdown", {})
@@ -263,17 +296,66 @@ def _generate_fallback_reasoning(anuncio: dict, score_result: dict) -> str:
             "comp_score": "posicao competitiva",
             "stock_score": "pressao de estoque",
             "margem_score": "margem atual",
+            "hist_score": "tendencia historica (6 meses)",
         }
         label = driver_labels.get(top_driver, top_driver)
         direction = "positiva" if top_value > 0 else "negativa"
         parts.append(f"Principal fator: {label} ({direction}).")
 
-    # Alertas
+    # Contexto historico (6 meses)
+    historical = anuncio.get("historical")
+    if historical:
+        trend = historical.get("trend_180d")
+        peak = historical.get("peak_daily_sales", 0)
+        current_vs_peak = historical.get("current_vs_peak_pct", 0)
+        avg_30d = historical.get("avg_daily_sales_30d", 0)
+        peak_period = historical.get("peak_period")
+
+        if trend == "declining":
+            parts.append("Historico de 6 meses mostra tendencia de queda.")
+        elif trend == "increasing":
+            parts.append("Historico de 6 meses mostra tendencia de crescimento.")
+
+        if peak and peak > 0:
+            peak_label = f" ({peak_period})" if peak_period else ""
+            parts.append(f"Pico historico: {peak:.1f} vendas/dia{peak_label}.")
+
+        if current_vs_peak < -50 and avg_30d > 0:
+            parts.append(
+                f"Media atual ({avg_30d:.1f}/dia) esta {abs(current_vs_peak):.0f}% "
+                f"abaixo do pico — queda estrutural."
+            )
+
+        # Alertar se preco esta fora do range historico
+        price_range = historical.get("price_range_180d", {})
+        current_price = anuncio.get("current_price", 0)
+        hist_min = price_range.get("min", 0)
+        hist_max = price_range.get("max", 0)
+        if hist_max > 0 and current_price > 0:
+            if current_price > hist_max * 1.05:
+                parts.append(
+                    f"Preco atual R${current_price:.2f} esta acima do "
+                    f"maximo historico R${hist_max:.2f}."
+                )
+            elif current_price < hist_min * 0.95 and hist_min > 0:
+                parts.append(
+                    f"Preco atual R${current_price:.2f} esta abaixo do "
+                    f"minimo historico R${hist_min:.2f}."
+                )
+
+    # Alertas de estoque
     stock = anuncio.get("stock", 0)
     stock_days = anuncio.get("stock_days_projection")
     if stock_days is not None and stock_days < 5:
         parts.append(
             f"Atencao: estoque baixo ({stock} un, ~{stock_days:.0f} dias)."
+        )
+
+    # Alerta de concorrentes nao vinculados
+    comp_prices = anuncio.get("competitor_prices", [])
+    if not comp_prices:
+        parts.append(
+            "Sem concorrentes vinculados — vincule para analise competitiva mais precisa."
         )
 
     return " ".join(parts)

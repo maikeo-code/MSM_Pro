@@ -26,6 +26,13 @@ class PeriodMetrics(BaseModel):
     avg_price: float
 
 
+class PeriodsData(BaseModel):
+    today: Optional[PeriodMetrics] = None
+    yesterday: Optional[PeriodMetrics] = None
+    last_7d: Optional[PeriodMetrics] = None
+    last_15d: Optional[PeriodMetrics] = None
+
+
 # ─── Recommendation ────────────────────────────────────────────────────────
 
 
@@ -66,6 +73,9 @@ class RecommendationOut(BaseModel):
     # Concorrencia
     competitor_avg_price: Optional[float] = None
     competitor_min_price: Optional[float] = None
+
+    # Periodos enriquecidos (today, yesterday, 7d, 15d)
+    periods_data: Optional[PeriodsData] = None
 
     # Status
     status: str  # pending, applied, dismissed, expired

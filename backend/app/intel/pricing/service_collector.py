@@ -178,6 +178,158 @@ async def _get_latest_competitor_prices(
     return out
 
 
+async def _collect_historical_data(
+    db: AsyncSession,
+    listing_ids: list[UUID],
+) -> dict[UUID, dict]:
+    """
+    Coleta dados historicos dos ultimos 6 meses para cada listing.
+
+    Agrega vendas e precos por MES (eficiente — nao por dia) e calcula:
+    - Media diaria de vendas por periodo (30d, 60d, 90d, 180d)
+    - Tendencia de 180 dias (comparando trimestres)
+    - Pico historico de vendas diarias
+    - Range de precos praticados nos ultimos 180 dias
+    - % da media atual vs pico
+
+    Retorna: {listing_id: {...historical data...}} ou {} se nao houver dados.
+    """
+    if not listing_ids:
+        return {}
+
+    today = datetime.now(timezone.utc).date()
+    date_180d_ago = today - timedelta(days=180)
+
+    # Subquery: latest snapshot per listing per day (deduplication)
+    latest_per_day = _build_latest_per_day_subquery(listing_ids, date_180d_ago, today)
+
+    # Query principal: agregar por listing + mes
+    snap_date_expr = cast(ListingSnapshot.captured_at, SADate)
+    month_expr = func.date_trunc("month", snap_date_expr)
+
+    result = await db.execute(
+        select(
+            ListingSnapshot.listing_id,
+            month_expr.label("month"),
+            func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label("total_sales"),
+            func.count(snap_date_expr.distinct()).label("days_with_data"),
+            func.min(ListingSnapshot.price).label("min_price"),
+            func.max(ListingSnapshot.price).label("max_price"),
+        )
+        .join(
+            latest_per_day,
+            (ListingSnapshot.listing_id == latest_per_day.c.listing_id)
+            & (ListingSnapshot.captured_at == latest_per_day.c.max_captured_at),
+        )
+        .where(ListingSnapshot.listing_id.in_(listing_ids))
+        .group_by(ListingSnapshot.listing_id, month_expr)
+        .order_by(ListingSnapshot.listing_id, month_expr)
+    )
+
+    # Organizar dados por listing
+    raw_by_listing: dict[UUID, list[dict]] = {}
+    for row in result.fetchall():
+        lid = row.listing_id
+        if lid not in raw_by_listing:
+            raw_by_listing[lid] = []
+        raw_by_listing[lid].append({
+            "month": row.month,
+            "total_sales": int(row.total_sales),
+            "days_with_data": int(row.days_with_data),
+            "min_price": _safe_float(row.min_price),
+            "max_price": _safe_float(row.max_price),
+        })
+
+    # Calcular metricas historicas para cada listing
+    out: dict[UUID, dict] = {}
+    for lid, months_data in raw_by_listing.items():
+        out[lid] = _compute_historical_metrics(months_data, today)
+
+    return out
+
+
+def _compute_historical_metrics(months_data: list[dict], today: date) -> dict:
+    """Calcula metricas historicas a partir dos dados mensais agregados."""
+    if not months_data:
+        return {}
+
+    # Calcular vendas diarias por periodo
+    date_30d_ago = today - timedelta(days=30)
+    date_60d_ago = today - timedelta(days=60)
+    date_90d_ago = today - timedelta(days=90)
+    date_180d_ago = today - timedelta(days=180)
+
+    def _avg_daily_sales_in_range(start: date, end: date) -> float:
+        total_sales = 0
+        total_days = 0
+        start_month = start.replace(day=1)
+        end_month = end.replace(day=1)
+        for m in months_data:
+            month_date = m["month"]
+            # month_date pode ser datetime ou date (date_trunc retorna timestamp)
+            if hasattr(month_date, "date"):
+                month_date = month_date.date()
+            # Incluir meses que se sobrepoem ao range [start, end]
+            if start_month <= month_date <= end_month:
+                total_sales += m["total_sales"]
+                total_days += m["days_with_data"]
+        if total_days == 0:
+            return 0.0
+        return round(total_sales / total_days, 2)
+
+    avg_30d = _avg_daily_sales_in_range(date_30d_ago, today)
+    avg_60d = _avg_daily_sales_in_range(date_60d_ago, today)
+    avg_90d = _avg_daily_sales_in_range(date_90d_ago, today)
+    avg_180d = _avg_daily_sales_in_range(date_180d_ago, today)
+
+    # Pico historico: mes com maior media diaria
+    peak_daily = 0.0
+    peak_period = None
+    for m in months_data:
+        if m["days_with_data"] > 0:
+            daily = m["total_sales"] / m["days_with_data"]
+            if daily > peak_daily:
+                peak_daily = round(daily, 2)
+                month_date = m["month"]
+                if hasattr(month_date, "date"):
+                    month_date = month_date.date()
+                peak_period = month_date.strftime("%Y-%m")
+
+    # Range de precos nos 180 dias
+    all_min = min(m["min_price"] for m in months_data if m["min_price"] > 0) if months_data else 0
+    all_max = max(m["max_price"] for m in months_data) if months_data else 0
+
+    # Tendencia: comparar ultimos 30d vs 60-90d vs 90-180d
+    # Se avg_30d < avg_90d significativamente -> declining
+    # Se avg_30d > avg_90d significativamente -> increasing
+    trend = "stable"
+    if avg_90d > 0:
+        ratio = avg_30d / avg_90d
+        if ratio < 0.75:
+            trend = "declining"
+        elif ratio > 1.25:
+            trend = "increasing"
+
+    # % atual vs pico
+    current_vs_peak_pct = 0
+    if peak_daily > 0 and avg_30d > 0:
+        current_vs_peak_pct = round((avg_30d / peak_daily - 1) * 100, 1)
+    elif peak_daily > 0:
+        current_vs_peak_pct = -100
+
+    return {
+        "avg_daily_sales_30d": avg_30d,
+        "avg_daily_sales_60d": avg_60d,
+        "avg_daily_sales_90d": avg_90d,
+        "avg_daily_sales_180d": avg_180d,
+        "trend_180d": trend,
+        "peak_daily_sales": peak_daily,
+        "peak_period": peak_period,
+        "price_range_180d": {"min": round(all_min, 2), "max": round(all_max, 2)},
+        "current_vs_peak_pct": current_vs_peak_pct,
+    }
+
+
 async def _get_latest_snapshot_per_listing(
     db: AsyncSession,
     listing_ids: list[UUID],
@@ -283,6 +435,9 @@ async def _collect_daily_data_impl(db: AsyncSession, user_id: UUID) -> list[dict
     # 5. Buscar snapshot mais recente (para estoque atual)
     latest_snaps = await _get_latest_snapshot_per_listing(db, listing_ids)
 
+    # 5b. Coletar dados historicos de 6 meses
+    historical_by_listing = await _collect_historical_data(db, listing_ids)
+
     # 6. Montar output enriquecido por anuncio
     empty_period = {"visits": 0, "sales": 0, "conversion": 0.0, "avg_price": 0.0, "revenue": 0.0}
     output: list[dict] = []
@@ -326,6 +481,9 @@ async def _collect_daily_data_impl(db: AsyncSession, user_id: UUID) -> list[dict
         comp_min = min(comp_prices) if comp_prices else None
         comp_avg = round(sum(comp_prices) / len(comp_prices), 2) if comp_prices else None
 
+        # Dados historicos (6 meses) — None se nao houver dados suficientes
+        historical = historical_by_listing.get(lid) or None
+
         output.append({
             "listing_id": lid,
             "mlb_id": listing.mlb_id,
@@ -349,6 +507,7 @@ async def _collect_daily_data_impl(db: AsyncSession, user_id: UUID) -> list[dict
             "competitor_prices": comp_prices,
             "competitor_min_price": comp_min,
             "competitor_avg_price": comp_avg,
+            "historical": historical,
         })
 
     logger.info(

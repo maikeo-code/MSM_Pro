@@ -8,6 +8,20 @@ export interface ScoreBreakdown {
   margem_score: number;
 }
 
+export interface PeriodMetrics {
+  visits: number;
+  sales: number;
+  conversion: number;
+  avg_price: number;
+}
+
+export interface PeriodsData {
+  today: PeriodMetrics | null;
+  yesterday: PeriodMetrics | null;
+  last_7d: PeriodMetrics | null;
+  last_15d: PeriodMetrics | null;
+}
+
 export interface PriceRecommendation {
   id: string;
   listing_id: string;
@@ -43,6 +57,8 @@ export interface PriceRecommendation {
 
   competitor_avg_price: number | null;
   competitor_min_price: number | null;
+
+  periods_data: PeriodsData | null;
 
   status: string;
   applied_at: string | null;

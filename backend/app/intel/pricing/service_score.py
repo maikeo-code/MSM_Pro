@@ -89,14 +89,16 @@ def calculate_recommendation_score(anuncio: dict) -> dict:
         avg_comp = sum(comp_prices) / len(comp_prices)
         comp_score = (avg_comp - my_price) / my_price
 
-    # 4. Pressao de estoque (15%)
+    # 4. Pressao de estoque (ideal = 30 dias)
     stock_days = anuncio.get("stock_days_projection")
     stock_score = 0.0
     if stock_days is not None:
         if stock_days < 5:
             stock_score = 0.3  # acabando = pode subir preco
+        elif stock_days > 45:
+            stock_score = -0.3  # muito encalhado = deve descer preco
         elif stock_days > 30:
-            stock_score = -0.3  # encalhado = deve descer preco
+            stock_score = -0.15  # zona de alerta — acima do ideal de 30d
 
     # 5. Margem atual (5%)
     margem_pct = _calcular_margem_pct(anuncio)
@@ -107,13 +109,32 @@ def calculate_recommendation_score(anuncio: dict) -> dict:
         elif margem_pct > 40:
             margem_score = -0.1  # margem folgada = pode descer
 
-    # Score final ponderado
+    # 6. Historical trend modifier (novo)
+    historical = anuncio.get("historical")
+    hist_score = 0.0
+    if historical:
+        trend = historical.get("trend_180d", "stable")
+        current_vs_peak = historical.get("current_vs_peak_pct", 0)
+
+        # Tendencia de 180 dias influencia o score
+        if trend == "declining":
+            hist_score = -0.15  # penaliza — produto em queda estrutural
+        elif trend == "increasing":
+            hist_score = 0.1  # bonus — produto em ascensao
+
+        # Se media atual < 50% do pico, penaliza fortemente
+        if current_vs_peak < -50:
+            hist_score = min(hist_score, -0.2)
+
+    # Score final ponderado (rebalanceado para incluir historico)
+    # Pesos: conv 30%, visits 20%, comp 20%, stock 10%, margem 5%, historico 15%
     score = (
-        conv_trend * 0.35
-        + visit_trend * 0.25
+        conv_trend * 0.30
+        + visit_trend * 0.20
         + comp_score * 0.20
-        + stock_score * 0.15
+        + stock_score * 0.10
         + margem_score * 0.05
+        + hist_score * 0.15
     )
 
     # Acao e magnitude (max 5% por dia)
@@ -127,6 +148,30 @@ def calculate_recommendation_score(anuncio: dict) -> dict:
         action = "hold"
         pct = 0.0
 
+    # REGRA: Se media atual < 50% do pico historico, NAO recomendar aumento
+    if historical:
+        current_vs_peak = historical.get("current_vs_peak_pct", 0)
+        if current_vs_peak < -50 and action == "increase":
+            action = "hold"
+            pct = 0.0
+            logger.debug(
+                "%s: aumento bloqueado — media atual %.0f%% abaixo do pico historico",
+                anuncio.get("mlb_id"),
+                abs(current_vs_peak),
+            )
+
+        # REGRA: Se preco sugerido esta fora do range historico praticado, alertar
+        price_range = historical.get("price_range_180d", {})
+        hist_max = price_range.get("max", 0)
+        if hist_max > 0 and action == "increase":
+            tentative_price = my_price * (1 + pct / 100) if my_price > 0 else 0
+            if tentative_price > hist_max * 1.05:
+                # Preco ficaria > 5% acima do maximo ja praticado — limitar
+                pct = max(((hist_max - my_price) / my_price * 100) if my_price > 0 else 0, 0)
+                if pct < 0.5:
+                    action = "hold"
+                    pct = 0.0
+
     suggested_price = round(my_price * (1 + pct / 100), 2) if my_price > 0 else 0.0
 
     # Confidence baseada na quantidade de dados
@@ -138,6 +183,11 @@ def calculate_recommendation_score(anuncio: dict) -> dict:
         confidence = "medium"
     else:
         confidence = "low"
+
+    # REGRA: Se tendencia historica e declining, rebaixar confianca
+    if historical and historical.get("trend_180d") == "declining":
+        if confidence == "high":
+            confidence = "medium"
 
     # Risk level
     risk = "low"
@@ -151,7 +201,19 @@ def calculate_recommendation_score(anuncio: dict) -> dict:
     # Urgency
     urgency = "monitor"
     if action != "hold":
-        if confidence == "high" and abs(pct) >= 2:
+        # REGRA: Para quedas recentes (< 7 dias de dados ruins), urgencia = monitor
+        sales_today = anuncio["periods"]["today"]["sales"]
+        sales_yesterday = anuncio["periods"]["yesterday"]["sales"]
+        avg_sales_7d = sales_7d / 7 if sales_7d else 0
+        # Se so hoje e ontem estao ruins mas a media de 7d e OK, e queda recente
+        short_term_dip = (
+            avg_sales_7d > 0
+            and (sales_today + sales_yesterday) < avg_sales_7d * 0.5
+            and sales_7d >= 3
+        )
+        if short_term_dip:
+            urgency = "monitor"
+        elif confidence == "high" and abs(pct) >= 2:
             urgency = "immediate"
         elif confidence in ("high", "medium"):
             urgency = "next_48h"
@@ -191,11 +253,12 @@ def calculate_recommendation_score(anuncio: dict) -> dict:
         "estimated_daily_sales": round(estimated_daily_sales, 2),
         "estimated_daily_profit": estimated_daily_profit,
         "breakdown": {
-            "conv_trend": round(conv_trend * 0.35, 4),
-            "visit_trend": round(visit_trend * 0.25, 4),
+            "conv_trend": round(conv_trend * 0.30, 4),
+            "visit_trend": round(visit_trend * 0.20, 4),
             "comp_score": round(comp_score * 0.20, 4),
-            "stock_score": round(stock_score * 0.15, 4),
+            "stock_score": round(stock_score * 0.10, 4),
             "margem_score": round(margem_score * 0.05, 4),
+            "hist_score": round(hist_score * 0.15, 4),
         },
     }
 
