@@ -19,6 +19,7 @@ import app.concorrencia.models  # noqa: F401
 import app.alertas.models  # noqa: F401
 import app.reputacao.models  # noqa: F401
 import app.ads.models  # noqa: F401
+import app.intel.models  # noqa: F401
 
 # Importa tasks para que sejam registradas no Celery
 import app.jobs.tasks  # noqa: F401
@@ -32,6 +33,7 @@ from app.auth.router import router as auth_router
 from app.concorrencia.router import router as concorrencia_router
 from app.consultor.router import router as consultor_router
 from app.financeiro.router import router as financeiro_router
+from app.intel.router import intel_router
 from app.perguntas.router import router as perguntas_router
 from app.produtos.router import router as produtos_router
 from app.reputacao.router import router as reputacao_router
@@ -101,6 +103,7 @@ app.include_router(ads_router, prefix=API_PREFIX)
 app.include_router(financeiro_router, prefix=API_PREFIX)
 app.include_router(perguntas_router, prefix=API_PREFIX)
 app.include_router(atendimento_router, prefix=API_PREFIX, tags=["Atendimento"])
+app.include_router(intel_router, prefix=API_PREFIX)
 
 
 # --- Health Check ---

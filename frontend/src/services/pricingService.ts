@@ -1,0 +1,124 @@
+import api from "./api";
+
+export interface ScoreBreakdown {
+  conv_trend: number;
+  visit_trend: number;
+  comp_score: number;
+  stock_score: number;
+  margem_score: number;
+}
+
+export interface PriceRecommendation {
+  id: string;
+  listing_id: string;
+  mlb_id: string;
+  sku: string | null;
+  title: string;
+  thumbnail: string | null;
+
+  current_price: number;
+  suggested_price: number;
+  price_change_pct: number;
+
+  action: "increase" | "decrease" | "hold";
+  confidence: "high" | "medium" | "low";
+  risk_level: "low" | "medium" | "high";
+  urgency: "immediate" | "next_48h" | "monitor";
+  reasoning: string;
+
+  score: number | null;
+  score_breakdown: ScoreBreakdown | null;
+
+  conversion_today: number | null;
+  conversion_7d: number | null;
+  visits_today: number | null;
+  visits_7d: number | null;
+  sales_today: number | null;
+  sales_7d: number | null;
+  stock: number | null;
+  stock_days_projection: number | null;
+  estimated_daily_sales: number | null;
+  estimated_daily_profit: number | null;
+  health_score: number | null;
+
+  competitor_avg_price: number | null;
+  competitor_min_price: number | null;
+
+  status: string;
+  applied_at: string | null;
+  report_date: string;
+  created_at: string;
+}
+
+export interface RecommendationSummary {
+  total: number;
+  increase_count: number;
+  decrease_count: number;
+  hold_count: number;
+  avg_confidence: string;
+}
+
+export interface RecommendationListResponse {
+  items: PriceRecommendation[];
+  total: number;
+  date: string;
+  summary: RecommendationSummary;
+}
+
+export interface ApplyResponse {
+  recommendation_id: string;
+  mlb_id: string;
+  old_price: number;
+  new_price: number;
+  ml_api_success: boolean;
+  message: string;
+}
+
+// API calls
+export const getRecommendations = async (params?: {
+  report_date?: string;
+  action?: string;
+  confidence?: string;
+  sort?: string;
+}): Promise<RecommendationListResponse> => {
+  const { data } = await api.get("/intel/pricing/recommendations", { params });
+  return data;
+};
+
+export const applyRecommendation = async (id: string): Promise<ApplyResponse> => {
+  const { data } = await api.post(`/intel/pricing/recommendations/${id}/apply`);
+  return data;
+};
+
+export const dismissRecommendation = async (
+  id: string,
+  reason?: string,
+): Promise<void> => {
+  await api.post(`/intel/pricing/recommendations/${id}/dismiss`, { reason });
+};
+
+export const getRecommendationHistory = async (
+  mlbId: string,
+  days?: number,
+): Promise<{
+  items: PriceRecommendation[];
+  total: number;
+}> => {
+  const { data } = await api.get(
+    `/intel/pricing/recommendations/history/${mlbId}`,
+    {
+      params: { days: days || 30 },
+    },
+  );
+  return data;
+};
+
+export const generateRecommendations = async (): Promise<{
+  status: string;
+  recommendations_count: number;
+  processing_time_ms: number;
+  message: string;
+}> => {
+  const { data } = await api.post("/intel/pricing/recommendations/generate");
+  return data;
+};

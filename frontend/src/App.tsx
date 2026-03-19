@@ -15,8 +15,14 @@ import Login from "@/pages/Login";
 import Layout from "@/components/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
+const PriceSuggestions = lazy(() => import("@/pages/PriceSuggestions"));
 const Financeiro = lazy(() => import("@/pages/Financeiro"));
 const Publicidade = lazy(() => import("@/pages/Publicidade"));
+const Intel = lazy(() => import("@/pages/Intel"));
+const ParetoChart = lazy(() => import("@/pages/Intel/Analytics/ParetoChart"));
+const SalesForecast = lazy(() => import("@/pages/Intel/Analytics/SalesForecast"));
+const SalesDistribution = lazy(() => import("@/pages/Intel/Analytics/SalesDistribution"));
+const InsightsPanel = lazy(() => import("@/pages/Intel/Analytics/InsightsPanel"));
 
 function App() {
   return (
@@ -31,6 +37,14 @@ function App() {
             <Route path="/anuncios/:mlbId" element={<AnuncioDetalhe />} />
             <Route path="/pedidos" element={<Pedidos />} />
             <Route path="/atendimento" element={<Atendimento />} />
+            <Route
+              path="/precos"
+              element={
+                <Suspense fallback={<div className="p-8 text-gray-400">Carregando...</div>}>
+                  <PriceSuggestions />
+                </Suspense>
+              }
+            />
             <Route path="/analise-anuncios" element={<AnaliseAnuncios />} />
             <Route path="/produtos" element={<Produtos />} />
             <Route path="/concorrencia" element={<Concorrencia />} />
@@ -53,6 +67,46 @@ function App() {
               }
             />
             <Route path="/configuracoes" element={<Configuracoes />} />
+            <Route
+              path="/intel"
+              element={
+                <Suspense fallback={<div className="p-8 text-gray-400">Carregando...</div>}>
+                  <Intel />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/intel/pareto"
+              element={
+                <Suspense fallback={<div className="p-8 text-gray-400">Carregando...</div>}>
+                  <ParetoChart />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/intel/forecast"
+              element={
+                <Suspense fallback={<div className="p-8 text-gray-400">Carregando...</div>}>
+                  <SalesForecast />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/intel/distribution"
+              element={
+                <Suspense fallback={<div className="p-8 text-gray-400">Carregando...</div>}>
+                  <SalesDistribution />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/intel/insights"
+              element={
+                <Suspense fallback={<div className="p-8 text-gray-400">Carregando...</div>}>
+                  <InsightsPanel />
+                </Suspense>
+              }
+            />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />

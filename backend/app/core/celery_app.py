@@ -117,4 +117,12 @@ celery_app.conf.beat_schedule = {
             "expires": 3600,
         },
     },
+    # Envia relatorio diario de inteligencia de precos as 08:00 BRT (11:00 UTC)
+    "send-daily-intel-report": {
+        "task": "app.jobs.tasks.send_daily_intel_report",
+        "schedule": crontab(hour=11, minute=0),
+        "options": {
+            "expires": 3600,
+        },
+    },
 }

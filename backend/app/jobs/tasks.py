@@ -12,6 +12,7 @@ A lógica assíncrona está nos submódulos:
   - tasks_alerts.py     — _evaluate_alerts_async
   - tasks_reputation.py — _sync_reputation_async
   - tasks_digest.py     — _send_weekly_digest_async
+  - tasks_daily_intel.py — _send_daily_intel_report_async
 
 Tasks agendadas (beat schedule em core/celery_app.py):
   - sync_all_snapshots:       diariamente às 06:00 BRT (09:00 UTC)
@@ -23,6 +24,7 @@ Tasks agendadas (beat schedule em core/celery_app.py):
   - sync_orders:              a cada 2 horas
   - sync_ads:                 diariamente às 10:00 UTC (07:00 BRT)
   - send_weekly_digest:       todo domingo às 20:00 BRT (23:00 UTC)
+  - send_daily_intel_report:  diariamente às 08:00 BRT (11:00 UTC)
 """
 import asyncio
 import logging
@@ -33,6 +35,7 @@ from .tasks_lock import acquire_task_lock, release_task_lock
 from .tasks_ads import _sync_ads_async
 from .tasks_alerts import _evaluate_alerts_async
 from .tasks_competitors import _sync_competitor_snapshots_async
+from .tasks_daily_intel import _send_daily_intel_report_async
 from .tasks_digest import _send_weekly_digest_async
 from .tasks_helpers import run_async
 from .tasks_listings import (
@@ -224,3 +227,30 @@ def sync_ads(self):
     except Exception as exc:
         logger.error(f"Erro em sync_ads: {exc}")
         raise
+
+
+# --- Task: Enviar relatorio diario de inteligencia de precos ---
+
+@celery_app.task(
+    name="app.jobs.tasks.send_daily_intel_report",
+    bind=True,
+    max_retries=2,
+    default_retry_delay=120,
+)
+def send_daily_intel_report(self):
+    """
+    Envia relatorio diario de inteligencia de precos.
+    Executado diariamente as 08:00 BRT (11:00 UTC).
+    Uses Redis lock to prevent duplicate execution.
+    """
+    loop = asyncio.new_event_loop()
+    try:
+        if not loop.run_until_complete(acquire_task_lock("daily_intel_report", timeout=1200)):
+            return {"status": "skipped", "reason": "lock_held"}
+        return run_async(_send_daily_intel_report_async())
+    except Exception as exc:
+        logger.error("Erro em send_daily_intel_report: %s", exc)
+        raise
+    finally:
+        loop.run_until_complete(release_task_lock("daily_intel_report"))
+        loop.close()

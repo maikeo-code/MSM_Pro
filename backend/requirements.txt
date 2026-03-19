@@ -26,6 +26,9 @@ celery[redis]==5.4.0
 redis==5.2.1
 flower==2.0.1
 
+# AI
+anthropic>=0.40.0
+
 # Utils
 python-dotenv==1.0.1
 
