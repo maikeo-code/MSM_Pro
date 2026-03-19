@@ -1,5 +1,5 @@
 import React from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -7,6 +7,8 @@ import {
   Zap,
   Link2,
   Link2Off,
+  RefreshCw,
+  ArrowLeft,
 } from "lucide-react";
 import { consultorService, type ConsultorResponse } from "@/services/consultorService";
 import listingsService from "@/services/listingsService";
@@ -42,6 +44,7 @@ export default function AnuncioDetalhe() {
   const { mlbId } = useParams<{ mlbId: string }>();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [days, setDays] = React.useState(30);
   const initialSimPreco = searchParams.get("simPreco") ?? "";
   const [simPreco, setSimPreco] = React.useState<string>(initialSimPreco);
@@ -69,10 +72,12 @@ export default function AnuncioDetalhe() {
     }
   };
 
-  const { data: analysis, isLoading, error } = useQuery({
+  const { data: analysis, isLoading, error, refetch } = useQuery({
     queryKey: ["listing-analysis", mlbId, days],
     queryFn: () => listingsService.getAnalysis(mlbId!, days),
     enabled: !!mlbId,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
   });
 
   const { data: health } = useQuery({
@@ -128,10 +133,43 @@ export default function AnuncioDetalhe() {
   });
 
   if (error) {
+    const statusCode = (error as any)?.response?.status;
+    const detail = (error as any)?.response?.data?.detail;
+    const errorMsg = detail
+      ? String(detail)
+      : statusCode === 404
+        ? `Anuncio ${mlbId} nao encontrado.`
+        : statusCode === 401
+          ? "Sessao expirada. Faca login novamente."
+          : "Erro ao carregar analise. Verifique sua conexao.";
+
     return (
       <div className="p-8">
-        <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
-          Erro ao carregar analise. Verifique sua conexao.
+        <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-4 text-sm text-destructive">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold mb-1">Erro ao carregar analise</p>
+              <p>{errorMsg}</p>
+              {statusCode && <p className="text-xs mt-1 opacity-70">Codigo: {statusCode}</p>}
+              <div className="mt-3 flex items-center gap-3">
+                <button
+                  onClick={() => refetch()}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-destructive/20 px-3 py-1.5 text-xs font-medium hover:bg-destructive/30 transition-colors"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Tentar novamente
+                </button>
+                <button
+                  onClick={() => navigate(-1)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-destructive/20 px-3 py-1.5 text-xs font-medium hover:bg-destructive/10 transition-colors"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Voltar
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );

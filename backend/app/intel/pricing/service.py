@@ -35,9 +35,14 @@ async def generate_price_recommendations(db: AsyncSession, user_id: UUID) -> int
     if not anuncios:
         return 0
 
-    # 2. Calculate scores
+    # 1b. Get adaptive weights (calibrated from historical performance)
+    from app.intel.pricing.service_weights import get_adaptive_weights
+
+    weights = await get_adaptive_weights(db, user_id)
+
+    # 2. Calculate scores with adaptive weights
     for anuncio in anuncios:
-        rec_score = calculate_recommendation_score(anuncio)
+        rec_score = calculate_recommendation_score(anuncio, weights=weights)
         anuncio["recommendation"] = rec_score
         anuncio["health_score"] = calculate_health_score(anuncio)
 

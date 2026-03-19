@@ -8,6 +8,8 @@ Funcoes puras — nao acessam banco de dados.
 """
 import logging
 
+from app.intel.pricing.service_weights import DEFAULT_WEIGHTS
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,16 +49,23 @@ def _calcular_margem_pct(anuncio: dict) -> float | None:
 # ---------------------------------------------------------------------------
 
 
-def calculate_recommendation_score(anuncio: dict) -> dict:
+def calculate_recommendation_score(
+    anuncio: dict, weights: dict | None = None
+) -> dict:
     """
     Score composto ponderado para decidir se deve aumentar, diminuir ou manter preco.
 
-    Pesos:
-        - Tendencia de conversao: 35%
-        - Tendencia de visitas: 25%
+    Args:
+        anuncio: dict com dados enriquecidos do anuncio (do collector).
+        weights: pesos adaptativos (opcionais). Se None, usa DEFAULT_WEIGHTS.
+
+    Pesos default:
+        - Tendencia de conversao: 30%
+        - Tendencia de visitas: 20%
         - Posicao competitiva: 20%
-        - Pressao de estoque: 15%
+        - Pressao de estoque: 10%
         - Margem atual: 5%
+        - Historico: 15%
 
     Thresholds:
         Score > 0.15  -> AUMENTAR
@@ -65,6 +74,7 @@ def calculate_recommendation_score(anuncio: dict) -> dict:
 
     Retorna dict com action, suggested_price, breakdown, confidence, risk, urgency etc.
     """
+    w = weights or DEFAULT_WEIGHTS
     # 1. Conversion Index — PRINCIPAL INDICE DE DECISAO
     # REGRA: "hoje nunca para comparacao" — baseline e ONTEM
     conv_yesterday = anuncio["periods"]["yesterday"]["conversion"]
@@ -136,15 +146,21 @@ def calculate_recommendation_score(anuncio: dict) -> dict:
         if current_vs_peak < -50:
             hist_score = min(hist_score, -0.2)
 
-    # Score final ponderado (rebalanceado para incluir historico)
-    # Pesos: conv 30%, visits 20%, comp 20%, stock 10%, margem 5%, historico 15%
+    # Score final ponderado (pesos adaptativos ou default)
+    w_conv = w.get("conv_trend", 0.30)
+    w_visit = w.get("visit_trend", 0.20)
+    w_comp = w.get("comp_score", 0.20)
+    w_stock = w.get("stock_score", 0.10)
+    w_margem = w.get("margem_score", 0.05)
+    w_hist = w.get("hist_score", 0.15)
+
     score = (
-        conv_trend * 0.30
-        + visit_trend * 0.20
-        + comp_score * 0.20
-        + stock_score * 0.10
-        + margem_score * 0.05
-        + hist_score * 0.15
+        conv_trend * w_conv
+        + visit_trend * w_visit
+        + comp_score * w_comp
+        + stock_score * w_stock
+        + margem_score * w_margem
+        + hist_score * w_hist
     )
 
     # Acao e magnitude (max 5% por dia)
@@ -263,12 +279,12 @@ def calculate_recommendation_score(anuncio: dict) -> dict:
         "estimated_daily_sales": round(estimated_daily_sales, 2),
         "estimated_daily_profit": estimated_daily_profit,
         "breakdown": {
-            "conv_trend": round(conv_trend * 0.30, 4),
-            "visit_trend": round(visit_trend * 0.20, 4),
-            "comp_score": round(comp_score * 0.20, 4),
-            "stock_score": round(stock_score * 0.10, 4),
-            "margem_score": round(margem_score * 0.05, 4),
-            "hist_score": round(hist_score * 0.15, 4),
+            "conv_trend": round(conv_trend * w_conv, 4),
+            "visit_trend": round(visit_trend * w_visit, 4),
+            "comp_score": round(comp_score * w_comp, 4),
+            "stock_score": round(stock_score * w_stock, 4),
+            "margem_score": round(margem_score * w_margem, 4),
+            "hist_score": round(hist_score * w_hist, 4),
         },
         "conversion_index": {
             "value": round(conv_trend, 4),

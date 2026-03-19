@@ -368,13 +368,26 @@ async def apply_recommendation(
 
     await db.commit()
 
+    # Extract promotion info from apply result
+    has_active_promotion = None
+    promo_warning = None
+    if apply_result is not None and isinstance(apply_result, dict):
+        has_active_promotion = apply_result.get("has_active_promotion")
+        promo_warning = apply_result.get("promo_warning")
+
+    message = "Preco aplicado com sucesso" if ml_success else "Erro ao aplicar preco na API ML"
+    if promo_warning and ml_success:
+        message = f"{message}. {promo_warning}"
+
     return ApplyRecommendationResponse(
         recommendation_id=rec.id,
         mlb_id=listing.mlb_id,
         old_price=float(rec.current_price),
         new_price=float(rec.suggested_price),
         ml_api_success=ml_success,
-        message="Preco aplicado com sucesso" if ml_success else "Erro ao aplicar preco na API ML",
+        message=message,
+        has_active_promotion=has_active_promotion,
+        promo_warning=promo_warning,
     )
 
 

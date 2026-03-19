@@ -71,6 +71,9 @@ export interface PriceRecommendation {
 
   periods_data: PeriodsData | null;
 
+  // Promocao ativa no ML
+  has_active_promotion: boolean | null;
+
   status: string;
   applied_at: string | null;
   report_date: string;
@@ -99,6 +102,8 @@ export interface ApplyResponse {
   new_price: number;
   ml_api_success: boolean;
   message: string;
+  has_active_promotion: boolean | null;
+  promo_warning: string | null;
 }
 
 // API calls

@@ -121,6 +121,35 @@ async def apply_price_suggestion(
                 detail="Falha ao renovar token ML. Tente novamente.",
             )
 
+    # Verificar se tem promocao ativa ANTES de alterar preco
+    promo_warning = None
+    has_active_promotion = False
+    try:
+        async with MLClient(ml_account.access_token) as promo_client:
+            promotions = await promo_client.get_item_promotions(listing.mlb_id)
+            active_promos = [
+                p
+                for p in promotions
+                if p.get("status") in ("active", "started")
+            ]
+            if active_promos:
+                has_active_promotion = True
+                promo_warning = (
+                    f"Atencao: {len(active_promos)} promocao(oes) ativa(s) no anuncio. "
+                    "A alteracao de preco pode desativar a promocao."
+                )
+                logger.info(
+                    "Promo check for %s: %d active promotions detected.",
+                    mlb_id,
+                    len(active_promos),
+                )
+    except Exception as promo_exc:
+        logger.debug(
+            "Nao foi possivel verificar promocoes para %s: %s",
+            mlb_id,
+            promo_exc,
+        )
+
     # Chamar API ML para alterar preço
     ml_api_success = False
     ml_api_response_raw = None
@@ -196,6 +225,8 @@ async def apply_price_suggestion(
         "sale_price": ml_sale_price,
         "log_id": str(log.id),
         "applied_at": log.created_at.isoformat(),
+        "has_active_promotion": has_active_promotion,
+        "promo_warning": promo_warning,
     }
 
 

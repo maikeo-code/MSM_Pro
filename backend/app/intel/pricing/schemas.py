@@ -90,6 +90,9 @@ class RecommendationOut(BaseModel):
     # Periodos enriquecidos (today, yesterday, 7d, 15d)
     periods_data: Optional[PeriodsData] = None
 
+    # Promocao ativa
+    has_active_promotion: Optional[bool] = None
+
     # Status
     status: str  # pending, applied, dismissed, expired
     applied_at: Optional[datetime] = None
@@ -136,6 +139,8 @@ class ApplyRecommendationResponse(BaseModel):
     new_price: float
     ml_api_success: bool
     message: str
+    has_active_promotion: Optional[bool] = None
+    promo_warning: Optional[str] = None
 
 
 class DismissRecommendationRequest(BaseModel):

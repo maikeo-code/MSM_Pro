@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   TrendingUp,
@@ -17,6 +18,7 @@ import {
   Target,
   BarChart3,
   Loader2,
+  Tag,
 } from "lucide-react";
 import {
   getRecommendations,
@@ -247,6 +249,16 @@ function ApplyModal({
           </div>
 
           <p className="text-xs text-muted-foreground italic">{rec.reasoning}</p>
+
+          {/* Promotion warning */}
+          {rec.has_active_promotion && (
+            <div className="flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+              <Tag className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+              <span>
+                <strong>Promocao ativa</strong> — alterar o preco pode desativar a promocao vigente neste anuncio.
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-3">
@@ -340,6 +352,12 @@ function RecommendationCard({
           <ConfidenceBadge confidence={rec.confidence} />
           <RiskBadge risk={rec.risk_level} />
           <UrgencyBadge urgency={rec.urgency} />
+          {rec.has_active_promotion && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 text-xs font-medium">
+              <Tag className="h-3 w-3" />
+              Promo ativa
+            </span>
+          )}
         </div>
       </div>
 
@@ -381,17 +399,41 @@ function RecommendationCard({
                   <td className="px-3 py-1.5 text-muted-foreground font-medium flex items-center gap-1"><Eye className="h-3 w-3" />Visitas</td>
                   <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.yesterday?.visits != null ? rec.periods_data.yesterday.visits.toLocaleString("pt-BR") : "--"}</td>
                   <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.day_before?.visits != null ? rec.periods_data.day_before.visits.toLocaleString("pt-BR") : "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_7d?.visits != null ? rec.periods_data.last_7d.visits.toLocaleString("pt-BR") : "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_15d?.visits != null ? rec.periods_data.last_15d.visits.toLocaleString("pt-BR") : "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_30d?.visits != null ? rec.periods_data.last_30d.visits.toLocaleString("pt-BR") : "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">
+                    {rec.periods_data.last_7d?.visits != null ? (
+                      <>{rec.periods_data.last_7d.visits.toLocaleString("pt-BR")} <span className="text-[10px] text-muted-foreground font-normal">(~{(rec.periods_data.last_7d.visits / 7).toFixed(1)}/d)</span></>
+                    ) : "--"}
+                  </td>
+                  <td className="text-center px-2 py-1.5 font-semibold">
+                    {rec.periods_data.last_15d?.visits != null ? (
+                      <>{rec.periods_data.last_15d.visits.toLocaleString("pt-BR")} <span className="text-[10px] text-muted-foreground font-normal">(~{(rec.periods_data.last_15d.visits / 15).toFixed(1)}/d)</span></>
+                    ) : "--"}
+                  </td>
+                  <td className="text-center px-2 py-1.5 font-semibold">
+                    {rec.periods_data.last_30d?.visits != null ? (
+                      <>{rec.periods_data.last_30d.visits.toLocaleString("pt-BR")} <span className="text-[10px] text-muted-foreground font-normal">(~{(rec.periods_data.last_30d.visits / 30).toFixed(1)}/d)</span></>
+                    ) : "--"}
+                  </td>
                 </tr>
                 <tr className="border-t">
                   <td className="px-3 py-1.5 text-muted-foreground font-medium flex items-center gap-1"><ShoppingCart className="h-3 w-3" />Vendas</td>
                   <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.yesterday?.sales ?? "--"}</td>
                   <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.day_before?.sales ?? "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_7d?.sales ?? "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_15d?.sales ?? "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_30d?.sales ?? "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">
+                    {rec.periods_data.last_7d?.sales != null ? (
+                      <>{rec.periods_data.last_7d.sales} <span className="text-[10px] text-muted-foreground font-normal">(~{(rec.periods_data.last_7d.sales / 7).toFixed(1)}/d)</span></>
+                    ) : "--"}
+                  </td>
+                  <td className="text-center px-2 py-1.5 font-semibold">
+                    {rec.periods_data.last_15d?.sales != null ? (
+                      <>{rec.periods_data.last_15d.sales} <span className="text-[10px] text-muted-foreground font-normal">(~{(rec.periods_data.last_15d.sales / 15).toFixed(1)}/d)</span></>
+                    ) : "--"}
+                  </td>
+                  <td className="text-center px-2 py-1.5 font-semibold">
+                    {rec.periods_data.last_30d?.sales != null ? (
+                      <>{rec.periods_data.last_30d.sales} <span className="text-[10px] text-muted-foreground font-normal">(~{(rec.periods_data.last_30d.sales / 30).toFixed(1)}/d)</span></>
+                    ) : "--"}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -497,13 +539,13 @@ function RecommendationCard({
             Aplicar
           </button>
         )}
-        <a
-          href={`/anuncios/${rec.mlb_id}?simPreco=${rec.suggested_price}`}
+        <Link
+          to={`/anuncios/${rec.mlb_id}?simPreco=${rec.suggested_price}`}
           className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors"
         >
           <BarChart3 className="h-3.5 w-3.5" />
           Simular
-        </a>
+        </Link>
         {rec.status === "pending" && (
           <button
             onClick={() => onDismiss(rec.id)}
@@ -595,7 +637,11 @@ export default function PriceSuggestions() {
     onSuccess: (data) => {
       setApplyTarget(null);
       queryClient.invalidateQueries({ queryKey: ["pricing-recommendations"] });
-      alert(data.ml_api_success ? `Preco alterado com sucesso para ${data.mlb_id}!` : data.message);
+      const baseMsg = data.ml_api_success
+        ? `Preco alterado com sucesso para ${data.mlb_id}!`
+        : data.message;
+      const promoMsg = data.promo_warning ? `\n\n${data.promo_warning}` : "";
+      alert(baseMsg + promoMsg);
     },
     onError: () => {
       setApplyTarget(null);

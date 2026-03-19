@@ -222,6 +222,30 @@ async def get_listing_analysis(
         )
         return _generate_mock_analysis(mock_listing, None)
 
+    # Corpo principal com fallback para mock em caso de erro inesperado
+    try:
+        return await _build_listing_analysis(db, listing, mlb_id, user_id, days)
+    except HTTPException:
+        raise  # Re-raise HTTP errors (404, 401, etc.)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error(
+            "Erro inesperado em get_listing_analysis(%s): %s", mlb_id, exc, exc_info=True
+        )
+        # Fallback gracioso: retorna mock em vez de 500
+        return _generate_mock_analysis(listing, None)
+
+
+async def _build_listing_analysis(
+    db: AsyncSession,
+    listing,
+    mlb_id: str,
+    user_id: UUID,
+    days: int,
+) -> dict:
+    """Constroi a analise completa a partir de dados reais."""
+    from app.produtos.models import Product
+
     # Busca SKU (pode ser None se product_id não está cadastrado)
     product = None
     if listing.product_id:

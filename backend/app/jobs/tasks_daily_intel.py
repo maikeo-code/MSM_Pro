@@ -351,9 +351,15 @@ async def _process_user(user, report_date: date) -> dict | None:
         )
         return None
 
-    # 2. Calculate scores
+    # 1b. Get adaptive weights
+    from app.intel.pricing.service_weights import get_adaptive_weights, DEFAULT_WEIGHTS
+
+    async with AsyncSessionLocal() as db_weights:
+        weights = await get_adaptive_weights(db_weights, user.id)
+
+    # 2. Calculate scores with adaptive weights
     for anuncio in anuncios:
-        rec_score = calculate_recommendation_score(anuncio)
+        rec_score = calculate_recommendation_score(anuncio, weights=weights)
         anuncio["recommendation"] = rec_score
         anuncio["health_score"] = calculate_health_score(anuncio)
 
@@ -392,6 +398,11 @@ async def _process_user(user, report_date: date) -> dict | None:
 
     # 8. Save DailyReportLog
     elapsed_user = int((time.monotonic() - user_start) * 1000)
+
+    # Encode adaptive weights info (auditable)
+    is_adaptive = weights != DEFAULT_WEIGHTS
+    ai_model_label = "adaptive-weights" if is_adaptive else "template-rules"
+
     async with AsyncSessionLocal() as db:
         log = DailyReportLog(
             user_id=user.id,
@@ -403,11 +414,16 @@ async def _process_user(user, report_date: date) -> dict | None:
             hold_count=summary["hold_count"],
             email_sent=email_sent,
             email_sent_at=datetime.now(timezone.utc) if email_sent else None,
-            ai_model_used="template-rules",
+            ai_model_used=ai_model_label,
             processing_time_ms=elapsed_user,
         )
         db.add(log)
         await db.commit()
+
+    if is_adaptive:
+        logger.info(
+            "Adaptive weights used for %s: %s", user.email, weights
+        )
 
     logger.info(
         "Daily Intel enviado para %s — %d anuncios, %dms.",
