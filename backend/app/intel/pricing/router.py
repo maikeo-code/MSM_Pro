@@ -19,6 +19,7 @@ from app.vendas.models import Listing, ListingSnapshot
 from .schemas import (
     ApplyRecommendationRequest,
     ApplyRecommendationResponse,
+    ConversionIndex,
     DismissRecommendationRequest,
     GenerateResponse,
     PeriodMetrics,
@@ -41,6 +42,10 @@ def _rec_to_out(rec: PriceRecommendation, listing: Listing, product_sku: str | N
     """Converte um PriceRecommendation ORM + Listing em dict compativel com RecommendationOut."""
     # Prioridade SKU: listing.seller_sku > product.sku (via product_id)
     sku = listing.seller_sku or product_sku
+    # Extract conversion_index from score_breakdown JSON (stored together)
+    raw_breakdown = rec.score_breakdown or {}
+    ci_raw = raw_breakdown.pop("conversion_index", None) if isinstance(raw_breakdown, dict) else None
+
     return {
         "id": rec.id,
         "listing_id": rec.listing_id,
@@ -57,7 +62,8 @@ def _rec_to_out(rec: PriceRecommendation, listing: Listing, product_sku: str | N
         "urgency": rec.urgency,
         "reasoning": rec.reasoning,
         "score": float(rec.score) if rec.score is not None else None,
-        "score_breakdown": rec.score_breakdown,
+        "score_breakdown": raw_breakdown if raw_breakdown else None,
+        "conversion_index": ci_raw,
         "conversion_today": float(rec.conversion_today) if rec.conversion_today is not None else None,
         "conversion_7d": float(rec.conversion_7d) if rec.conversion_7d is not None else None,
         "visits_today": rec.visits_today,
@@ -94,8 +100,10 @@ async def _enrich_with_periods(
 
     today = date.today()
     yesterday = today - timedelta(days=1)
+    day_before_yesterday = today - timedelta(days=2)
     date_7d_ago = today - timedelta(days=6)
     date_15d_ago = today - timedelta(days=14)
+    date_30d_ago = today - timedelta(days=29)
 
     async def _aggregate(
         d_from: date, d_to: date
@@ -148,11 +156,13 @@ async def _enrich_with_periods(
             }
         return out
 
-    # Executar as 4 queries de periodo
+    # Executar as 6 queries de periodo
     p_today = await _aggregate(today, today)
     p_yesterday = await _aggregate(yesterday, yesterday)
+    p_day_before = await _aggregate(day_before_yesterday, day_before_yesterday)
     p_7d = await _aggregate(date_7d_ago, today)
     p_15d = await _aggregate(date_15d_ago, today)
+    p_30d = await _aggregate(date_30d_ago, today)
 
     empty = {"visits": 0, "sales": 0, "conversion": 0.0, "avg_price": 0.0}
 
@@ -161,8 +171,10 @@ async def _enrich_with_periods(
         item["periods_data"] = PeriodsData(
             today=PeriodMetrics(**(p_today.get(lid, empty))),
             yesterday=PeriodMetrics(**(p_yesterday.get(lid, empty))),
+            day_before=PeriodMetrics(**(p_day_before.get(lid, empty))),
             last_7d=PeriodMetrics(**(p_7d.get(lid, empty))),
             last_15d=PeriodMetrics(**(p_15d.get(lid, empty))),
+            last_30d=PeriodMetrics(**(p_30d.get(lid, empty))),
         )
 
 

@@ -6,6 +6,7 @@ export interface ScoreBreakdown {
   comp_score: number;
   stock_score: number;
   margem_score: number;
+  hist_score?: number;
 }
 
 export interface PeriodMetrics {
@@ -18,8 +19,17 @@ export interface PeriodMetrics {
 export interface PeriodsData {
   today: PeriodMetrics | null;
   yesterday: PeriodMetrics | null;
+  day_before: PeriodMetrics | null;
   last_7d: PeriodMetrics | null;
   last_15d: PeriodMetrics | null;
+  last_30d: PeriodMetrics | null;
+}
+
+export interface ConversionIndex {
+  value: number;
+  short_trend: number;  // ontem vs anteontem
+  medium_trend: number; // ontem vs 7d
+  long_trend: number;   // 7d vs 30d
 }
 
 export interface PriceRecommendation {
@@ -42,6 +52,7 @@ export interface PriceRecommendation {
 
   score: number | null;
   score_breakdown: ScoreBreakdown | null;
+  conversion_index: ConversionIndex | null;
 
   conversion_today: number | null;
   conversion_7d: number | null;

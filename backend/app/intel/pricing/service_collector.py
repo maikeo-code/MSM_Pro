@@ -406,8 +406,10 @@ async def _collect_daily_data_impl(db: AsyncSession, user_id: UUID) -> list[dict
 
     today = datetime.now(timezone.utc).date()
     yesterday = today - timedelta(days=1)
+    day_before_yesterday = today - timedelta(days=2)  # anteontem
     date_7d_ago = today - timedelta(days=6)  # inclusive
     date_15d_ago = today - timedelta(days=14)  # inclusive
+    date_30d_ago = today - timedelta(days=29)  # 30 dias inclusive
 
     # 2. Buscar custos dos SKUs vinculados
     product_ids = [l.product_id for l in listings if l.product_id]
@@ -426,8 +428,10 @@ async def _collect_daily_data_impl(db: AsyncSession, user_id: UUID) -> list[dict
     # 3. Agregar metricas por periodo (em paralelo logico — queries sequenciais)
     period_today = await _aggregate_period(db, listing_ids, today, today)
     period_yesterday = await _aggregate_period(db, listing_ids, yesterday, yesterday)
+    period_day_before = await _aggregate_period(db, listing_ids, day_before_yesterday, day_before_yesterday)
     period_7d = await _aggregate_period(db, listing_ids, date_7d_ago, today)
     period_15d = await _aggregate_period(db, listing_ids, date_15d_ago, today)
+    period_30d = await _aggregate_period(db, listing_ids, date_30d_ago, today)
 
     # 4. Buscar precos dos concorrentes
     competitor_prices_by_listing = await _get_latest_competitor_prices(db, listing_ids)
@@ -462,11 +466,13 @@ async def _collect_daily_data_impl(db: AsyncSession, user_id: UUID) -> list[dict
         # Metricas por periodo
         p_today = period_today.get(lid, empty_period)
         p_yesterday = period_yesterday.get(lid, empty_period)
+        p_day_before = period_day_before.get(lid, empty_period)
         p_7d = period_7d.get(lid, empty_period)
         p_15d = period_15d.get(lid, empty_period)
+        p_30d = period_30d.get(lid, empty_period)
 
         # avg_price: se nao tem venda no periodo, usa current_price
-        for p in [p_today, p_yesterday, p_7d, p_15d]:
+        for p in [p_today, p_yesterday, p_day_before, p_7d, p_15d, p_30d]:
             if p["avg_price"] == 0.0:
                 p["avg_price"] = current_price
 
@@ -500,8 +506,10 @@ async def _collect_daily_data_impl(db: AsyncSession, user_id: UUID) -> list[dict
             "periods": {
                 "today": p_today,
                 "yesterday": p_yesterday,
+                "day_before": p_day_before,
                 "last_7d": p_7d,
                 "last_15d": p_15d,
+                "last_30d": p_30d,
             },
             "stock_days_projection": stock_days_projection,
             "competitor_prices": comp_prices,

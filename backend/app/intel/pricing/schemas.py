@@ -14,23 +14,35 @@ class ScoreBreakdown(BaseModel):
     comp_score: float
     stock_score: float
     margem_score: float
+    hist_score: Optional[float] = None
+
+
+class ConversionIndex(BaseModel):
+    """Indice de conversao combinado — principal indicador de decisao."""
+    value: float
+    short_trend: float  # ontem vs anteontem
+    medium_trend: float  # ontem vs 7d
+    long_trend: float  # 7d vs 30d
 
 
 # ─── Period metrics (auxiliar) ──────────────────────────────────────────────
 
 
 class PeriodMetrics(BaseModel):
-    visits: int
-    sales: int
-    conversion: float
-    avg_price: float
+    visits: int = 0
+    sales: int = 0
+    conversion: float = 0.0
+    avg_price: float = 0.0
+    revenue: float = 0.0
 
 
 class PeriodsData(BaseModel):
-    today: Optional[PeriodMetrics] = None
-    yesterday: Optional[PeriodMetrics] = None
+    today: Optional[PeriodMetrics] = None       # apenas referencia visual, NAO para comparacao
+    yesterday: Optional[PeriodMetrics] = None    # baseline principal
+    day_before: Optional[PeriodMetrics] = None   # anteontem
     last_7d: Optional[PeriodMetrics] = None
     last_15d: Optional[PeriodMetrics] = None
+    last_30d: Optional[PeriodMetrics] = None
 
 
 # ─── Recommendation ────────────────────────────────────────────────────────
@@ -56,6 +68,7 @@ class RecommendationOut(BaseModel):
 
     score: Optional[float] = None
     score_breakdown: Optional[ScoreBreakdown] = None
+    conversion_index: Optional[ConversionIndex] = None
 
     # Metricas no momento da recomendacao
     conversion_today: Optional[float] = None

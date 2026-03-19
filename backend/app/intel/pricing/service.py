@@ -84,7 +84,10 @@ async def generate_price_recommendations(db: AsyncSession, user_id: UUID) -> int
             urgency=rec.get("urgency", "monitor"),
             reasoning=rec.get("reasoning", ""),
             score=Decimal(str(rec.get("score", 0))),
-            score_breakdown=rec.get("breakdown"),
+            score_breakdown={
+                **(rec.get("breakdown") or {}),
+                "conversion_index": rec.get("conversion_index"),
+            },
             conversion_today=Decimal(str(p_today.get("conversion", 0))),
             conversion_7d=Decimal(str(p_7d.get("conversion", 0))),
             visits_today=p_today.get("visits", 0),

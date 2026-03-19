@@ -65,21 +65,31 @@ def calculate_recommendation_score(anuncio: dict) -> dict:
 
     Retorna dict com action, suggested_price, breakdown, confidence, risk, urgency etc.
     """
-    # 1. Tendencia de conversao (35%)
+    # 1. Conversion Index — PRINCIPAL INDICE DE DECISAO
+    # REGRA: "hoje nunca para comparacao" — baseline e ONTEM
+    conv_yesterday = anuncio["periods"]["yesterday"]["conversion"]
+    conv_day_before = anuncio["periods"].get("day_before", {}).get("conversion", 0.0)
     conv_7d = anuncio["periods"]["last_7d"]["conversion"]
     conv_15d = anuncio["periods"]["last_15d"]["conversion"]
-    conv_trend = 0.0
-    if conv_15d > 0:
-        conv_trend = (conv_7d - conv_15d) / conv_15d
+    conv_30d = anuncio["periods"].get("last_30d", {}).get("conversion", 0.0)
 
-    # 2. Tendencia de visitas (25%)
+    # Tendencia curta (ontem vs anteontem)
+    short_trend = (conv_yesterday - conv_day_before) / conv_day_before if conv_day_before > 0 else 0.0
+    # Tendencia media (ontem vs 7d)
+    medium_trend = (conv_yesterday - conv_7d) / conv_7d if conv_7d > 0 else 0.0
+    # Tendencia longa (7d vs 30d)
+    long_trend = (conv_7d - conv_30d) / conv_30d if conv_30d > 0 else 0.0
+
+    # Index combinado: short 40% + medium 40% + long 20%
+    conv_trend = short_trend * 0.4 + medium_trend * 0.4 + long_trend * 0.2
+
+    # 2. Tendencia de visitas (25%) — baseline ONTEM vs 7d media
+    visits_yesterday = anuncio["periods"]["yesterday"]["visits"]
     visits_7d_total = anuncio["periods"]["last_7d"]["visits"]
-    visits_15d_total = anuncio["periods"]["last_15d"]["visits"]
     visits_7d_avg = visits_7d_total / 7 if visits_7d_total else 0
-    visits_15d_avg = visits_15d_total / 15 if visits_15d_total else 0
     visit_trend = 0.0
-    if visits_15d_avg > 0:
-        visit_trend = (visits_7d_avg - visits_15d_avg) / visits_15d_avg
+    if visits_7d_avg > 0:
+        visit_trend = (visits_yesterday - visits_7d_avg) / visits_7d_avg
 
     # 3. Posicao competitiva (20%)
     my_price = anuncio["current_price"]
@@ -201,14 +211,14 @@ def calculate_recommendation_score(anuncio: dict) -> dict:
     # Urgency
     urgency = "monitor"
     if action != "hold":
-        # REGRA: Para quedas recentes (< 7 dias de dados ruins), urgencia = monitor
-        sales_today = anuncio["periods"]["today"]["sales"]
+        # REGRA: Para quedas recentes — usa ontem e anteontem (nunca hoje para comparacao)
         sales_yesterday = anuncio["periods"]["yesterday"]["sales"]
+        sales_day_before = anuncio["periods"].get("day_before", {}).get("sales", 0)
         avg_sales_7d = sales_7d / 7 if sales_7d else 0
-        # Se so hoje e ontem estao ruins mas a media de 7d e OK, e queda recente
+        # Se ontem e anteontem estao ruins mas a media de 7d e OK, e queda recente
         short_term_dip = (
             avg_sales_7d > 0
-            and (sales_today + sales_yesterday) < avg_sales_7d * 0.5
+            and (sales_yesterday + sales_day_before) < avg_sales_7d * 0.5
             and sales_7d >= 3
         )
         if short_term_dip:
@@ -259,6 +269,12 @@ def calculate_recommendation_score(anuncio: dict) -> dict:
             "stock_score": round(stock_score * 0.10, 4),
             "margem_score": round(margem_score * 0.05, 4),
             "hist_score": round(hist_score * 0.15, 4),
+        },
+        "conversion_index": {
+            "value": round(conv_trend, 4),
+            "short_trend": round(short_trend, 4),
+            "medium_trend": round(medium_trend, 4),
+            "long_trend": round(long_trend, 4),
         },
     }
 

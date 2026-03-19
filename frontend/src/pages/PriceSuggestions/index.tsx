@@ -24,6 +24,7 @@ import {
   dismissRecommendation,
   generateRecommendations,
   type PriceRecommendation,
+  type ConversionIndex,
 } from "@/services/pricingService";
 import { formatCurrency, cn } from "@/lib/utils";
 
@@ -84,6 +85,45 @@ function HealthScoreBar({ score }: { score: number | null }) {
         <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${Math.min(100, score)}%` }} />
       </div>
       <span className={cn("text-xs font-medium", textColor)}>{score}</span>
+    </div>
+  );
+}
+
+// ─── Conversion Trend Badge ────────────────────────────────────────────────────
+function ConversionTrendBadge({
+  convIndex,
+  convYesterday,
+  conv7d,
+}: {
+  convIndex: ConversionIndex | null;
+  convYesterday: number;
+  conv7d: number;
+}) {
+  if (!convIndex && conv7d === 0) return null;
+
+  // Determinar direcao: ontem vs 7d
+  const diff = conv7d > 0 ? ((convYesterday - conv7d) / conv7d) * 100 : 0;
+  const isUp = diff > 2;
+  const isDown = diff < -2;
+
+  const bgColor = isUp
+    ? "bg-green-100 border-green-300"
+    : isDown
+      ? "bg-red-100 border-red-300"
+      : "bg-gray-100 border-gray-300";
+  const textColor = isUp ? "text-green-700" : isDown ? "text-red-700" : "text-gray-600";
+  const arrow = isUp ? "^" : isDown ? "v" : "=";
+  const label = isUp ? "SUBINDO" : isDown ? "CAINDO" : "ESTAVEL";
+
+  return (
+    <div className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold", bgColor, textColor)}>
+      <span className="text-sm">{arrow === "^" ? "\u2191" : arrow === "v" ? "\u2193" : "\u2194"}</span>
+      <span>CONVERSAO: {label}</span>
+      {diff !== 0 && (
+        <span className="font-semibold">
+          ({diff > 0 ? "+" : ""}{diff.toFixed(0)}%)
+        </span>
+      )}
     </div>
   );
 }
@@ -303,45 +343,65 @@ function RecommendationCard({
         </div>
       </div>
 
-      {/* Mini Metrics — Periods Table */}
+      {/* Mini Metrics — Conversion Badge + Periods Table */}
       <div className="mt-4 space-y-3">
-        {/* Periods comparison table */}
+        {/* Conversion Trend Badge — principal indice */}
+        {rec.periods_data && (
+          <ConversionTrendBadge
+            convIndex={rec.conversion_index}
+            convYesterday={rec.periods_data.yesterday?.conversion ?? 0}
+            conv7d={rec.periods_data.last_7d?.conversion ?? 0}
+          />
+        )}
+
+        {/* Periods comparison table — "Hoje" NAO aparece como coluna de comparacao */}
         {rec.periods_data && (
           <div className="rounded-md border overflow-hidden">
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-muted/60">
                   <th className="text-left px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Metrica</th>
-                  <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Hoje</th>
                   <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Ontem</th>
+                  <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Anteontem</th>
                   <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">7 dias</th>
                   <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">15 dias</th>
+                  <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">30 dias</th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-t">
-                  <td className="px-3 py-1.5 text-muted-foreground font-medium">Conversao</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.today?.conversion != null ? `${rec.periods_data.today.conversion.toFixed(1)}%` : "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.yesterday?.conversion != null ? `${rec.periods_data.yesterday.conversion.toFixed(1)}%` : "--"}</td>
+                <tr className="border-t bg-blue-50/30">
+                  <td className="px-3 py-1.5 text-muted-foreground font-bold">Conversao</td>
+                  <td className="text-center px-2 py-1.5 font-bold">{rec.periods_data.yesterday?.conversion != null ? `${rec.periods_data.yesterday.conversion.toFixed(1)}%` : "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.day_before?.conversion != null ? `${rec.periods_data.day_before.conversion.toFixed(1)}%` : "--"}</td>
                   <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_7d?.conversion != null ? `${rec.periods_data.last_7d.conversion.toFixed(1)}%` : "--"}</td>
                   <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_15d?.conversion != null ? `${rec.periods_data.last_15d.conversion.toFixed(1)}%` : "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_30d?.conversion != null ? `${rec.periods_data.last_30d.conversion.toFixed(1)}%` : "--"}</td>
                 </tr>
                 <tr className="border-t">
                   <td className="px-3 py-1.5 text-muted-foreground font-medium flex items-center gap-1"><Eye className="h-3 w-3" />Visitas</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.today?.visits != null ? rec.periods_data.today.visits.toLocaleString("pt-BR") : "--"}</td>
                   <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.yesterday?.visits != null ? rec.periods_data.yesterday.visits.toLocaleString("pt-BR") : "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.day_before?.visits != null ? rec.periods_data.day_before.visits.toLocaleString("pt-BR") : "--"}</td>
                   <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_7d?.visits != null ? rec.periods_data.last_7d.visits.toLocaleString("pt-BR") : "--"}</td>
                   <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_15d?.visits != null ? rec.periods_data.last_15d.visits.toLocaleString("pt-BR") : "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_30d?.visits != null ? rec.periods_data.last_30d.visits.toLocaleString("pt-BR") : "--"}</td>
                 </tr>
                 <tr className="border-t">
                   <td className="px-3 py-1.5 text-muted-foreground font-medium flex items-center gap-1"><ShoppingCart className="h-3 w-3" />Vendas</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.today?.sales ?? "--"}</td>
                   <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.yesterday?.sales ?? "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.day_before?.sales ?? "--"}</td>
                   <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_7d?.sales ?? "--"}</td>
                   <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_15d?.sales ?? "--"}</td>
+                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_30d?.sales ?? "--"}</td>
                 </tr>
               </tbody>
             </table>
+            {/* Tempo real (hoje) — separado, nao comparacao */}
+            {rec.periods_data.today && (rec.periods_data.today.visits > 0 || rec.periods_data.today.sales > 0) && (
+              <div className="px-3 py-1.5 bg-muted/30 border-t text-[10px] text-muted-foreground">
+                Tempo real (hoje): {rec.periods_data.today.visits} visitas, {rec.periods_data.today.sales} vendas
+                {rec.periods_data.today.conversion > 0 && ` (${rec.periods_data.today.conversion.toFixed(1)}% conv.)`}
+              </div>
+            )}
           </div>
         )}
 
