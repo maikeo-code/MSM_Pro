@@ -427,7 +427,7 @@ async def get_snapshots(
     return await service.get_listing_snapshots(db, mlb_id, current_user.id, dias)
 
 
-@router.get("/{mlb_id}/analysis", response_model=ListingAnalysisOut)
+@router.get("/{mlb_id}/analysis")
 async def get_analysis(
     mlb_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
