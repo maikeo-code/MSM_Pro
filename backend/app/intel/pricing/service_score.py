@@ -28,14 +28,16 @@ def _calcular_margem_pct(anuncio: dict) -> float | None:
     if price <= 0:
         return None
 
+    from decimal import Decimal
     from app.financeiro.service import calcular_margem
 
+    fee = anuncio.get("sale_fee_pct")
     result = calcular_margem(
-        preco=price,
-        custo=cost,
+        preco=Decimal(str(price)),
+        custo=Decimal(str(cost)),
         listing_type=anuncio.get("listing_type", "classico"),
-        frete=anuncio.get("avg_shipping_cost") or 0,
-        sale_fee_pct=anuncio.get("sale_fee_pct"),
+        frete=Decimal(str(anuncio.get("avg_shipping_cost") or 0)),
+        sale_fee_pct=Decimal(str(fee)) if fee else None,
     )
     return float(result["margem_pct"])
 
@@ -161,14 +163,16 @@ def calculate_recommendation_score(anuncio: dict) -> dict:
     # Calcular margem estimada com preco sugerido
     estimated_daily_profit = 0.0
     try:
+        from decimal import Decimal
         from app.financeiro.service import calcular_margem
 
+        fee = anuncio.get("sale_fee_pct")
         margem_result = calcular_margem(
-            preco=suggested_price,
-            custo=anuncio.get("cost", 0),
+            preco=Decimal(str(suggested_price)),
+            custo=Decimal(str(anuncio.get("cost", 0))),
             listing_type=anuncio.get("listing_type", "classico"),
-            frete=anuncio.get("avg_shipping_cost") or 0,
-            sale_fee_pct=anuncio.get("sale_fee_pct"),
+            frete=Decimal(str(anuncio.get("avg_shipping_cost") or 0)),
+            sale_fee_pct=Decimal(str(fee)) if fee else None,
         )
         estimated_daily_profit = round(
             float(margem_result["margem_bruta"]) * estimated_daily_sales, 2
