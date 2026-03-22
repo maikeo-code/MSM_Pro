@@ -456,7 +456,7 @@ export default function Financeiro() {
                 tick={{ fontSize: 11, fill: "#9ca3af" }}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(v) => v >= 1000 ? `R$${(v / 1000).toFixed(0)}k` : `R$${v.toFixed(0)}`}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend

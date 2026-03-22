@@ -9,6 +9,7 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
 import reputacaoService, {
   type ReputationCurrent,
@@ -523,13 +524,20 @@ export default function Reputacao() {
                 <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                 <YAxis
                   tick={{ fontSize: 12 }}
-                  tickFormatter={(v: number) => `${v}%`}
+                  tickFormatter={(v: number) => `${v.toFixed(2)}%`}
                 />
                 <Tooltip
                   formatter={(value: number) => [`${value.toFixed(2)}%`]}
                   labelStyle={{ fontWeight: 600 }}
                 />
                 <Legend />
+                {/* Linhas de limite critico por metrica */}
+                <ReferenceLine y={1} stroke="#ef4444" strokeDasharray="4 3" strokeWidth={1.5}
+                  label={{ value: "Limite Recl. 1%", position: "right", fill: "#ef4444", fontSize: 9 }} />
+                <ReferenceLine y={0.5} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1.5}
+                  label={{ value: "Limite Med./Canc. 0.5%", position: "right", fill: "#f97316", fontSize: 9 }} />
+                <ReferenceLine y={6} stroke="#3b82f6" strokeDasharray="4 3" strokeWidth={1.5}
+                  label={{ value: "Limite Atrasos 6%", position: "right", fill: "#3b82f6", fontSize: 9 }} />
                 <Line
                   type="monotone"
                   dataKey="reclamacoes"
