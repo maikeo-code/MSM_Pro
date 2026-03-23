@@ -100,10 +100,10 @@ celery_app.conf.beat_schedule = {
             "expires": 7200,
         },
     },
-    # Sincroniza campanhas de ads diariamente as 10:00 UTC (07:00 BRT)
+    # Sincroniza campanhas de ads diariamente as 10:30 UTC (07:30 BRT)
     "sync-ads-daily": {
         "task": "app.jobs.tasks.sync_ads",
-        "schedule": crontab(minute=0, hour=10),
+        "schedule": crontab(minute=30, hour=10),
         "options": {
             "expires": 3600,
         },

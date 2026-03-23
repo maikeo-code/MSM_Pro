@@ -191,7 +191,11 @@ export default function Configuracoes() {
                           : "Inativa"}
                       </span>
                       <button
-                        onClick={() => deleteMutation.mutate(account.id)}
+                        onClick={() => {
+                          if (window.confirm(`Desconectar conta "${account.nickname}"? Esta ação é irreversível.`)) {
+                            deleteMutation.mutate(account.id);
+                          }
+                        }}
                         disabled={deleteMutation.isPending}
                         className="rounded-md border p-2 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
                         title="Desconectar conta"
@@ -230,10 +234,16 @@ export default function Configuracoes() {
       {/* Produtos (SKUs) */}
       <div className="rounded-lg border bg-card p-6">
         <h2 className="text-lg font-semibold mb-2">Produtos (SKUs)</h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground mb-4">
           Gerencie seu catalogo de produtos com custos para calcular margens.
-          Disponivel em breve nesta pagina.
         </p>
+        <a
+          href="/produtos"
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          <Settings className="h-4 w-4" />
+          Gerenciar Produtos
+        </a>
       </div>
     </div>
   );
