@@ -8,14 +8,20 @@ from app.auth.models import User
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from .schemas import (
+    ABCResponse,
+    ComparisonResponse,
     DistributionResponse,
     ForecastResponse,
     InsightsResponse,
+    InventoryHealthResponse,
     ParetoResponse,
 )
+from .service_abc import get_abc_analysis
+from .service_comparison import get_temporal_comparison
 from .service_distribution import get_sales_distribution
 from .service_forecast import get_sales_forecast
 from .service_insights import generate_insights
+from .service_inventory import get_inventory_health
 from .service_pareto import get_pareto_analysis
 
 router = APIRouter(prefix="/intel/analytics", tags=["Intel - Analytics"])
@@ -95,3 +101,63 @@ async def insights(
     Os insights sao ordenados por prioridade (high > medium > low).
     """
     return await generate_insights(db, current_user.id)
+
+
+@router.get("/comparison", response_model=ComparisonResponse)
+async def comparison(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    period: str = Query(default="30d", regex="^(7d|15d|30d)$", description="Periodo: 7d, 15d ou 30d"),
+) -> ComparisonResponse:
+    """
+    Comparacao temporal (Mes a Mes) de receita e vendas.
+
+    Compara o periodo atual com o periodo anterior identico.
+    Retorna para cada anuncio: receita atual vs anterior, delta %, vendas atual vs anterior.
+
+    Periodos suportados: 7d, 15d, 30d
+    """
+    return await get_temporal_comparison(db, current_user.id, period=period)
+
+
+@router.get("/abc", response_model=ABCResponse)
+async def abc_classification(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    period: str = Query(default="30d", regex="^(7d|15d|30d)$", description="Periodo: 7d, 15d ou 30d"),
+    metric: str = Query(default="revenue", regex="^(revenue|units|margin)$", description="Metrica: revenue, units ou margin"),
+) -> ABCResponse:
+    """
+    Classificacao ABC por giro de estoque e contribuicao.
+
+    Classifica produtos em:
+    - A: Top 20% = 80% da contribuicao
+    - B: Proximo 30% = 15% da contribuicao
+    - C: Bottom 50% = 5% da contribuicao
+
+    Inclui turnover_rate (unidades vendidas / estoque atual).
+    Metricas: revenue (padrao), units, margin.
+    """
+    return await get_abc_analysis(db, current_user.id, period=period, metric=metric)
+
+
+@router.get("/inventory-health", response_model=InventoryHealthResponse)
+async def inventory_health(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    period: str = Query(default="30d", regex="^(7d|15d|30d)$", description="Periodo: 7d, 15d ou 30d"),
+) -> InventoryHealthResponse:
+    """
+    Analise de saude do estoque por anuncio.
+
+    Calcula:
+    - sell_through_rate: vendas / (vendas + estoque)
+    - avg_daily_sales: media de vendas diarias
+    - days_of_stock: quantos dias de estoque em mao
+
+    Classifica como:
+    - healthy: 30-90 dias de estoque
+    - overstocked: > 90 dias (capital parado)
+    - critical_low: < 7 dias (risco de falta)
+    """
+    return await get_inventory_health(db, current_user.id, period=period)
