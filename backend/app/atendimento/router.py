@@ -16,12 +16,21 @@ from app.atendimento.schemas import (
     AtendimentoRespondIn,
     AtendimentoRespondOut,
     AtendimentoStatsOut,
+    ResponseTemplateIn,
+    ResponseTemplateOut,
 )
 from app.atendimento.service import (
     get_all_atendimentos,
     get_atendimento_stats,
     get_ai_suggestion,
     respond_to_item,
+)
+from app.atendimento.service_templates import (
+    list_templates,
+    get_template,
+    create_template,
+    update_template,
+    delete_template,
 )
 
 logger = logging.getLogger(__name__)
@@ -151,3 +160,88 @@ async def ai_suggestion(
         item_id=item_id,
         account_id=account_id,
     )
+
+
+# ─── Response Templates ────────────────────────────────────────────────────────
+
+@router.get("/templates", response_model=list[ResponseTemplateOut])
+async def list_response_templates(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    category: Optional[str] = Query(
+        default=None,
+        description="Filtrar por categoria: general | pergunta | reclamacao | devolucao | mensagem",
+    ),
+):
+    """Lista todos os templates de resposta do usuário."""
+    try:
+        return await list_templates(db=db, user=current_user, category=category)
+    except Exception as e:
+        logger.error("Erro ao listar templates: %s", e)
+        raise HTTPException(status_code=500, detail="Erro ao listar templates")
+
+
+@router.get("/templates/{template_id}", response_model=ResponseTemplateOut)
+async def get_response_template(
+    template_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Obtém um template específico."""
+    try:
+        return await get_template(db=db, user=current_user, template_id=template_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("Erro ao obter template: %s", e)
+        raise HTTPException(status_code=500, detail="Erro ao obter template")
+
+
+@router.post("/templates", response_model=ResponseTemplateOut)
+async def create_response_template(
+    body: ResponseTemplateIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Cria um novo template de resposta."""
+    try:
+        return await create_template(db=db, user=current_user, data=body)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Erro ao criar template: %s", e)
+        raise HTTPException(status_code=500, detail="Erro ao criar template")
+
+
+@router.put("/templates/{template_id}", response_model=ResponseTemplateOut)
+async def update_response_template(
+    template_id: UUID,
+    body: ResponseTemplateIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Atualiza um template existente."""
+    try:
+        return await update_template(db=db, user=current_user, template_id=template_id, data=body)
+    except ValueError as e:
+        raise HTTPException(status_code=404 if "not found" in str(e) else 400, detail=str(e))
+    except Exception as e:
+        logger.error("Erro ao atualizar template: %s", e)
+        raise HTTPException(status_code=500, detail="Erro ao atualizar template")
+
+
+@router.delete("/templates/{template_id}")
+async def delete_response_template(
+    template_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Deleta um template."""
+    try:
+        await delete_template(db=db, user=current_user, template_id=template_id)
+        return {"success": True, "message": "Template deletado com sucesso"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("Erro ao deletar template: %s", e)
+        raise HTTPException(status_code=500, detail="Erro ao deletar template")

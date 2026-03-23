@@ -1,7 +1,7 @@
 """Create tax_config table for Simples Nacional tax configuration
 
-Revision ID: 0019
-Revises: 0018
+Revision ID: 0020
+Revises: 0019
 Create Date: 2026-03-23 15:00:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "0019"
-down_revision: Union[str, None] = "0018"
+revision: str = "0020"
+down_revision: Union[str, None] = "0019"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

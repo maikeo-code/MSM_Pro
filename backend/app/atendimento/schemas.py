@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AtendimentoItem(BaseModel):
@@ -63,3 +63,35 @@ class AISuggestionOut(BaseModel):
     suggestion: str
     confidence: float  # 0.0 a 1.0
     based_on: list[str]  # IDs das respostas anteriores usadas como base
+
+
+# ─── Response Templates ────────────────────────────────────────────────────────
+
+class ResponseTemplateIn(BaseModel):
+    """Criar ou atualizar um template de resposta."""
+
+    name: str = Field(min_length=1, max_length=255, description="Nome do template")
+    text: str = Field(min_length=1, max_length=5000, description="Texto do template")
+    category: str = Field(
+        default="general",
+        description="Categoria: general | pergunta | reclamacao | devolucao | mensagem",
+    )
+    variables: Optional[list[str]] = Field(
+        default=None,
+        description="Variáveis no formato {nome}, ex: {comprador}, {produto}",
+    )
+
+
+class ResponseTemplateOut(BaseModel):
+    """Resposta com dados de um template."""
+
+    id: UUID
+    name: str
+    text: str
+    category: str
+    variables: Optional[list[str]] = None
+    use_count: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
