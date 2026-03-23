@@ -1,0 +1,43 @@
+Kind: captions
+Language: pt
+e
+como adicionar usuários em nosso usuário
+do MercadoLivre mas ela principal descer
+usuário clique no ícone minha conta
+localizado na parte superior direita da
+plataforma selecione a opção
+configuração no menu clicável dentro do
+menu de configuração na parte esquerda
+Clique na opção operadores e sobre a uma
+janela com todos os usuários cadastrados
+atualmente na sua conta uma vez lá
+selecione criar ao operador e preencha
+com os dados do novo usuário nome
+sobrenome e e-mail esses dados são
+obrigatórios para continuar o processo
+depois de preencher os campos o novo
+usuário aparecerá na sua lista de
+usuários para gerenciar as permissões do
+usuário acesse a aba atribuir permissões
+a operadores nesta aba você encontrará
+as permissões de todos os seus usuários
+ativos e poderá conceder permissões de
+acesso como admin a visualização ou
+operador além de permitir o acesso a
+diferentes contas com o botão
+administrar contas que se encontra no
+lado direito do usuário da mesma forma
+você poderá dar permissões para utilizar
+lojas oficiais clicando no botão
+administrar lojas
+finalizada essa operação usuário
+receberá uma mensagem no endereço de
+e-mail cadastrado com o nome de usuário
+e uma senha provisória e o link para
+ingressar na plataforma é importante
+lembrar que caso os usuários não
+realizem Esta etapa não poderão
+finalizar o processo de ativação da
+conta assim que o usuário acessar o link
+poderá utilizar sua conta na plataforma
+e alterar sua senha

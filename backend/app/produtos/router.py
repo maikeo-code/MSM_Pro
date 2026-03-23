@@ -17,9 +17,10 @@ router = APIRouter(prefix="/produtos", tags=["produtos"])
 async def list_products(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    include_inactive: bool = False,
 ):
-    """Lista todos os SKUs do usuário."""
-    return await service.list_products(db, current_user.id)
+    """Lista SKUs do usuário. Por padrão apenas ativos, opcional incluir inativos."""
+    return await service.list_products(db, current_user.id, include_inactive=include_inactive)
 
 
 @router.post("/", response_model=ProductOut, status_code=status.HTTP_201_CREATED)

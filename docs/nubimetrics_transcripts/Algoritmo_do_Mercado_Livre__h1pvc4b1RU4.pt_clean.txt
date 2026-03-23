@@ -1,0 +1,372 @@
+Kind: captions
+Language: pt
+Voltamos com mais um episódio do
+Voltamos com mais um episódio do
+Voltamos com mais um episódio do
+e-commerce inteligente. E hoje o papo é
+e-commerce inteligente. E hoje o papo é
+e-commerce inteligente. E hoje o papo é
+para
+para
+para
+ah pra gente desvendar aquele mistério
+ah pra gente desvendar aquele mistério
+ah pra gente desvendar aquele mistério
+que tira o sono de muito vendedor, sabe?
+que tira o sono de muito vendedor, sabe?
+que tira o sono de muito vendedor, sabe?
+O famoso algoritmo do Mercado Livre. Por
+O famoso algoritmo do Mercado Livre. Por
+O famoso algoritmo do Mercado Livre. Por
+que alguns anúncios bombam e outros, sei
+que alguns anúncios bombam e outros, sei
+que alguns anúncios bombam e outros, sei
+lá, ficam lá no fim da fila. Vamos
+lá, ficam lá no fim da fila. Vamos
+lá, ficam lá no fim da fila. Vamos
+entender como essa máquina funciona.
+entender como essa máquina funciona.
+entender como essa máquina funciona.
+&gt;&gt; É exatamente isso. E é bom pensar no
+&gt;&gt; É exatamente isso. E é bom pensar no
+&gt;&gt; É exatamente isso. E é bom pensar no
+algoritmo como o grande organizador da
+algoritmo como o grande organizador da
+algoritmo como o grande organizador da
+vitrine, sabe? Ele tem uma missão bem
+vitrine, sabe? Ele tem uma missão bem
+vitrine, sabe? Ele tem uma missão bem
+clara. mostrar pro comprador o anúncio
+clara. mostrar pro comprador o anúncio
+clara. mostrar pro comprador o anúncio
+que tem a maior chance de virar uma
+que tem a maior chance de virar uma
+que tem a maior chance de virar uma
+venda e claro, de gerar uma boa
+venda e claro, de gerar uma boa
+venda e claro, de gerar uma boa
+experiência.
+experiência.
+experiência.
+&gt;&gt; Um organizador de vitrine. Gostei. Tá,
+&gt;&gt; Um organizador de vitrine. Gostei. Tá,
+&gt;&gt; Um organizador de vitrine. Gostei. Tá,
+mas o que esse organizador olha
+mas o que esse organizador olha
+mas o que esse organizador olha
+primeiro? O que ele mais assim valoriza
+primeiro? O que ele mais assim valoriza
+primeiro? O que ele mais assim valoriza
+na hora de escolher quem vai aparecer na
+na hora de escolher quem vai aparecer na
+na hora de escolher quem vai aparecer na
+frente?
+frente?
+frente?
+&gt;&gt; Bom, ele olha alguns fatores principais.
+&gt;&gt; Bom, ele olha alguns fatores principais.
+&gt;&gt; Bom, ele olha alguns fatores principais.
+O mais básico de todos são as
+O mais básico de todos são as
+O mais básico de todos são as
+palavraschave.
+palavraschave.
+palavraschave.
+&gt;&gt; O óbvio, né?
+&gt;&gt; O óbvio, né?
+&gt;&gt; O óbvio, né?
+&gt;&gt; O óbvio, mas que muita gente erra. O
+&gt;&gt; O óbvio, mas que muita gente erra. O
+&gt;&gt; O óbvio, mas que muita gente erra. O
+algoritmo vai buscar os anúncios que
+algoritmo vai buscar os anúncios que
+algoritmo vai buscar os anúncios que
+usam as mesmas palavras que a pessoa
+usam as mesmas palavras que a pessoa
+usam as mesmas palavras que a pessoa
+digitou na busca. Simples assim.
+digitou na busca. Simples assim.
+digitou na busca. Simples assim.
+&gt;&gt; Certo? Depois, um fator fundamental, a
+&gt;&gt; Certo? Depois, um fator fundamental, a
+&gt;&gt; Certo? Depois, um fator fundamental, a
+reputação do vendedor. Vendedores com
+reputação do vendedor. Vendedores com
+reputação do vendedor. Vendedores com
+reputação verde, bom, eles sempre terão
+reputação verde, bom, eles sempre terão
+reputação verde, bom, eles sempre terão
+vantagem, não tem jeito.
+vantagem, não tem jeito.
+vantagem, não tem jeito.
+&gt;&gt; A famosa reputação verde.
+&gt;&gt; A famosa reputação verde.
+&gt;&gt; A famosa reputação verde.
+&gt;&gt; E tem também o histórico recente. O
+&gt;&gt; E tem também o histórico recente. O
+&gt;&gt; E tem também o histórico recente. O
+algoritmo olha a quantidade de vendas, o
+algoritmo olha a quantidade de vendas, o
+algoritmo olha a quantidade de vendas, o
+faturamento, principalmente o mais
+faturamento, principalmente o mais
+faturamento, principalmente o mais
+recente. Quem tá vendendo bem agora
+recente. Quem tá vendendo bem agora
+recente. Quem tá vendendo bem agora
+tende a aparecer mais.
+tende a aparecer mais.
+tende a aparecer mais.
+&gt;&gt; Entendi a lógica. Agora vamos pro que o
+&gt;&gt; Entendi a lógica. Agora vamos pro que o
+&gt;&gt; Entendi a lógica. Agora vamos pro que o
+pessoal quer saber, as dicas práticas. O
+pessoal quer saber, as dicas práticas. O
+pessoal quer saber, as dicas práticas. O
+que o vendedor pode fazer, tipo, hoje
+que o vendedor pode fazer, tipo, hoje
+que o vendedor pode fazer, tipo, hoje
+para agradar o algoritmo e ganhar mais
+para agradar o algoritmo e ganhar mais
+para agradar o algoritmo e ganhar mais
+visibilidade.
+visibilidade.
+visibilidade.
+&gt;&gt; Ótimo. A primeira dica é usar a central
+&gt;&gt; Ótimo. A primeira dica é usar a central
+&gt;&gt; Ótimo. A primeira dica é usar a central
+de promoções.
+de promoções.
+de promoções.
+&gt;&gt; Ah, sei. Onde ficam as ofertas?
+&gt;&gt; Ah, sei. Onde ficam as ofertas?
+&gt;&gt; Ah, sei. Onde ficam as ofertas?
+Exatamente. A sessão de ofertas recebe
+Exatamente. A sessão de ofertas recebe
+Exatamente. A sessão de ofertas recebe
+assim 1 milhão de visitas por dia. É
+assim 1 milhão de visitas por dia. É
+assim 1 milhão de visitas por dia. É
+muita gente. Participar de uma oferta do
+muita gente. Participar de uma oferta do
+muita gente. Participar de uma oferta do
+dia ou de uma oferta relâmpago coloca
+dia ou de uma oferta relâmpago coloca
+dia ou de uma oferta relâmpago coloca
+seu produto na frente de um público
+seu produto na frente de um público
+seu produto na frente de um público
+enorme.
+enorme.
+enorme.
+&gt;&gt; Nossa, 1 milhão é é muita coisa. Beleza.
+&gt;&gt; Nossa, 1 milhão é é muita coisa. Beleza.
+&gt;&gt; Nossa, 1 milhão é é muita coisa. Beleza.
+Primeira dica anotada. Qual a segunda?
+Primeira dica anotada. Qual a segunda?
+Primeira dica anotada. Qual a segunda?
+&gt;&gt; Segundo, investir em mercado EDS. Mas
+&gt;&gt; Segundo, investir em mercado EDS. Mas
+&gt;&gt; Segundo, investir em mercado EDS. Mas
+aqui tem um ponto importante, tem que
+aqui tem um ponto importante, tem que
+aqui tem um ponto importante, tem que
+ser com a mentalidade certa.
+ser com a mentalidade certa.
+ser com a mentalidade certa.
+&gt;&gt; Hum. Como assim? Ads serve para gerar
+&gt;&gt; Hum. Como assim? Ads serve para gerar
+&gt;&gt; Hum. Como assim? Ads serve para gerar
+visitas. Ponto. Um anúncio bem feito é
+visitas. Ponto. Um anúncio bem feito é
+visitas. Ponto. Um anúncio bem feito é
+que vai transformar essa visita em
+que vai transformar essa visita em
+que vai transformar essa visita em
+venda. Entende?
+venda. Entende?
+venda. Entende?
+&gt;&gt; Entendi. O EDS leva o cavalo até a água,
+&gt;&gt; Entendi. O EDS leva o cavalo até a água,
+&gt;&gt; Entendi. O EDS leva o cavalo até a água,
+mas não obriga ele a beber.
+mas não obriga ele a beber.
+mas não obriga ele a beber.
+&gt;&gt; Perfeita analogia. E com mais visitas e
+&gt;&gt; Perfeita analogia. E com mais visitas e
+&gt;&gt; Perfeita analogia. E com mais visitas e
+mais vendas, o seu anúncio ganha
+mais vendas, o seu anúncio ganha
+mais vendas, o seu anúncio ganha
+relevância orgânica. Com o tempo, você
+relevância orgânica. Com o tempo, você
+relevância orgânica. Com o tempo, você
+pode até diminuir o investimento em ads,
+pode até diminuir o investimento em ads,
+pode até diminuir o investimento em ads,
+porque ele já vai estar bem posicionado.
+porque ele já vai estar bem posicionado.
+porque ele já vai estar bem posicionado.
+&gt;&gt; Maneiro. E a terceira dica?
+&gt;&gt; Maneiro. E a terceira dica?
+&gt;&gt; Maneiro. E a terceira dica?
+&gt;&gt; Terceiro, usar o mercado em vios full. O
+&gt;&gt; Terceiro, usar o mercado em vios full. O
+&gt;&gt; Terceiro, usar o mercado em vios full. O
+full. Esse é o queridinho da plataforma,
+full. Esse é o queridinho da plataforma,
+full. Esse é o queridinho da plataforma,
+né?
+né?
+né?
+&gt;&gt; Totalmente. Quando o seu produto tá no
+&gt;&gt; Totalmente. Quando o seu produto tá no
+&gt;&gt; Totalmente. Quando o seu produto tá no
+full, o Mercado Livre tem controle total
+full, o Mercado Livre tem controle total
+full, o Mercado Livre tem controle total
+do estoque, da logística. Isso gera uma
+do estoque, da logística. Isso gera uma
+do estoque, da logística. Isso gera uma
+confiança gigantesca, tanto pra
+confiança gigantesca, tanto pra
+confiança gigantesca, tanto pra
+plataforma quanto pro comprador. E essa
+plataforma quanto pro comprador. E essa
+plataforma quanto pro comprador. E essa
+confiança faz o seu anúncio ser visto
+confiança faz o seu anúncio ser visto
+confiança faz o seu anúncio ser visto
+com o mais atraente, ganhando mais
+com o mais atraente, ganhando mais
+com o mais atraente, ganhando mais
+visualizações.
+visualizações.
+visualizações.
+&gt;&gt; Faz todo sentido. Eles promovem quem
+&gt;&gt; Faz todo sentido. Eles promovem quem
+&gt;&gt; Faz todo sentido. Eles promovem quem
+eles sabem que não vai dar problema na
+eles sabem que não vai dar problema na
+eles sabem que não vai dar problema na
+entrega. E a última dica. E por último,
+entrega. E a última dica. E por último,
+entrega. E a última dica. E por último,
+o mais essencial de todos, cuidar da
+o mais essencial de todos, cuidar da
+o mais essencial de todos, cuidar da
+reputação.
+reputação.
+reputação.
+&gt;&gt; De novo, ela
+&gt;&gt; De novo, ela
+&gt;&gt; De novo, ela
+&gt;&gt; sempre ela. Nunca jamais deixe sua
+&gt;&gt; sempre ela. Nunca jamais deixe sua
+&gt;&gt; sempre ela. Nunca jamais deixe sua
+reputação cair. E olha, isso não vale só
+reputação cair. E olha, isso não vale só
+reputação cair. E olha, isso não vale só
+paraa conta geral, viu? Vale para cada
+paraa conta geral, viu? Vale para cada
+paraa conta geral, viu? Vale para cada
+anúncio individualmente.
+anúncio individualmente.
+anúncio individualmente.
+&gt;&gt; Ah, é? O anúncio tem uma reputação
+&gt;&gt; Ah, é? O anúncio tem uma reputação
+&gt;&gt; Ah, é? O anúncio tem uma reputação
+própria.
+própria.
+própria.
+&gt;&gt; Tem sim. Por isso tem que fugir de
+&gt;&gt; Tem sim. Por isso tem que fugir de
+&gt;&gt; Tem sim. Por isso tem que fugir de
+reclamações, de cancelamentos, de
+reclamações, de cancelamentos, de
+reclamações, de cancelamentos, de
+atrasos no envio. Cada detalhe conta.
+atrasos no envio. Cada detalhe conta.
+atrasos no envio. Cada detalhe conta.
+&gt;&gt; Uau! Ou seja, não tem fórmula mágica,
+&gt;&gt; Uau! Ou seja, não tem fórmula mágica,
+&gt;&gt; Uau! Ou seja, não tem fórmula mágica,
+né? Eh, é um conjunto e tudo começa com
+né? Eh, é um conjunto e tudo começa com
+né? Eh, é um conjunto e tudo começa com
+um bom anúncio, boas fotos, título
+um bom anúncio, boas fotos, título
+um bom anúncio, boas fotos, título
+completo, descrição clara, a base,
+completo, descrição clara, a base,
+completo, descrição clara, a base,
+exatamente, a base de tudo é um anúncio
+exatamente, a base de tudo é um anúncio
+exatamente, a base de tudo é um anúncio
+sólido. As outras estratégias, como o
+sólido. As outras estratégias, como o
+sólido. As outras estratégias, como o
+ads, o full, elas vêm para potencializar
+ads, o full, elas vêm para potencializar
+ads, o full, elas vêm para potencializar
+esse bom trabalho inicial. Elas não
+esse bom trabalho inicial. Elas não
+esse bom trabalho inicial. Elas não
+fazem milagres sozinhas,
+fazem milagres sozinhas,
+fazem milagres sozinhas,
+&gt;&gt; cara. Então, resumindo a ópera pra
+&gt;&gt; cara. Então, resumindo a ópera pra
+&gt;&gt; cara. Então, resumindo a ópera pra
+galera. Anúncio caprichado.
+galera. Anúncio caprichado.
+galera. Anúncio caprichado.
+&gt;&gt; Isso.
+&gt;&gt; Isso.
+&gt;&gt; Isso.
+&gt;&gt; Usar as ferramentas que a própria
+&gt;&gt; Usar as ferramentas que a própria
+&gt;&gt; Usar as ferramentas que a própria
+plataforma oferece, como a Central de
+plataforma oferece, como a Central de
+plataforma oferece, como a Central de
+Promoções, o Ads e o Full.
+Promoções, o Ads e o Full.
+Promoções, o Ads e o Full.
+&gt;&gt; Aham.
+&gt;&gt; Aham.
+&gt;&gt; Aham.
+&gt;&gt; E claro, cuidar da reputação como se
+&gt;&gt; E claro, cuidar da reputação como se
+&gt;&gt; E claro, cuidar da reputação como se
+fosse um tesouro.
+fosse um tesouro.
+fosse um tesouro.
+&gt;&gt; Perfeito. É isso.
+&gt;&gt; Perfeito. É isso.
+&gt;&gt; Perfeito. É isso.
+&gt;&gt; Para quem curtiu o papo e quer se
+&gt;&gt; Para quem curtiu o papo e quer se
+&gt;&gt; Para quem curtiu o papo e quer se
+aprofundar ainda mais, o link pro artigo
+aprofundar ainda mais, o link pro artigo
+aprofundar ainda mais, o link pro artigo
+completo da Nubrix, que serviu de
+completo da Nubrix, que serviu de
+completo da Nubrix, que serviu de
+inspiração pra gente, está aqui na
+inspiração pra gente, está aqui na
+inspiração pra gente, está aqui na
+descrição. Vale muito a pena.
+descrição. Vale muito a pena.
+descrição. Vale muito a pena.
+&gt;&gt; A informação é a chave para se destacar.
+&gt;&gt; A informação é a chave para se destacar.
+&gt;&gt; A informação é a chave para se destacar.
+&gt;&gt; É isso por hoje, pessoal.
+&gt;&gt; É isso por hoje, pessoal.
+&gt;&gt; É isso por hoje, pessoal.
+Não se esqueçam de seguir nosso podcast
+Não se esqueçam de seguir nosso podcast
+Não se esqueçam de seguir nosso podcast
+para não perder nenhuma dica.

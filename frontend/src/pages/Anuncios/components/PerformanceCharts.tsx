@@ -231,16 +231,17 @@ export function PerformanceCharts({
                 label={{ value: "Preco (R$)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11 } }}
               />
               <YAxis
-                yAxisId="right"
+                yAxisId="visitas"
                 orientation="right"
                 tickFormatter={(v) => `${v.toFixed(0)}`}
-                label={{ value: "Conversao % / Visitas", angle: 90, position: "insideRight", offset: 10, style: { fontSize: 11 } }}
+                label={{ value: "Visitas", angle: 90, position: "insideRight", offset: 10, style: { fontSize: 11 } }}
               />
               <YAxis
-                yAxisId="vendas"
-                orientation="left"
-                hide={true}
-                domain={[0, (dataMax: number) => Math.ceil(dataMax * 2)]}
+                yAxisId="conversao"
+                orientation="right"
+                tickFormatter={(v) => `${v.toFixed(1)}%`}
+                domain={[0, 10]}
+                label={{ value: "Conversao %", angle: 90, position: "right", offset: 0, style: { fontSize: 11 } }}
               />
               <Tooltip
                 formatter={(value, name) => {
@@ -265,14 +266,14 @@ export function PerformanceCharts({
               ))}
 
               <Bar
-                yAxisId="vendas"
+                yAxisId="left"
                 dataKey="vendas"
                 fill="#f97316"
                 opacity={0.7}
                 name="Vendas/dia"
               />
               <Line
-                yAxisId="right"
+                yAxisId="conversao"
                 type="monotone"
                 dataKey="conversao"
                 stroke="#22c55e"
@@ -281,7 +282,7 @@ export function PerformanceCharts({
                 name="Conversao %"
               />
               <Line
-                yAxisId="right"
+                yAxisId="visitas"
                 type="monotone"
                 dataKey="visitas"
                 stroke="#ec4899"

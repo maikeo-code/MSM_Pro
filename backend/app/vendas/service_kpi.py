@@ -5,6 +5,9 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
+# Timezone BRT (UTC-3)
+BRT = timezone(timedelta(hours=-3))
+
 from sqlalchemy import cast, Date, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,7 +40,7 @@ async def list_listings(
         return []
 
     listing_ids = [l.id for l in listings]
-    today_date = date.today()
+    today_date = datetime.now(BRT).date()
 
     # ── Busca snapshots conforme o período ─────────────────────────────────────
     period_days_map = {"7d": 7, "15d": 15, "30d": 30, "60d": 60}
@@ -601,7 +604,7 @@ async def get_kpi_compare(
     period_a: "7d" | "15d" | "30d"
     period_b: "prev" (período anterior equivalente a period_a) | "7d" | "15d" | "30d"
     """
-    today = date.today()
+    today = datetime.now(BRT).date()
 
     # Busca listing_ids do usuário
     listings_result = await db.execute(
@@ -676,7 +679,7 @@ async def get_kpi_compare(
 
 async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
     """Retorna KPIs agregados para hoje, ontem, anteontem, 7 dias e 30 dias."""
-    today = date.today()
+    today = datetime.now(BRT).date()
     yesterday = today - timedelta(days=1)
     anteontem = today - timedelta(days=2)
 

@@ -8,14 +8,12 @@ from app.produtos.models import Product
 from app.produtos.schemas import ProductCreate, ProductUpdate
 
 
-async def list_products(db: AsyncSession, user_id: UUID) -> list[Product]:
-    """Lista todos os SKUs ativos do usuário."""
-    result = await db.execute(
-        select(Product).where(
-            Product.user_id == user_id,
-            Product.is_active == True,  # noqa: E712
-        ).order_by(Product.sku)
-    )
+async def list_products(db: AsyncSession, user_id: UUID, include_inactive: bool = False) -> list[Product]:
+    """Lista SKUs do usuário. Por padrão apenas ativos, opcional incluir inativos."""
+    query = select(Product).where(Product.user_id == user_id)
+    if not include_inactive:
+        query = query.where(Product.is_active == True)  # noqa: E712
+    result = await db.execute(query.order_by(Product.sku))
     return list(result.scalars().all())
 
 

@@ -243,7 +243,7 @@ export default function Concorrencia() {
                           {competitor.mlb_id}
                         </span>
                         <a
-                          href={`https://www.mercadolivre.com.br/p/${competitor.mlb_id}`}
+                          href={`https://produto.mercadolivre.com.br/${competitor.mlb_id}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-muted-foreground hover:text-foreground transition-colors"

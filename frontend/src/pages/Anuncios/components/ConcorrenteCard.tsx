@@ -67,19 +67,26 @@ export function ConcorrenteCard({
           </p>
         </div>
         <div className="text-right">
-          {listing.price > competitor.price ? (
+          {listing.price === competitor.price ? (
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-muted-foreground">
+                Mesmo preco
+              </p>
+              <p className="text-xs text-muted-foreground">que o concorrente</p>
+            </div>
+          ) : listing.price > competitor.price ? (
             <div className="space-y-1">
               <p className="text-sm font-medium text-red-600">
                 {(
                   ((listing.price - competitor.price) /
-                    listing.price) *
+                    competitor.price) *
                   100
                 ).toFixed(1)}
                 % mais caro
               </p>
               <p className="text-xs text-muted-foreground">que o concorrente</p>
             </div>
-          ) : (
+          ) : listing.price > 0 && competitor.price > 0 ? (
             <div className="space-y-1">
               <p className="text-sm font-medium text-green-600">
                 {(
@@ -90,6 +97,12 @@ export function ConcorrenteCard({
                 % mais barato
               </p>
               <p className="text-xs text-muted-foreground">que o concorrente</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-muted-foreground">
+                Preco indisponivel
+              </p>
             </div>
           )}
         </div>

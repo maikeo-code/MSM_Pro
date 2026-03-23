@@ -1,0 +1,543 @@
+Kind: captions
+Language: pt
+Bem-vindos a mais um episódio do
+Bem-vindos a mais um episódio do
+Bem-vindos a mais um episódio do
+E-commerce inteligente. Hoje o papo é
+E-commerce inteligente. Hoje o papo é
+E-commerce inteligente. Hoje o papo é
+sobre sazonalidade nas vendas online. A
+sobre sazonalidade nas vendas online. A
+sobre sazonalidade nas vendas online. A
+gente recebeu bastante material sobre
+gente recebeu bastante material sobre
+gente recebeu bastante material sobre
+isso para analisar. Sabe aquelas
+isso para analisar. Sabe aquelas
+isso para analisar. Sabe aquelas
+flutuações de demanda? Mais ou menos
+flutuações de demanda? Mais ou menos
+flutuações de demanda? Mais ou menos
+venda, dependendo da época do ano? É
+venda, dependendo da época do ano? É
+venda, dependendo da época do ano? É
+disso que a gente vai falar. Exato. A
+disso que a gente vai falar. Exato. A
+disso que a gente vai falar. Exato. A
+ideia aqui é eh entender como ler esses
+ideia aqui é eh entender como ler esses
+ideia aqui é eh entender como ler esses
+ciclos pode assim melhorar a
+ciclos pode assim melhorar a
+ciclos pode assim melhorar a
+rentabilidade, ajudar no estoque, na
+rentabilidade, ajudar no estoque, na
+rentabilidade, ajudar no estoque, na
+logística. Com certeza. Analisando os
+logística. Com certeza. Analisando os
+logística. Com certeza. Analisando os
+dados e os casos que a gente viu, parece
+dados e os casos que a gente viu, parece
+dados e os casos que a gente viu, parece
+que dominar isso faz uma diferença
+que dominar isso faz uma diferença
+que dominar isso faz uma diferença
+grande, né? Ok, vamos desembrulhar isso
+grande, né? Ok, vamos desembrulhar isso
+grande, né? Ok, vamos desembrulhar isso
+então para começar assim, para todo
+então para começar assim, para todo
+então para começar assim, para todo
+mundo ficar na mesma página, o que
+mundo ficar na mesma página, o que
+mundo ficar na mesma página, o que
+exatamente é essa tal de sazonalidade?
+exatamente é essa tal de sazonalidade?
+exatamente é essa tal de sazonalidade?
+Pelo que a gente viu, são basicamente
+Pelo que a gente viu, são basicamente
+Pelo que a gente viu, são basicamente
+padrões de demanda que eh se repetem,
+padrões de demanda que eh se repetem,
+padrões de demanda que eh se repetem,
+né, de forma mais ou menos previsível em
+né, de forma mais ou menos previsível em
+né, de forma mais ou menos previsível em
+certas épocas. Isso é tipo um ritmo do
+certas épocas. Isso é tipo um ritmo do
+certas épocas. Isso é tipo um ritmo do
+mercado, sabe? Uma coisa que volta e
+mercado, sabe? Uma coisa que volta e
+mercado, sabe? Uma coisa que volta e
+meia acontece baixos. Os materiais que a
+meia acontece baixos. Os materiais que a
+meia acontece baixos. Os materiais que a
+gente leu apontam várias coisas. Aham.
+gente leu apontam várias coisas. Aham.
+gente leu apontam várias coisas. Aham.
+Tem, claro, as datas comerciais que todo
+Tem, claro, as datas comerciais que todo
+Tem, claro, as datas comerciais que todo
+mundo conhece, Black Friday, Natal, Dia
+mundo conhece, Black Friday, Natal, Dia
+mundo conhece, Black Friday, Natal, Dia
+das Mães. Um dos estudos até mostrava o
+das Mães. Um dos estudos até mostrava o
+das Mães. Um dos estudos até mostrava o
+impacto percentual disso em algumas
+impacto percentual disso em algumas
+impacto percentual disso em algumas
+categorias. Foi bem interessante. Sim,
+categorias. Foi bem interessante. Sim,
+categorias. Foi bem interessante. Sim,
+esses são os mais óbvios. Mas tem também
+esses são os mais óbvios. Mas tem também
+esses são os mais óbvios. Mas tem também
+clima, né? Um relatório sobre moda
+clima, né? Um relatório sobre moda
+clima, né? Um relatório sobre moda
+deixou isso muito claro. Pico de casaco
+deixou isso muito claro. Pico de casaco
+deixou isso muito claro. Pico de casaco
+no inverno, roupa de praia no verão. Não
+no inverno, roupa de praia no verão. Não
+no inverno, roupa de praia no verão. Não
+tem muito erro. Exato. E não dá para
+tem muito erro. Exato. E não dá para
+tem muito erro. Exato. E não dá para
+esquecer outros eventos, tipo voltas às
+esquecer outros eventos, tipo voltas às
+esquecer outros eventos, tipo voltas às
+aulas, que movimenta a papelaria, ou até
+aulas, que movimenta a papelaria, ou até
+aulas, que movimenta a papelaria, ou até
+eventos culturais, né, carnaval, Copa do
+eventos culturais, né, carnaval, Copa do
+eventos culturais, né, carnaval, Copa do
+Mundo, que puxam produtos temáticos.
+Mundo, que puxam produtos temáticos.
+Mundo, que puxam produtos temáticos.
+Isso. E o fascinante aqui e e os dados
+Isso. E o fascinante aqui e e os dados
+Isso. E o fascinante aqui e e os dados
+históricos confirmam isso bem, é como
+históricos confirmam isso bem, é como
+históricos confirmam isso bem, é como
+entender essa dinâmica vira quase um
+entender essa dinâmica vira quase um
+entender essa dinâmica vira quase um
+guia pro e-commerce. Um guia boa é
+guia pro e-commerce. Um guia boa é
+guia pro e-commerce. Um guia boa é
+porque permite assim antecitar a
+porque permite assim antecitar a
+porque permite assim antecitar a
+demanda, planejar melhor o estoque sem
+demanda, planejar melhor o estoque sem
+demanda, planejar melhor o estoque sem
+sobrar demais nem faltar produto no H e
+sobrar demais nem faltar produto no H e
+sobrar demais nem faltar produto no H e
+direcionar o marketing de forma mais
+direcionar o marketing de forma mais
+direcionar o marketing de forma mais
+certeira. Faz sentido. Ajuda a não ficar
+certeira. Faz sentido. Ajuda a não ficar
+certeira. Faz sentido. Ajuda a não ficar
+no prejuízo na baixa temporada e claro
+no prejuízo na baixa temporada e claro
+no prejuízo na baixa temporada e claro
+aproveitar o máximo os picos.
+aproveitar o máximo os picos.
+aproveitar o máximo os picos.
+Exatamente. Um dos artigos que a gente
+Exatamente. Um dos artigos que a gente
+Exatamente. Um dos artigos que a gente
+viu até calculava uma redução de custo
+viu até calculava uma redução de custo
+viu até calculava uma redução de custo
+de estoque, tipo uns 15%, só com um bom
+de estoque, tipo uns 15%, só com um bom
+de estoque, tipo uns 15%, só com um bom
+planejamento sazonal. 15%. Nossa, é
+planejamento sazonal. 15%. Nossa, é
+planejamento sazonal. 15%. Nossa, é
+significativo. E olha, é bom notar que
+significativo. E olha, é bom notar que
+significativo. E olha, é bom notar que
+essa sazonalidade não é uma coisa só,
+essa sazonalidade não é uma coisa só,
+essa sazonalidade não é uma coisa só,
+tem tipos diferentes, né? Os materiais
+tem tipos diferentes, né? Os materiais
+tem tipos diferentes, né? Os materiais
+tocaram nisso. Ah, é tipo o quê? Tem a
+tocaram nisso. Ah, é tipo o quê? Tem a
+tocaram nisso. Ah, é tipo o quê? Tem a
+sazonalidade previsível, que é essa
+sazonalidade previsível, que é essa
+sazonalidade previsível, que é essa
+ligada a datas fixas, climo, mas também
+ligada a datas fixas, climo, mas também
+ligada a datas fixas, climo, mas também
+tem uma mais imprevisível. Lembra
+tem uma mais imprevisível. Lembra
+tem uma mais imprevisível. Lembra
+daquele caso do produto que bombou do
+daquele caso do produto que bombou do
+daquele caso do produto que bombou do
+nada por causa de um vídeo viral? Lembro
+nada por causa de um vídeo viral? Lembro
+nada por causa de um vídeo viral? Lembro
+sim. Aquilo foi uma loucura. Pois é. Tem
+sim. Aquilo foi uma loucura. Pois é. Tem
+sim. Aquilo foi uma loucura. Pois é. Tem
+a pontual de um evento único que não se
+a pontual de um evento único que não se
+a pontual de um evento único que não se
+repete e tem a periódica de ciclos mais
+repete e tem a periódica de ciclos mais
+repete e tem a periódica de ciclos mais
+curtos, semanais, diários até. Uma das
+curtos, semanais, diários até. Uma das
+curtos, semanais, diários até. Uma das
+planilhas que analisamos mostrava como
+planilhas que analisamos mostrava como
+planilhas que analisamos mostrava como
+isso é crucial para otimizar anúncio,
+isso é crucial para otimizar anúncio,
+isso é crucial para otimizar anúncio,
+por exemplo. Entendi. Aqui a coisa fica
+por exemplo. Entendi. Aqui a coisa fica
+por exemplo. Entendi. Aqui a coisa fica
+realmente interessante. Vamos pegar uns
+realmente interessante. Vamos pegar uns
+realmente interessante. Vamos pegar uns
+exemplos concretos que a gente viu nos
+exemplos concretos que a gente viu nos
+exemplos concretos que a gente viu nos
+dados. Vamos lá. Brinquedos. Os gráficos
+dados. Vamos lá. Brinquedos. Os gráficos
+dados. Vamos lá. Brinquedos. Os gráficos
+são claríssimos. Dia das crianças e
+são claríssimos. Dia das crianças e
+são claríssimos. Dia das crianças e
+Natal. O pico é absurdo. Não tem como
+Natal. O pico é absurdo. Não tem como
+Natal. O pico é absurdo. Não tem como
+errar. Clássico, já material escolar,
+errar. Clássico, já material escolar,
+errar. Clássico, já material escolar,
+aquela subida forte ali entre dezembro e
+aquela subida forte ali entre dezembro e
+aquela subida forte ali entre dezembro e
+fevereiro, né? Um estudo sobre
+fevereiro, né? Um estudo sobre
+fevereiro, né? Um estudo sobre
+papelarias online detalhou bem isso.
+papelarias online detalhou bem isso.
+papelarias online detalhou bem isso.
+Perfeito. Início do ano letivo e outros
+Perfeito. Início do ano letivo e outros
+Perfeito. Início do ano letivo e outros
+nichos, beleza? Por exemplo, os números
+nichos, beleza? Por exemplo, os números
+nichos, beleza? Por exemplo, os números
+confirmam: Dia das Mães, Black Friday
+confirmam: Dia das Mães, Black Friday
+confirmam: Dia das Mães, Black Friday
+são momentos fortes. Roupa, bom, dança
+são momentos fortes. Roupa, bom, dança
+são momentos fortes. Roupa, bom, dança
+conforme o clima, como a gente já falou.
+conforme o clima, como a gente já falou.
+conforme o clima, como a gente já falou.
+Aham. Equipamentos de aventura, tipo
+Aham. Equipamentos de aventura, tipo
+Aham. Equipamentos de aventura, tipo
+coisa de camping, né? Primavera, verão,
+coisa de camping, né? Primavera, verão,
+coisa de camping, né? Primavera, verão,
+bomba. Um dos relatórios mostrou isso e
+bomba. Um dos relatórios mostrou isso e
+bomba. Um dos relatórios mostrou isso e
+tecnologia. Black Friday e Natal, né?
+tecnologia. Black Friday e Natal, né?
+tecnologia. Black Friday e Natal, né?
+Os dados não mentem. Campeões absolutos.
+Os dados não mentem. Campeões absolutos.
+Os dados não mentem. Campeões absolutos.
+Se a gente conectar isso tudo, como é
+Se a gente conectar isso tudo, como é
+Se a gente conectar isso tudo, como é
+que transforma essa análise em ação
+que transforma essa análise em ação
+que transforma essa análise em ação
+concreta? Boa pergunta. Os materiais
+concreta? Boa pergunta. Os materiais
+concreta? Boa pergunta. Os materiais
+sugerem algumas coisas. Primeiro, o
+sugerem algumas coisas. Primeiro, o
+sugerem algumas coisas. Primeiro, o
+básico, ficar de olho no mercado, ver o
+básico, ficar de olho no mercado, ver o
+básico, ficar de olho no mercado, ver o
+que a concorrência tá fazendo, certo?
+que a concorrência tá fazendo, certo?
+que a concorrência tá fazendo, certo?
+Monitoramento. Depois isso é chave.
+Monitoramento. Depois isso é chave.
+Monitoramento. Depois isso é chave.
+Coletar e analisar os próprios dados
+Coletar e analisar os próprios dados
+Coletar e analisar os próprios dados
+históricos de vendas. Aquela planilha
+históricos de vendas. Aquela planilha
+históricos de vendas. Aquela planilha
+detalhada que vimos era um bom exemplo
+detalhada que vimos era um bom exemplo
+detalhada que vimos era um bom exemplo
+disso. Comparar com dados do nicho
+disso. Comparar com dados do nicho
+disso. Comparar com dados do nicho
+também ajuda a ter perspectiva. Entendi.
+também ajuda a ter perspectiva. Entendi.
+também ajuda a ter perspectiva. Entendi.
+Olhar para dentro e para fora. Exato. Aí
+Olhar para dentro e para fora. Exato. Aí
+Olhar para dentro e para fora. Exato. Aí
+o passo seguinte é identificar onde
+o passo seguinte é identificar onde
+o passo seguinte é identificar onde
+estão os picos e os vales no seu volume
+estão os picos e os vales no seu volume
+estão os picos e os vales no seu volume
+de vendas ao longo do ano. Ver o impacto
+de vendas ao longo do ano. Ver o impacto
+de vendas ao longo do ano. Ver o impacto
+exato daquela data comercial no seu
+exato daquela data comercial no seu
+exato daquela data comercial no seu
+negócio específico. Uhum. E claro, as
+negócio específico. Uhum. E claro, as
+negócio específico. Uhum. E claro, as
+fontes falavam muito de usar ferramenta
+fontes falavam muito de usar ferramenta
+fontes falavam muito de usar ferramenta
+de análise de dados, até inteligência
+de análise de dados, até inteligência
+de análise de dados, até inteligência
+artificial, para deixar essas previsões
+artificial, para deixar essas previsões
+artificial, para deixar essas previsões
+mais afiadas. Um dos casos citava uma
+mais afiadas. Um dos casos citava uma
+mais afiadas. Um dos casos citava uma
+plataforma que ajudou a prever um pico
+plataforma que ajudou a prever um pico
+plataforma que ajudou a prever um pico
+com três semanas de antecedência. Uau!
+com três semanas de antecedência. Uau!
+com três semanas de antecedência. Uau!
+Três semanas faz toda a diferença. Muita
+Três semanas faz toda a diferença. Muita
+Três semanas faz toda a diferença. Muita
+diferença. E essa capacidade de prever,
+diferença. E essa capacidade de prever,
+diferença. E essa capacidade de prever,
+né, mesmo que não seja 100%, dá uma
+né, mesmo que não seja 100%, dá uma
+né, mesmo que não seja 100%, dá uma
+vantagem competitiva enorme. Sem dúvida.
+vantagem competitiva enorme. Sem dúvida.
+vantagem competitiva enorme. Sem dúvida.
+Enquanto uns concorrentes estão só
+Enquanto uns concorrentes estão só
+Enquanto uns concorrentes estão só
+reagindo, quem entende a sazonalidade do
+reagindo, quem entende a sazonalidade do
+reagindo, quem entende a sazonalidade do
+do próprio nicho, como a gente viu nos
+do próprio nicho, como a gente viu nos
+do próprio nicho, como a gente viu nos
+exemplos de sucesso, consegue se
+exemplos de sucesso, consegue se
+exemplos de sucesso, consegue se
+antecipar, preparar a oferta, ajustar
+antecipar, preparar a oferta, ajustar
+antecipar, preparar a oferta, ajustar
+estoque, sai na frente, né? Exatamente.
+estoque, sai na frente, né? Exatamente.
+estoque, sai na frente, né? Exatamente.
+O que levanta uma questão importante,
+O que levanta uma questão importante,
+O que levanta uma questão importante,
+tá? Identifiquei essa analidade. Como eu
+tá? Identifiquei essa analidade. Como eu
+tá? Identifiquei essa analidade. Como eu
+aproveito isso ao máximo? As dicas
+aproveito isso ao máximo? As dicas
+aproveito isso ao máximo? As dicas
+práticas, isso. As estratégias que a
+práticas, isso. As estratégias que a
+práticas, isso. As estratégias que a
+gente viu nos materiais apontam para
+gente viu nos materiais apontam para
+gente viu nos materiais apontam para
+alguns caminhos comuns. Primeiro,
+alguns caminhos comuns. Primeiro,
+alguns caminhos comuns. Primeiro,
+planejar com antecedência. Essencial pro
+planejar com antecedência. Essencial pro
+planejar com antecedência. Essencial pro
+estoque, marketing, logística, tudo.
+estoque, marketing, logística, tudo.
+estoque, marketing, logística, tudo.
+Antecedência é tudo. Criar promoções
+Antecedência é tudo. Criar promoções
+Antecedência é tudo. Criar promoções
+temáticas, ofertas que façam sentido
+temáticas, ofertas que façam sentido
+temáticas, ofertas que façam sentido
+naquele período de alta. Adaptar a
+naquele período de alta. Adaptar a
+naquele período de alta. Adaptar a
+comunicação, o conteúdo do site, os
+comunicação, o conteúdo do site, os
+comunicação, o conteúdo do site, os
+anúncios, deixar tudo com a cara da
+anúncios, deixar tudo com a cara da
+anúncios, deixar tudo com a cara da
+época. faz sentido para conectar com o
+época. faz sentido para conectar com o
+época. faz sentido para conectar com o
+cliente. E uma tática interessante que
+cliente. E uma tática interessante que
+cliente. E uma tática interessante que
+apareceu num dos estudos de caso é
+apareceu num dos estudos de caso é
+apareceu num dos estudos de caso é
+pensar em diversificar produtos. Talvez
+pensar em diversificar produtos. Talvez
+pensar em diversificar produtos. Talvez
+tenha algo de contrestação para ajudar a
+tenha algo de contrestação para ajudar a
+tenha algo de contrestação para ajudar a
+equilibrar a receita o ano todo. Ah,
+equilibrar a receita o ano todo. Ah,
+equilibrar a receita o ano todo. Ah,
+inteligente isso, para não depender só
+inteligente isso, para não depender só
+inteligente isso, para não depender só
+dos picos. Pois é. E claro, otimizar os
+dos picos. Pois é. E claro, otimizar os
+dos picos. Pois é. E claro, otimizar os
+anúncios, usar as palavras chaves certas
+anúncios, usar as palavras chaves certas
+anúncios, usar as palavras chaves certas
+paraa época, ajustar lances. A I, como a
+paraa época, ajustar lances. A I, como a
+paraa época, ajustar lances. A I, como a
+gente viu, pode ajudar demais a
+gente viu, pode ajudar demais a
+gente viu, pode ajudar demais a
+automatizar isso e achar o público certo
+automatizar isso e achar o público certo
+automatizar isso e achar o público certo
+na hora certa. Então, resumindo, a ideia
+na hora certa. Então, resumindo, a ideia
+na hora certa. Então, resumindo, a ideia
+central, pelo que a gente analisou,
+central, pelo que a gente analisou,
+central, pelo que a gente analisou,
+entender essa zonalidade não é só para,
+entender essa zonalidade não é só para,
+entender essa zonalidade não é só para,
+tipo, sobreviver as flutuações, não
+tipo, sobreviver as flutuações, não
+tipo, sobreviver as flutuações, não
+mesmo, é para transformar esses altos e
+mesmo, é para transformar esses altos e
+mesmo, é para transformar esses altos e
+baixos em oportunidade de crescer, de
+baixos em oportunidade de crescer, de
+baixos em oportunidade de crescer, de
+lucrar mais no e-commerce. É usar
+lucrar mais no e-commerce. É usar
+lucrar mais no e-commerce. É usar
+inteligência de dados a favor do
+inteligência de dados a favor do
+inteligência de dados a favor do
+negócio, né? Perfeitamente colocado. É
+negócio, né? Perfeitamente colocado. É
+negócio, né? Perfeitamente colocado. É
+estratégia pura. E pra gente fechar,
+estratégia pura. E pra gente fechar,
+estratégia pura. E pra gente fechar,
+queria deixar uma provocação aqui
+queria deixar uma provocação aqui
+queria deixar uma provocação aqui
+baseada numa ideia que surgiu num dos
+baseada numa ideia que surgiu num dos
+baseada numa ideia que surgiu num dos
+artigos mais conceituais que a gente
+artigos mais conceituais que a gente
+artigos mais conceituais que a gente
+leu. Opa, manda aí. E se além de só
+leu. Opa, manda aí. E se além de só
+leu. Opa, manda aí. E se além de só
+reagir aos picos que todo mundo já
+reagir aos picos que todo mundo já
+reagir aos picos que todo mundo já
+conhece, o negócio tentar-se criar as
+conhece, o negócio tentar-se criar as
+conhece, o negócio tentar-se criar as
+suas próprias microsazonalidades?
+suas próprias microsazonalidades?
+suas próprias microsazonalidades?
+Hum, como assim? Tipo, estimular a
+Hum, como assim? Tipo, estimular a
+Hum, como assim? Tipo, estimular a
+demanda em períodos que normalmente são
+demanda em períodos que normalmente são
+demanda em períodos que normalmente são
+mais fracos, talvez com eventos
+mais fracos, talvez com eventos
+mais fracos, talvez com eventos
+exclusivos, lançamentos bem pensados ou
+exclusivos, lançamentos bem pensados ou
+exclusivos, lançamentos bem pensados ou
+até explorando nichos complementares que
+até explorando nichos complementares que
+até explorando nichos complementares que
+ninguém tá olhando ainda. Nossa, é
+ninguém tá olhando ainda. Nossa, é
+ninguém tá olhando ainda. Nossa, é
+interessante criar a própria onda em vez
+interessante criar a própria onda em vez
+interessante criar a própria onda em vez
+de só surfar as que já existem. Fica aí
+de só surfar as que já existem. Fica aí
+de só surfar as que já existem. Fica aí
+a reflexão. Fica a reflexão. É isso,
+a reflexão. Fica a reflexão. É isso,
+a reflexão. Fica a reflexão. É isso,
+pessoal. Esperamos que essa nossa
+pessoal. Esperamos que essa nossa
+pessoal. Esperamos que essa nossa
+conversa sobre os materiais tenha sido
+conversa sobre os materiais tenha sido
+conversa sobre os materiais tenha sido
+útil, trazido aí uns insites bacanas
+útil, trazido aí uns insites bacanas
+útil, trazido aí uns insites bacanas
+para vocês estante aqui, tá na
+para vocês estante aqui, tá na
+para vocês estante aqui, tá na
+descrição, tá? E não deixem de seguir o
+descrição, tá? E não deixem de seguir o
+descrição, tá? E não deixem de seguir o
+e-commerce inteligente para mais papos
+e-commerce inteligente para mais papos
+e-commerce inteligente para mais papos
+como esse.

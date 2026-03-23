@@ -91,12 +91,20 @@ export default function AnuncioDetalhe() {
     queryFn: () => productsService.list(),
   });
 
-  const precoSim = simPreco !== "" ? parseFloat(simPreco) : (analysis?.listing.price ?? 0);
+  // Debounce simPreco para evitar queries excessivas
+  const [debouncedPreco, setDebouncedPreco] = React.useState<number>(analysis?.listing.price ?? 0);
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      const precoNum = simPreco !== "" ? parseFloat(simPreco) : (analysis?.listing.price ?? 0);
+      setDebouncedPreco(isNaN(precoNum) ? 0 : precoNum);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [simPreco, analysis?.listing.price]);
 
   const { data: margem, isLoading: margemLoading } = useQuery({
-    queryKey: ["margem", mlbId, precoSim],
-    queryFn: () => listingsService.getMargem(mlbId!, precoSim),
-    enabled: !!mlbId && precoSim > 0,
+    queryKey: ["margem", mlbId, debouncedPreco],
+    queryFn: () => listingsService.getMargem(mlbId!, debouncedPreco),
+    enabled: !!mlbId && debouncedPreco > 0,
   });
 
   const linkSkuMutation = useMutation({

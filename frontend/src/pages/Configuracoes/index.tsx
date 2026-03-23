@@ -46,7 +46,7 @@ export default function Configuracoes() {
   };
 
   const isTokenExpired = (expiresAt: string | null) => {
-    if (!expiresAt) return false;
+    if (!expiresAt) return true;
     return new Date(expiresAt) < new Date();
   };
 

@@ -1,0 +1,182 @@
+================================================================================
+    ANÁLISE DE FEATURES: EXPLORADOR DE CATEGORIAS E BUSCADOR
+    Nubimetrics Matrix (NOB Matrix)
+================================================================================
+
+DATA DA ANÁLISE: 18/03/2026
+DOCUMENTOS CRIADOS: 4 arquivos + 2 especificações
+
+================================================================================
+COMECE AQUI
+================================================================================
+
+Se tem 5 minutos?
+  → Leia: SUMARIO_FEATURES_09.md (5 páginas)
+
+Se tem 30 minutos?
+  → Leia: analises_brutas/09_explorador_categorias_buscador.md (50 páginas)
+
+Se é desenvolvedor?
+  → Leia: analises_brutas/09_SPEC_TECNICA.md (30 páginas)
+  → Comece com: Modelos de Dados + Endpoints
+
+Se é product manager?
+  → Leia: README.md (Index completo)
+  → Comece com: Roadmap de Implementação
+
+================================================================================
+RESUMO EXECUTIVO (1 MINUTO)
+================================================================================
+
+FEATURE 1: EXPLORADOR DE CATEGORIAS
+  Objetivo: Descobrir categorias com potencial de crescimento
+  Tipo: Market Intelligence (nível macro)
+  Dados: 12 meses rolling, índices 1-10
+  Para: Vendedores em expansão
+
+FEATURE 2: EXPLORADOR DE ANÚNCIOS
+  Objetivo: Analisar produtos com dados históricos detalhados
+  Tipo: Product Analysis (nível micro)
+  Dados: Histórico diário desde publicação
+  Para: Operacional diário, análise de preço
+
+FEATURE 3: COMPARE ANÚNCIOS
+  Objetivo: Monitorar concorrência diariamente
+  Tipo: Competitive Intelligence
+  Dados: Dados diários, customizável
+  Para: Pricing managers, análise de concorrência
+
+================================================================================
+ARQUIVOS CRIADOS
+================================================================================
+
+1. README.md (7 KB)
+   - Índice de documentos
+   - Quick reference (endpoints, tabelas, tasks)
+   - Roadmap de implementação
+   - FAQ
+
+2. SUMARIO_FEATURES_09.md (8.6 KB)
+   - Overview de cada feature
+   - Tabela comparativa
+   - Jornada integrada do usuário
+   - Checklist de implementação
+
+3. analises_brutas/09_explorador_categorias_buscador.md (41 KB)
+   - Análise completa de cada feature
+   - Termos, métricas, fluxos
+   - Regras de negócio
+   - Detalhes de UI/UX
+
+4. analises_brutas/09_SPEC_TECNICA.md (30 KB)
+   - Modelos SQLAlchemy
+   - Schemas Pydantic
+   - Endpoints FastAPI
+   - Celery tasks
+   - Migrations Alembic
+
+================================================================================
+DADOS CRÍTICOS
+================================================================================
+
+EXPLORADOR DE CATEGORIAS:
+  - ~5.000 categorias
+  - Índices 1-10 (normalizado)
+  - Período: 12 meses rolling
+  - Atualização: Mensal
+
+EXPLORADOR DE ANÚNCIOS:
+  - ~1 milhão de anúncios
+  - Histórico diário desde publicação
+  - Atualização: Diária
+
+COMPARE ANÚNCIOS:
+  - Grupos customizáveis
+  - Acompanhamento diário
+  - Rastreamento de alterações
+
+================================================================================
+IMPLEMENTAÇÃO SUGERIDA
+================================================================================
+
+MVP 1: Explorador de Categorias (Sprint 3-4, Q2 2026)
+  - DB schema
+  - Sync mensal de metrics
+  - Backend endpoints
+  - Frontend (lista + detalhes)
+  - Filtros (preset + custom)
+
+MVP 2: Explorador de Anúncios (Sprint 4-5, Q2 2026)
+  - DB schema
+  - Sync diário de histórico
+  - Backend endpoints
+  - Frontend (busca + histórico)
+
+MVP 3: Compare Anúncios (Sprint 5-6, Q3 2026)
+  - DB schema
+  - Backend endpoints
+  - Frontend (grupos + comparativa)
+  - Drill-down detalhes
+
+================================================================================
+ENDPOINTS PRINCIPAIS
+================================================================================
+
+GET    /api/v1/exploradores/categorias/                   (Listar)
+GET    /api/v1/exploradores/categorias/{id}              (Detalhe)
+GET    /api/v1/exploradores/anuncios/search              (Busca)
+GET    /api/v1/exploradores/anuncios/{id}/history        (Histórico)
+POST   /api/v1/concorrencia/grupos/                       (Criar grupo)
+GET    /api/v1/concorrencia/grupos/{id}/daily             (Comparativa)
+
+================================================================================
+TABELAS PRINCIPAIS
+================================================================================
+
+category_metrics
+  - Índices 1-10 de categorias
+  - Benchmarks vs. mercado
+  - Atualizado mensalmente
+
+ad_history
+  - Histórico diário de anúncios
+  - Preço, faturamento, unidades
+  - Atualizado diariamente
+
+competition_groups
+  - Grupos de monitoramento
+  - Membros (anúncios)
+  - Configuração de alertas
+
+================================================================================
+PRÓXIMAS AÇÕES
+================================================================================
+
+1. [ ] Ler README.md (15 min)
+2. [ ] Compartilhar com product team
+3. [ ] Spike: Investigar ML API para category metrics
+4. [ ] Design: Prototipar UI das features
+5. [ ] Sprint planning: Priorizar MVP 1
+6. [ ] Começar implementação: Explorador de Categorias
+
+================================================================================
+CONTATO / DÚVIDAS
+================================================================================
+
+Documentação completa disponível em:
+  C:/Users/Maikeo/MSM_Imports_Mercado_Livre/MSM_Pro/docs/nubimetrics_intel/
+
+Referências externas:
+  - Nubimetrics.com.br
+  - YouTube: Nubimetrics Channel
+  - ML API: developers.mercadolivre.com.br
+
+Fontes de dados:
+  - 3 vídeos Nubimetrics (VTT transcripts)
+  - Análise de features + competitors
+
+================================================================================
+VERSÃO: 1.0
+ÚLTIMA ATUALIZAÇÃO: 18/03/2026
+STATUS: Pronto para Implementação
+================================================================================

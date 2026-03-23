@@ -102,15 +102,6 @@ export default function Anuncios() {
             Gerencie seus anuncios do Mercado Livre
           </p>
         </div>
-        {displayListings.length > 0 && (
-          <button
-            onClick={() => exportCSV(filteredListings, true)}
-            className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"
-          >
-            <Download className="h-4 w-4" />
-            Baixar Relatorio
-          </button>
-        )}
       </div>
 
       {error && (

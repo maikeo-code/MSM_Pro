@@ -1,0 +1,492 @@
+Kind: captions
+Language: pt
+Olá, bem-vindos a mais um episódio do
+Olá, bem-vindos a mais um episódio do
+Olá, bem-vindos a mais um episódio do
+E-commerce Inteligente, o podcast da
+E-commerce Inteligente, o podcast da
+E-commerce Inteligente, o podcast da
+Noob Matrix. Hoje vamos mergulhar num
+Noob Matrix. Hoje vamos mergulhar num
+Noob Matrix. Hoje vamos mergulhar num
+assunto que, olha, saiu da ficção
+assunto que, olha, saiu da ficção
+assunto que, olha, saiu da ficção
+científica direto pro nosso dia a dia no
+científica direto pro nosso dia a dia no
+científica direto pro nosso dia a dia no
+varejo digital, a inteligência
+varejo digital, a inteligência
+varejo digital, a inteligência
+artificial. Vamos explorar como essa
+artificial. Vamos explorar como essa
+artificial. Vamos explorar como essa
+tecnologia aqui ainda tá dando os
+tecnologia aqui ainda tá dando os
+tecnologia aqui ainda tá dando os
+primeiros passos, digamos assim, já
+primeiros passos, digamos assim, já
+primeiros passos, digamos assim, já
+causa um impacto, hum, enorme no
+causa um impacto, hum, enorme no
+causa um impacto, hum, enorme no
+e-commerce. A gente se baseou num artigo
+e-commerce. A gente se baseou num artigo
+e-commerce. A gente se baseou num artigo
+recente do blog da Nubrix, que analisa
+recente do blog da Nubrix, que analisa
+recente do blog da Nubrix, que analisa
+justamente isso. E a nossa missão aqui é
+justamente isso. E a nossa missão aqui é
+justamente isso. E a nossa missão aqui é
+entender como a IA pode ser uma aliada
+entender como a IA pode ser uma aliada
+entender como a IA pode ser uma aliada
+para vender mais e otimizar os negócios
+para vender mais e otimizar os negócios
+para vender mais e otimizar os negócios
+online. Pronta? OK. Vamos lá. Para
+online. Pronta? OK. Vamos lá. Para
+online. Pronta? OK. Vamos lá. Para
+começar, o que é exatamente essa tal de
+começar, o que é exatamente essa tal de
+começar, o que é exatamente essa tal de
+inteligência artificial no contexto do
+inteligência artificial no contexto do
+inteligência artificial no contexto do
+e-commerce? Não é só robô falando,
+e-commerce? Não é só robô falando,
+e-commerce? Não é só robô falando,
+certo? Exato. Não é só isso. Pense em
+certo? Exato. Não é só isso. Pense em
+certo? Exato. Não é só isso. Pense em
+sistemas, é, tecnologias que aprendem
+sistemas, é, tecnologias que aprendem
+sistemas, é, tecnologias que aprendem
+com dado. Sabe no e-commerce, isso se
+com dado. Sabe no e-commerce, isso se
+com dado. Sabe no e-commerce, isso se
+traduz em quê? Em analisar um volume
+traduz em quê? Em analisar um volume
+traduz em quê? Em analisar um volume
+assim gigantesco de informação para
+assim gigantesco de informação para
+assim gigantesco de informação para
+entender o consumidor, prever
+entender o consumidor, prever
+entender o consumidor, prever
+tendências, basicamente realizar tarefas
+tendências, basicamente realizar tarefas
+tendências, basicamente realizar tarefas
+que exigiriam inteligência humana, como
+que exigiriam inteligência humana, como
+que exigiriam inteligência humana, como
+aprendizado de máquina que você
+aprendizado de máquina que você
+aprendizado de máquina que você
+mencionou. Entendi. E o artigo da
+mencionou. Entendi. E o artigo da
+mencionou. Entendi. E o artigo da
+Nubimx, ele destaca benefícios práticos,
+Nubimx, ele destaca benefícios práticos,
+Nubimx, ele destaca benefícios práticos,
+né? Quais seriam os principais para quem
+né? Quais seriam os principais para quem
+né? Quais seriam os principais para quem
+vende online? Olha, são vários e bem
+vende online? Olha, são vários e bem
+vende online? Olha, são vários e bem
+importantes. Primeiro, a análise de
+importantes. Primeiro, a análise de
+importantes. Primeiro, a análise de
+dados para prever demanda. Isso inclui
+dados para prever demanda. Isso inclui
+dados para prever demanda. Isso inclui
+tendências, sazonalidade, ajuda muito no
+tendências, sazonalidade, ajuda muito no
+tendências, sazonalidade, ajuda muito no
+estoque. Ah, para não comprar de mais
+estoque. Ah, para não comprar de mais
+estoque. Ah, para não comprar de mais
+nem de menos. Exatamente. Outro ponto é
+nem de menos. Exatamente. Outro ponto é
+nem de menos. Exatamente. Outro ponto é
+a otimização de anúncios. A IAP pode dar
+a otimização de anúncios. A IAP pode dar
+a otimização de anúncios. A IAP pode dar
+recomendações para alinhar melhor seus
+recomendações para alinhar melhor seus
+recomendações para alinhar melhor seus
+anúncios com o que as pessoas realmente
+anúncios com o que as pessoas realmente
+anúncios com o que as pessoas realmente
+buscam. E tem mais, monitoramento de
+buscam. E tem mais, monitoramento de
+buscam. E tem mais, monitoramento de
+concorrentes de forma mais ágil e,
+concorrentes de forma mais ágil e,
+concorrentes de forma mais ágil e,
+claro, o ajuste do estoque que falamos.
+claro, o ajuste do estoque que falamos.
+claro, o ajuste do estoque que falamos.
+Tudo isso leva a uma melhora na
+Tudo isso leva a uma melhora na
+Tudo isso leva a uma melhora na
+conversão e no desempenho geral do
+conversão e no desempenho geral do
+conversão e no desempenho geral do
+negócio. Faz sentido. E como isso
+negócio. Faz sentido. E como isso
+negócio. Faz sentido. E como isso
+funciona na prática? Tipo, quais
+funciona na prática? Tipo, quais
+funciona na prática? Tipo, quais
+ferramentas os vendedores podem de fato
+ferramentas os vendedores podem de fato
+ferramentas os vendedores podem de fato
+usar? O artigo cita cita sim, por
+usar? O artigo cita cita sim, por
+usar? O artigo cita cita sim, por
+exemplo, o chatbots, né? Para um
+exemplo, o chatbots, né? Para um
+exemplo, o chatbots, né? Para um
+atendimento mais rápido, 24 horas por
+atendimento mais rápido, 24 horas por
+atendimento mais rápido, 24 horas por
+dia, 7 dias por semana, filtra muita
+dia, 7 dias por semana, filtra muita
+dia, 7 dias por semana, filtra muita
+coisa. E também fala de ferramentas
+coisa. E também fala de ferramentas
+coisa. E também fala de ferramentas
+preditivas que usam os dados históricos
+preditivas que usam os dados históricos
+preditivas que usam os dados históricos
+para hum tentar antecipar comportamentos
+para hum tentar antecipar comportamentos
+para hum tentar antecipar comportamentos
+de compra futuros. Nossa, só um chatbot
+de compra futuros. Nossa, só um chatbot
+de compra futuros. Nossa, só um chatbot
+respondendo 24 horas por dia já deve
+respondendo 24 horas por dia já deve
+respondendo 24 horas por dia já deve
+ajudar horrores, imagino. Para não
+ajudar horrores, imagino. Para não
+ajudar horrores, imagino. Para não
+perder venda, né? Com certeza ajuda
+perder venda, né? Com certeza ajuda
+perder venda, né? Com certeza ajuda
+muito. Mas as estratégias que a IA
+muito. Mas as estratégias que a IA
+muito. Mas as estratégias que a IA
+possibilita vão além do atendimento. O
+possibilita vão além do atendimento. O
+possibilita vão além do atendimento. O
+artigo detalha algumas, por exemplo,
+artigo detalha algumas, por exemplo,
+artigo detalha algumas, por exemplo,
+alinhar os títulos dos produtos com a
+alinhar os títulos dos produtos com a
+alinhar os títulos dos produtos com a
+demanda real. A Iá sugere palavraschave
+demanda real. A Iá sugere palavraschave
+demanda real. A Iá sugere palavraschave
+que o pessoal tá buscando mesmo para
+que o pessoal tá buscando mesmo para
+que o pessoal tá buscando mesmo para
+aumentar a visibilidade. Claro. Isso. E
+aumentar a visibilidade. Claro. Isso. E
+aumentar a visibilidade. Claro. Isso. E
+também otimizar o posicionamento dos
+também otimizar o posicionamento dos
+também otimizar o posicionamento dos
+anúncios. A IA analisa e sugere
+anúncios. A IA analisa e sugere
+anúncios. A IA analisa e sugere
+melhorias para aparecer melhor nas
+melhorias para aparecer melhor nas
+melhorias para aparecer melhor nas
+buscas por categoria. Onde importa e
+buscas por categoria. Onde importa e
+buscas por categoria. Onde importa e
+voltando ao estoque, a montagem
+voltando ao estoque, a montagem
+voltando ao estoque, a montagem
+eficiente. Algoritmos analisam padrões
+eficiente. Algoritmos analisam padrões
+eficiente. Algoritmos analisam padrões
+para ajudar a decidir o que comprar,
+para ajudar a decidir o que comprar,
+para ajudar a decidir o que comprar,
+quanto comprar, quando comprar. No fim
+quanto comprar, quando comprar. No fim
+quanto comprar, quando comprar. No fim
+das contas, né, a IA ajuda a tomar
+das contas, né, a IA ajuda a tomar
+das contas, né, a IA ajuda a tomar
+decisões mais inteligentes, mais rápidas
+decisões mais inteligentes, mais rápidas
+decisões mais inteligentes, mais rápidas
+e baseadas em dados reais do mercado.
+e baseadas em dados reais do mercado.
+e baseadas em dados reais do mercado.
+Aqui é onde fica bem interessante para
+Aqui é onde fica bem interessante para
+Aqui é onde fica bem interessante para
+mim. E a questão dos preços, como a IA
+mim. E a questão dos preços, como a IA
+mim. E a questão dos preços, como a IA
+entra aí nessa história? Ah, essa parte
+entra aí nessa história? Ah, essa parte
+entra aí nessa história? Ah, essa parte
+é crucial. O artigo chama de
+é crucial. O artigo chama de
+é crucial. O artigo chama de
+precificação inteligente. A I permite
+precificação inteligente. A I permite
+precificação inteligente. A I permite
+ajustar os preços dinamicamente. Não é
+ajustar os preços dinamicamente. Não é
+ajustar os preços dinamicamente. Não é
+só baseado no custo, sabe? Ela considera
+só baseado no custo, sabe? Ela considera
+só baseado no custo, sabe? Ela considera
+o mercado, a concorrência, a demanda
+o mercado, a concorrência, a demanda
+o mercado, a concorrência, a demanda
+atual, o histórico daquele produto, tudo
+atual, o histórico daquele produto, tudo
+atual, o histórico daquele produto, tudo
+meio que em tempo real. Uau! E os
+meio que em tempo real. Uau! E os
+meio que em tempo real. Uau! E os
+benefícios disso são muitos. Aumento nas
+benefícios disso são muitos. Aumento nas
+benefícios disso são muitos. Aumento nas
+vendas, claro, porque o preço tá mais
+vendas, claro, porque o preço tá mais
+vendas, claro, porque o preço tá mais
+competitivo ou ajustado à demanda,
+competitivo ou ajustado à demanda,
+competitivo ou ajustado à demanda,
+mantém a competitividade frente aos
+mantém a competitividade frente aos
+mantém a competitividade frente aos
+outros vendedores e pode até melhorar a
+outros vendedores e pode até melhorar a
+outros vendedores e pode até melhorar a
+satisfação do cliente que sente que tá
+satisfação do cliente que sente que tá
+satisfação do cliente que sente que tá
+pagando um preço justo, às vezes até
+pagando um preço justo, às vezes até
+pagando um preço justo, às vezes até
+personalizado. Sem falar na eficiência
+personalizado. Sem falar na eficiência
+personalizado. Sem falar na eficiência
+operacional, porque automatiza um
+operacional, porque automatiza um
+operacional, porque automatiza um
+processo complexo. Isso permite também
+processo complexo. Isso permite também
+processo complexo. Isso permite também
+criar promoções e descontos mais
+criar promoções e descontos mais
+criar promoções e descontos mais
+estratégicos com base no que a IA tá
+estratégicos com base no que a IA tá
+estratégicos com base no que a IA tá
+mostrando. Entendi. é encontrar o
+mostrando. Entendi. é encontrar o
+mostrando. Entendi. é encontrar o
+equilíbrio certo pro negócio, né? Com a
+equilíbrio certo pro negócio, né? Com a
+equilíbrio certo pro negócio, né? Com a
+ajuda da tecnologia. Exato. A IAT dá as
+ajuda da tecnologia. Exato. A IAT dá as
+ajuda da tecnologia. Exato. A IAT dá as
+informações para achar esse ponto ótimo
+informações para achar esse ponto ótimo
+informações para achar esse ponto ótimo
+de verdade e a superar a concorrência
+de verdade e a superar a concorrência
+de verdade e a superar a concorrência
+que a gente sabe que é grande. Boa
+que a gente sabe que é grande. Boa
+que a gente sabe que é grande. Boa
+pergunta. O artigo menciona dois tipos
+pergunta. O artigo menciona dois tipos
+pergunta. O artigo menciona dois tipos
+principais de IA para ajudar na
+principais de IA para ajudar na
+principais de IA para ajudar na
+conversão. Uma delas, digamos, funciona
+conversão. Uma delas, digamos, funciona
+conversão. Uma delas, digamos, funciona
+mais internamente. Ela mostra qual é a
+mais internamente. Ela mostra qual é a
+mais internamente. Ela mostra qual é a
+sua taxa de conversão atual e, mais
+sua taxa de conversão atual e, mais
+sua taxa de conversão atual e, mais
+importante, indica ações específicas
+importante, indica ações específicas
+importante, indica ações específicas
+para melhorar. aponta onde tá o
+para melhorar. aponta onde tá o
+para melhorar. aponta onde tá o
+potencial não explorado ali no seu
+potencial não explorado ali no seu
+potencial não explorado ali no seu
+nicho. Uhum. Um diagnóstico. Então isso,
+nicho. Uhum. Um diagnóstico. Então isso,
+nicho. Uhum. Um diagnóstico. Então isso,
+um diagnóstico com sugestões. A outra
+um diagnóstico com sugestões. A outra
+um diagnóstico com sugestões. A outra
+abordagem é mais comparativa. Ela
+abordagem é mais comparativa. Ela
+abordagem é mais comparativa. Ela
+analisa sua conversão em relação aos
+analisa sua conversão em relação aos
+analisa sua conversão em relação aos
+seus concorrentes diretos na mesma
+seus concorrentes diretos na mesma
+seus concorrentes diretos na mesma
+categoria. Mostra o quão eficiente você
+categoria. Mostra o quão eficiente você
+categoria. Mostra o quão eficiente você
+tá sendo e onde pode melhorar para bom
+tá sendo e onde pode melhorar para bom
+tá sendo e onde pode melhorar para bom
+ganhar deles, né? Legal. Mostra onde
+ganhar deles, né? Legal. Mostra onde
+ganhar deles, né? Legal. Mostra onde
+você tá perdendo ou ganhando o jogo,
+você tá perdendo ou ganhando o jogo,
+você tá perdendo ou ganhando o jogo,
+basicamente. Exatamente. E por quê?
+basicamente. Exatamente. E por quê?
+basicamente. Exatamente. E por quê?
+Então, juntando tudo isso, parece que a
+Então, juntando tudo isso, parece que a
+Então, juntando tudo isso, parece que a
+IA é uma ferramenta super poderosa, mas
+IA é uma ferramenta super poderosa, mas
+IA é uma ferramenta super poderosa, mas
+não é tipo uma varinha mágica, né? Não
+não é tipo uma varinha mágica, né? Não
+não é tipo uma varinha mágica, né? Não
+resolve tudo sozinha. Perfeito. E esse é
+resolve tudo sozinha. Perfeito. E esse é
+resolve tudo sozinha. Perfeito. E esse é
+um ponto chave que a fonte reforça
+um ponto chave que a fonte reforça
+um ponto chave que a fonte reforça
+muito. A IA é crucial, sim, mas ela
+muito. A IA é crucial, sim, mas ela
+muito. A IA é crucial, sim, mas ela
+precisa da análise e da estratégia
+precisa da análise e da estratégia
+precisa da análise e da estratégia
+humana. Os algoritmos são ótimos para
+humana. Os algoritmos são ótimos para
+humana. Os algoritmos são ótimos para
+processar dados, identificar padrões que
+processar dados, identificar padrões que
+processar dados, identificar padrões que
+a gente talvez nem visse, mas é o
+a gente talvez nem visse, mas é o
+a gente talvez nem visse, mas é o
+vendedor, a pessoa que interpreta isso,
+vendedor, a pessoa que interpreta isso,
+vendedor, a pessoa que interpreta isso,
+entende o contexto do próprio negócio e
+entende o contexto do próprio negócio e
+entende o contexto do próprio negócio e
+toma a decisão final. É essa combinação,
+toma a decisão final. É essa combinação,
+toma a decisão final. É essa combinação,
+essa sinergia entre a máquina e o humano
+essa sinergia entre a máquina e o humano
+essa sinergia entre a máquina e o humano
+que realmente traz resultados e oferece
+que realmente traz resultados e oferece
+que realmente traz resultados e oferece
+experiências de compra melhores pro
+experiências de compra melhores pro
+experiências de compra melhores pro
+cliente final. Bom, ficou claro que a
+cliente final. Bom, ficou claro que a
+cliente final. Bom, ficou claro que a
+inteligência artificial já é uma peça
+inteligência artificial já é uma peça
+inteligência artificial já é uma peça
+chave nesse tabuleiro do e-commerce, né?
+chave nesse tabuleiro do e-commerce, né?
+chave nesse tabuleiro do e-commerce, né?
+Ela ajuda desde o atendimento, passando
+Ela ajuda desde o atendimento, passando
+Ela ajuda desde o atendimento, passando
+pelo estoque, definição de preços, até a
+pelo estoque, definição de preços, até a
+pelo estoque, definição de preços, até a
+análise da concorrência. é quase um
+análise da concorrência. é quase um
+análise da concorrência. é quase um
+copiloto inteligente. Exato, um
+copiloto inteligente. Exato, um
+copiloto inteligente. Exato, um
+copiloto. E talvez a reflexão final para
+copiloto. E talvez a reflexão final para
+copiloto. E talvez a reflexão final para
+quem tá nos ouvindo seja essa.
+quem tá nos ouvindo seja essa.
+quem tá nos ouvindo seja essa.
+Considerando essa velocidade toda da IA
+Considerando essa velocidade toda da IA
+Considerando essa velocidade toda da IA
+em analisar comportamentos, tendências,
+em analisar comportamentos, tendências,
+em analisar comportamentos, tendências,
+que pequena mudança no desejo do
+que pequena mudança no desejo do
+que pequena mudança no desejo do
+consumidor, algo bem específico do seu
+consumidor, algo bem específico do seu
+consumidor, algo bem específico do seu
+nicho, será que a IA poderia revelar
+nicho, será que a IA poderia revelar
+nicho, será que a IA poderia revelar
+agora antes mesmo que todo mundo
+agora antes mesmo que todo mundo
+agora antes mesmo que todo mundo
+perceba? Uma boa provocação pra gente
+perceba? Uma boa provocação pra gente
+perceba? Uma boa provocação pra gente
+pensar. Obrigada por acompanhar esta
+pensar. Obrigada por acompanhar esta
+pensar. Obrigada por acompanhar esta
+exploração sobre IA no e-commerce
+exploração sobre IA no e-commerce
+exploração sobre IA no e-commerce
+conosco. Para saber mais detalhes e
+conosco. Para saber mais detalhes e
+conosco. Para saber mais detalhes e
+continuar aprendendo, é só acessar o
+continuar aprendendo, é só acessar o
+continuar aprendendo, é só acessar o
+link que tá na descrição deste episódio,
+link que tá na descrição deste episódio,
+link que tá na descrição deste episódio,
+tá? E não se esqueça de seguir o
+tá? E não se esqueça de seguir o
+tá? E não se esqueça de seguir o
+e-commerce inteligente no Spotify para
+e-commerce inteligente no Spotify para
+e-commerce inteligente no Spotify para
+não perder nenhuma conversa. Até a
+não perder nenhuma conversa. Até a
+não perder nenhuma conversa. Até a
+próxima.

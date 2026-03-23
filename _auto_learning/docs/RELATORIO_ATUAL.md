@@ -1,17 +1,17 @@
 # SWARM GENESIS v6.0 — RELATORIO COMPLETO
-Gerado em: 17/03/2026 21:44
+Gerado em: 18/03/2026 15:41
 
 ## SAUDE DO SISTEMA
-  Ciclos completos: 97
+  Ciclos completos: 300
   Regras: 10 ativas | 0 deprecadas
-  Feedbacks: 8 | Sucessos: 5 | Falhas abertas: 0
+  Feedbacks: 11 | Sucessos: 8 | Falhas abertas: 0
   Agentes: 20 ativos | 0 elite | 0 aposentados
-  Memoria: 2 episodios | 7 fatos | 3 padroes
+  Memoria: 2 episodios | 10 fatos | 6 padroes
 
 ## CHECKPOINT DA SESSAO (v6)
 
-  Ultimo checkpoint: ID=13 | Ciclo=27 | Fase=correction
-  Registrado em: 2026-03-17 19:22:30
+  Ultimo checkpoint: ID=16 | Ciclo=300 | Fase=synthesis
+  Registrado em: 2026-03-18 18:41:08
   Sessao retomada de checkpoint: NAO
 
 ## MUDANCAS DE CODIGO (v6)
@@ -28,27 +28,35 @@ Gerado em: 17/03/2026 21:44
 
 ## LOG DE ACOES — RESUMO POR AGENTE (v6)
 
-  Total de acoes registradas: 6
-  unknown                        ###### (6)
+  Total de acoes registradas: 9
+  unknown                        ######### (9)
+
+## IMPORTANTES — Quando puder (1)
+
+  [Q9] ux: Ideia de Brainstorm: Criar pagina unificada de Atendimento (Perguntas + Reclamacoes + Devolucoes) em vez de paginas separadas. Isso faria mais sentido para o workflow diario? Ou prefere manter separado?
+
+## CURIOSIDADES (1)
+
+  [Q10] Ideia: Quando um alerta dispara (ex: estoque baixo, concorrente mudou preco), gerar automaticamente uma sugestao da IA (Claude Haiku) e incluir no email de alerta. Isso seria util ou ruido demais?
 
 ## SCORES POR AREA
 
-  #######     75.0 | features
-  #######     72.5 | deploy
-  ######      67.0 | frontend
-  ######      64.4 | architecture
-  ######      63.9 | code_quality
-  #####       57.7 | security
-  #####       51.7 | error_handling
-  ####        48.1 | testing
+  #######     76.0 | features
+  #######     73.6 | deploy
+  ######      68.4 | architecture
+  ######      68.3 | frontend
+  ######      67.2 | code_quality
+  ######      61.0 | security
+  #####       58.8 | error_handling
+  ####        49.9 | testing
 
 ## EVOLUCAO ENTRE CICLOS
 
-  Ciclo  93 | Score:  92 | Q:0 F:0 I:0 | Ciclo 93 - Verificacao testes - 172 passando, cobertura ~45%
-  Ciclo  94 | Score:  92 | Q:0 F:0 I:0 | Ciclo 94 - Verificacao arquitetura - vendas 7 modulos, tasks
-  Ciclo  95 | Score:  92 | Q:0 F:0 I:0 | Ciclo 95 - Verificacao deploy - supervisord 3 processos, Rai
-  Ciclo  96 | Score:  92 | Q:0 F:0 I:0 | Ciclo 96 - Verificacao frontend - error states, empty states
-  Ciclo  97 | Score:  92 | Q:0 F:0 I:0 | Ciclo 97 - Verificacao financeiro - P&L dedup, revenue fallb
+  Ciclo 296 | Score:  95 | Q:0 F:0 I:0 | Ciclo 296 - Verificacao Search Ranking - posicao na busca ML
+  Ciclo 297 | Score:  95 | Q:0 F:0 I:0 | Ciclo 297 - Verificacao Repricing Rules - CRUD completo, 3 t
+  Ciclo 298 | Score:  78 | Q:0 F:0 I:0 | Ciclo 298: Exploração completa do estado atual (22,686 LOC, 
+  Ciclo 299 | Score:  82 | Q:0 F:0 I:0 | Ciclo 299: 8 warnings corrigidos. response_model em 9 endpoi
+  Ciclo 300 | Score:  82 | Q:0 F:0 I:0 | Ciclo 300 (marco estrategico): Planejamento 5 ciclos (301-30
 
 ## PERFORMANCE DOS AGENTES
 
@@ -73,6 +81,9 @@ Gerado em: 17/03/2026 21:44
   [ANTI-PADRAO] [1x] Comentario no codigo diz criptografado mas implementacao usa plaintext. Sempre v
   [SUCESSO] [1x] Custom SQLAlchemy TypeDecorator e a melhor forma de encriptar colunas transparen
   [SUCESSO] [1x] Testes devem evitar imports de modulos com dependencias pesadas (celery, bcrypt)
+  [ANTI-PADRAO] [1x] Webhook endpoints sem validacao de user_id permitem abuso. SEMPRE verificar que 
+  [SUCESSO] [1x] Para PATCH endpoints, usar model_dump(exclude_unset=True) em vez de verificar ca
+  [ANTI-PADRAO] [1x] Loop de queries individuais dentro de for (N+1). Substituir por subquery com agg
 
 ## TOP REGRAS APRENDIDAS
 
@@ -87,14 +98,15 @@ Gerado em: 17/03/2026 21:44
 ## CONHECIMENTO SOBRE O PROJETO
 
   [arquitetura]
-    backend_overview: 10,643 linhas. 15 modelos SQLAlchemy. 9 routers com ~50 endp
-    frontend_overview: React 18 + TS + Vite + Tailwind. 12 paginas, 6 componentes, 
+    backend_overview: 13,244 linhas. 15 modulos. 79 arquivos .py. 70+ endpoints em
+    frontend_overview: React 18 + TS + Vite + Tailwind. 13 paginas, Layout com 12 i
     celery_tasks: 8 tasks: sync_all_snapshots (diario 06:00 BRT), sync_recent_
+  [bugs]
+    ciclo_298_criticos: 4 CRITICOS: (1) Webhook /notifications sem auth — qualquer u
   [divida_tecnica]
     arquivos_grandes: vendas/service.py=2109, jobs/tasks.py=1366, client.py=700, f
   [pontos_fortes]
     coisas_boas: Auth JWT funciona. OAuth multi-conta funciona. 8 Celery task
-  [riscos]
-    security_critical: 3 CRITICOS: (1) Tokens OAuth em plaintext no PostgreSQL, (2)
-  [verificacao]
-    divisao_por_zero: Todas as 13 divisoes em service.py e financeiro/service.py t
+  [reflexao]
+    ciclo_298_autoavaliacao: 4 acoes de correcao, todas bem-sucedidas. Security subiu 75-
+    ciclo_299_autoavaliacao: 8 warnings corrigidos em 1 ciclo: response_model (9 endpoint

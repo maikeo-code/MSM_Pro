@@ -17,11 +17,12 @@ from app.vendas.models import Listing, ListingSnapshot
 logger = logging.getLogger(__name__)
 
 # Thresholds de nivel por KPI (limites para manutencao de nivel)
+# Referência: https://www.mercadolivre.com.br/help/Como-posso-manter-meu-nivel-de-vendedor-e-status-de-Vendedor-Premiado-_FAQ_4203
 REPUTATION_THRESHOLDS = {
-    "claims": Decimal("1.0"),          # Reclamacoes: max 1%
-    "mediations": Decimal("0.5"),      # Mediações: max 0.5%
-    "cancellations": Decimal("0.5"),   # Cancelamentos: max 0.5%
-    "late_shipments": Decimal("6.0"),  # Atrasos envio: max 6%
+    "claims": Decimal("3.0"),          # Reclamacoes: max 3%
+    "mediations": Decimal("0.5"),      # Mediações: max 0.5% (não documentado, usando conservador)
+    "cancellations": Decimal("2.0"),   # Cancelamentos: max 2%
+    "late_shipments": Decimal("15.0"), # Atrasos envio: max 15%
 }
 
 async def calculate_revenue_60d(db: AsyncSession, ml_account_id) -> Decimal:
@@ -244,6 +245,25 @@ async def get_reputation_risk(
         return None
 
     total_sales = snapshot.total_sales_60d or 0
+
+    # Se não há dados de vendas, retornar status especial
+    if total_sales == 0:
+        return {
+            "ml_account_id": snapshot.ml_account_id,
+            "total_sales_60d": 0,
+            "items": [
+                {
+                    "kpi": "claims",
+                    "label": "Reclamacoes",
+                    "current_rate": 0,
+                    "threshold": float(REPUTATION_THRESHOLDS["claims"]),
+                    "current_count": 0,
+                    "max_allowed": 0,
+                    "buffer": 0,
+                    "risk_level": "no_data",
+                }
+            ] * 4,  # Duplica para os 4 KPIs
+        }
 
     kpi_configs = [
         {

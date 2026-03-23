@@ -1,0 +1,178 @@
+Kind: captions
+Language: pt
+Bom vamos lá chegou a hora da gente
+falar dessa funcionalidade otimizador de
+publicações que é o nosso lançamento mas
+que é muito importante que vocês
+entendam que ela faz parte de um
+conjunto de uma tecnologia que a gente
+vem desenvolvendo nos últimos do anos
+que se chama noob Matrix Decode essa
+tecnologia Esse pacote de tecnologia que
+vai gerar diversas
+funcionalidades tem como base
+Inteligência Artificial tudo que a gente
+vem Trabalhando dentro desse pacote de
+tecnologia é trazer funcionalidades onde
+nós somos o seu analista de-commerce a
+funcionalidade já traz toda análise com
+base na Inteligência Artificial e
+simplesmente você tá pronto para tomar
+suas decisões com base já na análise da
+nossa Inteligência Artificial a primeira
+funcionalidade desse pacote que a gente
+lança agora nesse semestre é otimizador
+de publicações tá eh primeiro eu quero
+explicar o conceito para vocês esse
+otimizador de publicações a gente criou
+um índice de qualidade Numb méric a
+nossa Inteligência Artificial criou um
+índice de qualidade dob méric que que é
+esse índice tá esse índice é composto
+por quatro pilares que são muito
+importantes para gerar demanda e
+posicionar a sua publicação e para
+vender mais na sua publicação O que que
+a gente Analisa basicamente neste
+conjunto são as dinâmicas a gente olha a
+dinâmica de cada categ
+folha para analisar o que serve mais
+para te gerar visita e o que serve mais
+para te gerar conversão a gente faz essa
+análise e pontua qual que é o seu status
+em cada um dos pilares dentro dessa
+publicação e a média desse status vai
+gerar o índice de qualidade no metrix tá
+a gente deixa também o índice de
+qualidade Mercado Livre como a gente já
+conversou antes né são as regras fixas
+que o Mercado Livre tem by thebook para
+todas as publicações Independente de
+qual é a publicação Independente de quem
+é o vendedor Independente de qual é a
+categoria que está inserida essa
+publicação as regras são fixas iguais e
+as mesmas para todas as publicações
+então o que que a gente deixa aí para
+vocês é o índice de qualidade no bmatrix
+que vai dar uma nota final do quão forte
+está a qualidade dessa publicação e que
+você precisa trabalhar dentro desses
+pilares e a gente já vai mostrar aqui
+para vocês eh detalhadamente o que a
+gente faz dentro de cada um desses
+Pilares Bom agora vamos lá diretamente
+ver essa funcionalidade primeira coisa
+fica dentro de meu negócio Ou seja no
+menu de meu negócio vocês vão encontrar
+a opção otimiza as suas publicações tá
+aqui tem todas as suas publicações que
+tiveram vendas nos últimos 30 dias
+publicação que não teve venda nos
+últimos 30 dias não vai estar dentro
+dentro desta lista tá então é importante
+todas as suas publicações com vendas nos
+últimos 30 dias você pode filtrar
+diretamente por categoria qual categoria
+que você quer ver de publicação e você
+pode usar filtros de preço vendas em
+unidades você pode usar o filtro de
+qualidade filtrar por Pilares né Qual é
+o posicionamento dentro de cada um dos
+pilares que a gente comentou e e também
+filtrar diretamente né Por por ordenação
+aí eh de direto que que é importante a
+gente olhar vamos ver aqui algumas
+opções Então dentro do índice de
+qualidade n metrix para cada publicação
+a gente já vai te mostrar um resumo
+geral gente é muito importante que vocês
+entendam que o índice de qualidade de n
+Matrix ele leva em
+consideração a dinâmica da categoria
+folha que pertence essa publicação então
+o o nosso algoritmo ele olha as
+publicações vencedoras com melhor
+conversão com melhor posicionamento tá
+eh com melhor eficiência de conversão
+que melhor se posicionam na demanda
+dentro desta categoria aprende com elas
+Quais são as características vencedoras
+e compara as suas publicações com esse
+resultado tá então é sempre da sua
+categoria folha e aqui a gente dá um
+resumo importante então já de demanda a
+gente fala como é que tá a sua
+publicação em demanda depois em
+posicionamento depois em conversão e
+depois em eficiência de conversão e o
+teu índice final que é simplesmente a
+média né Eh destes Pilares Ok E aí vamos
+olhar um um caso importante aqui a gente
+tem o caso né da publicação de um
+termômetro digital quando a gente vai
+olhar dentro de demanda O que que a
+gente tá sugerindo aqui tem um espaço
+para melhorar então a gente já sugere
+aqui palavras que estão alinhadas à
+demanda e que você poderia inserir
+dentro dessa publicação essas palavras
+são as palavras mais buscadas da
+categoria palavras que mais ajudam a
+ranquear publicações não necessariamente
+ela está conectada com o seu produto mas
+ela pode estar e você tem que olhar aqui
+para ver o que que você precisa encaixar
+veja esse caso que interessante é um
+medidor de temperatura né e não tem
+palavras muito importantes como medidor
+temperatura que são palavras muito
+fortes na categoria A gente te mostra
+também o que você já incluiu o que já
+está incluído a gente mostra para vocês
+aqui tá depois se a gente olhar aqui
+vamos olhar uma outra publicação em
+posicionamento essa daqui
+eh que que a gente faz em posicionamento
+então posicionamento é para melhorar a
+sua demanda para que você receba mais
+visitas e aqui a gente tem então
+participe das Ofertas do dia estratégia
+de preço é fundamental para
+posicionamento nessa categoria sempre
+olhando pra categoria tá gente e a gente
+amostra também as que estão
+aplicadas e assim vai né quando a gente
+vai olhar em conversão a gente te mostra
+também quais são as características de
+conversão para essa categoria que são
+mais importantes Então olha adicionar
+uma marca verificada nessa publicação é
+muito importante dentro dessa categoria
+você deveria fazer isso tá e a gente te
+mostra também as já aplicadas e no final
+a gente mostra a eficiência de conversão
+né o Quão distante você tá da conversão
+ideal né a conversão ideal nessa
+categoria das melhores publicações das
+publicações vencedoras tá entre 14 e 48%
+e a sua publicação real tá em 7.69 por o
+que faz você perder Aí eh um grande
+dinheiro então se você aplicar todas as
+dicas aí para ter uma conversão melhor
+provavelmente a sua eficiência de
+conversão vai melhorar e a gente deixa
+aqui o índice de qualidade Mercado Livre
+Para que vocês possam conferir aquele
+índice que tá baseado em regras regras
+fixas tá gente então isso é super
+importante para que vocês consigam
+entender a dinâmica lembrando isso é
+dinâmico em tempo real aprendizagem em
+tempo real Mudou alguma coisa na
+categoria alterou alguma coisa na
+dinâmica dessa categoria isso aqui se
+altera e e se atualiza sozinho então
+vocês precisam acompanhar o tempo
+inteiro tá
+bom

@@ -1,4 +1,5 @@
 import axios, { type AxiosInstance, type AxiosError } from "axios";
+import { useAuthStore } from "@/store/authStore";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "/api/v1";
 
@@ -42,6 +43,7 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       removeStoredToken();
+      useAuthStore.getState().logout();
       // Redireciona para login se não estiver na página de login
       if (!window.location.pathname.includes("/login")) {
         window.location.href = "/login";

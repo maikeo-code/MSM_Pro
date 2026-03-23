@@ -1,0 +1,141 @@
+Kind: captions
+Language: pt
+sejam bem-vindos a NOB Matrix o que é o
+explorador de categorias é uma
+ferramenta desenvolvida para descobrir
+Novos Produtos em categorias que se
+adequa ao seu perfil e experiência como
+funciona o explorador de categorias é um
+banco de dados que organiza as
+informações de todas as categorias
+folhas em uma lista cada categoria
+inclui métricas e índices específicos
+que mostram médias mensais dos últimos
+12 meses esses indicadores classificados
+de 1 a 10 refletem as métricas mais
+relevantes tanto para a categoria
+específica L1 quanto para o mercado em
+geral personalizando suas opções
+adequamos a pesquisa de acordo com suas
+características como vendedor e
+experiência você possui você pode
+personalizar todas as métricas ou usar
+filtros padrões filtros padrões para
+vendedores iniciantes e avançados você
+encontrará para alguns vendedores que
+estão começando a vender no Mercado
+Livre de forma aberta e outros para os
+mais experientes e maduros dentro do
+canal
+personalizando a pesquisa você pode
+selecionar métricas com o botão colunas
+para escolher quais métricas analisar
+Você pode organizar as colunas para
+facilitar a visualização pode aplicar
+filtros personalizados como critérios
+Chaves como crescimento baixo nível de
+catálogo ou baixa concorrência e usar
+filtros padrão bom vamos ver aqui uns
+casos de uso primeiramente queria
+informar que a gente consegue fazer essa
+análise a princípio já por dois modos
+primeiro modo seria filtrando as
+categorias já pré-determinadas que aqui
+seria já os filtros pré-determinados que
+a gente pensou para alguns clientes já
+iniciaram s a sua análise então você
+pode já diretamente trabalhar com alto
+crescimento por exemplo se eu clico aqui
+automaticamente nos rdos me indica Quais
+são os rdos que estão incluídos né nesse
+autto crescimento que nesse caso são as
+vendas em unidades o crescimento das
+vendas e unidades maior ou igual a 100 e
+os vendedores que é maior ou igual a 5
+então aqui já te traz automaticamente
+com os filtros pré-determinados Mas
+também você pode trabalhar com os
+filtros de maneira personalizada Tá
+clicando aqui em filtros a gente vai
+colocando agregando um filtro ou
+retirando alguns e aplicando primeiro eu
+queria passar por essa parte de colunas
+que é bem interessante na verdade bem
+importante porque aqui são todas as
+colunas que você pode trabalhar com
+explorador de categorias e aí você vai
+escolher trabalhar com algumas com todas
+ou com enfim quase que que faz sentido
+para você assim também você pode ordenar
+ou reen nas colunas e também pode ver os
+detalhes quando a categoria que existe
+aqui é uma categoria que você vende que
+tá estacada em azulzinho quando eu clico
+aqui em ver mais detalhes vou tirar você
+vai perceber que não aparece os valores
+nominais em relação às unidades de
+vendas e e moeda local mas quando eu
+clico aqui vai te aparecer embaixo coisa
+que as outas vão te aparecer voltando
+aqui nos filos a gente pode fazer vários
+filtros então por exemplo eu não quero
+ver nem vedores mas eu quero ver a
+quantidade de de de unidades vendidas de
+crescimento é a partir de 85 por exemplo
+não não 100 não sei e aqui eu posso
+colocar um converter outra opção também
+vou colocar aqui unidades de vendas eh
+de mercado por
+exemplo né e posso adicionar um filtro
+de vendas unidade de vendas por eh aqui
+L1 que é a categoria né vou aplicar aqui
+o filtro eu tô colocando já acordo com o
+que me me interessa vai filtrar Quais
+são esses três principais eh Campos que
+eu incluí então aqui por exemplo eu
+tenho a quantidade de unidades vendidas
+no período que eu iniciei aqui nos
+filtros eu tenho unidade de vendas no
+mercado e Unidade de vendas na na
+categoria né então é interessante que
+você entende que essa categoria 95% tem
+todos esses índices aí você vai
+trabalhando a cada um dentro que você
+acha interessante outro caso de uso que
+você pode fazer também vou inclusive
+remover todos os fios para entenderem um
+pouco a dinâmica e vou colocar agora
+trabalhar por marca por exemplo coloco a
+marca contém a marca que eu quero
+trabalhar aplico o filtro e aí você vai
+entender né se eu quiser colocar outra
+meta nessa marca também a mesma coisa
+vou aqui adiciono vou agora colocar por
+crescimento em unidades no período maior
+que 100 por exemplo aplico Então dessa
+marca que cresceram acima de 100 eh por
+aqui você tem essa informação né
+importante entender que você pode
+avaliar pela coluna você pode
+reorganizar essa coluna também e assim
+você pode aplicar distribui ou
+distribuir filtros e Campos segundo a
+sua dinâmica segundo a sua a sua
+rotina repassamos o conceito das
+métricas que estão representadas por
+índices a escala de níveis de 1 a 10
+onde nível um indica baixo rendimento
+com espaço para melhoria nesta categoria
+o nível 10 indica Auto rendimento
+categoria se destaca por esse nível e os
+níveis intermediários de 2 a 9 que
+representam um progresso gradual entre
+ambos mas também temos temos os tipos de
+níveis entre L1 e mercado Total nível
+Mercado Livre compara categoria com
+todas as categorias da plataforma e
+nível na categoria principal L1 compara
+a categoria dentro de seu grupo
+principal Obrigado pela atenção e
+Esperamos vocês no nosso canal de
+suporte

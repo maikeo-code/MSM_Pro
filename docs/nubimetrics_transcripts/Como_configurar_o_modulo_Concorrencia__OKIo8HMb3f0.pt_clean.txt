@@ -1,0 +1,447 @@
+Kind: captions
+Language: pt
+Olá bem-vindos a noob Matrix hoje vamos
+Olá bem-vindos a noob Matrix hoje vamos
+Olá bem-vindos a noob Matrix hoje vamos
+conhecer alguns casos de uso do
+conhecer alguns casos de uso do
+conhecer alguns casos de uso do
+explorador de anúncios lembramos que a
+explorador de anúncios lembramos que a
+explorador de anúncios lembramos que a
+principal funcionalidade desta
+principal funcionalidade desta
+principal funcionalidade desta
+visualização é configurar concorrência
+visualização é configurar concorrência
+visualização é configurar concorrência
+tanto para vendedores quanto para
+tanto para vendedores quanto para
+tanto para vendedores quanto para
+publicações Mas vamos aqui mostrar
+publicações Mas vamos aqui mostrar
+publicações Mas vamos aqui mostrar
+diferentes casos de uso para que você
+diferentes casos de uso para que você
+diferentes casos de uso para que você
+possa ver e como
+utilizá-los bom aqui eu vou mostrar para
+utilizá-los bom aqui eu vou mostrar para
+utilizá-los bom aqui eu vou mostrar para
+vocês alguns pontos interessantes
+vocês alguns pontos interessantes
+vocês alguns pontos interessantes
+explorador Primeiro quer pela pesquisa
+explorador Primeiro quer pela pesquisa
+explorador Primeiro quer pela pesquisa
+exata pesquisa exata serve para que eu
+exata pesquisa exata serve para que eu
+exata pesquisa exata serve para que eu
+possa buscar alguns produtos por
+possa buscar alguns produtos por
+possa buscar alguns produtos por
+palavras né Posso colocar palavras que
+palavras né Posso colocar palavras que
+palavras né Posso colocar palavras que
+encontar os produtos no caso eu coloquei
+encontar os produtos no caso eu coloquei
+encontar os produtos no caso eu coloquei
+capacete
+capacete
+capacete
+fechado aí vai me trazer a lógica de
+fechado aí vai me trazer a lógica de
+fechado aí vai me trazer a lógica de
+sempre primeiro a palavra capacete
+sempre primeiro a palavra capacete
+sempre primeiro a palavra capacete
+segundo a palavra fechado tá porém a
+segundo a palavra fechado tá porém a
+segundo a palavra fechado tá porém a
+palavra a pesquisa exata ela vai servir
+palavra a pesquisa exata ela vai servir
+palavra a pesquisa exata ela vai servir
+mais basicamente buscar exatamente o
+mais basicamente buscar exatamente o
+mais basicamente buscar exatamente o
+produto assim como tá descrito tá então
+produto assim como tá descrito tá então
+produto assim como tá descrito tá então
+você percebe que dentro desse dessas
+você percebe que dentro desse dessas
+você percebe que dentro desse dessas
+palavras existe um produto que teve
+palavras existe um produto que teve
+palavras existe um produto que teve
+venda nesse período né e aqui você pode
+venda nesse período né e aqui você pode
+venda nesse período né e aqui você pode
+identificá-lo eh e também aqui pode
+identificá-lo eh e também aqui pode
+identificá-lo eh e também aqui pode
+fazer o segmento tanto desse anúncio
+fazer o segmento tanto desse anúncio
+fazer o segmento tanto desse anúncio
+quanto do vendedor tá o mesmo eu vou
+quanto do vendedor tá o mesmo eu vou
+quanto do vendedor tá o mesmo eu vou
+fazer para pesquisa
+fazer para pesquisa
+fazer para pesquisa
+expandida Se eu mudar aqui pesquisa
+expandida Se eu mudar aqui pesquisa
+expandida Se eu mudar aqui pesquisa
+expandida e colocar capacete fechado
+expandida e colocar capacete fechado
+expandida e colocar capacete fechado
+novamente ele não vai me trazer dentro
+novamente ele não vai me trazer dentro
+novamente ele não vai me trazer dentro
+daquela ordem de primeiro capacete
+daquela ordem de primeiro capacete
+daquela ordem de primeiro capacete
+depois fechada e sim vai me trazer todas
+depois fechada e sim vai me trazer todas
+depois fechada e sim vai me trazer todas
+as publicações que existem com essas
+as publicações que existem com essas
+as publicações que existem com essas
+duas palavras independentemente se ela
+duas palavras independentemente se ela
+duas palavras independentemente se ela
+vem em primeiro ou segundo lugar você vê
+vem em primeiro ou segundo lugar você vê
+vem em primeiro ou segundo lugar você vê
+que a o resultado foi muito maior né
+que a o resultado foi muito maior né
+que a o resultado foi muito maior né
+então a mesma coisa você pode
+então a mesma coisa você pode
+então a mesma coisa você pode
+identificar as informações as as a as
+identificar as informações as as a as
+identificar as informações as as a as
+publicações né Eh e também seguir a
+publicações né Eh e também seguir a
+publicações né Eh e também seguir a
+partir daqui tanto o anúncio como o
+partir daqui tanto o anúncio como o
+partir daqui tanto o anúncio como o
+vendedor a gente sempre indica fazer
+vendedor a gente sempre indica fazer
+vendedor a gente sempre indica fazer
+essa pesquisa expandida porque aí vai
+essa pesquisa expandida porque aí vai
+essa pesquisa expandida porque aí vai
+trazer muito mais resultado do que você
+trazer muito mais resultado do que você
+trazer muito mais resultado do que você
+tá querendo encontrar tá um terceiro
+tá querendo encontrar tá um terceiro
+tá querendo encontrar tá um terceiro
+ponto também interessante é o uso dos
+ponto também interessante é o uso dos
+ponto também interessante é o uso dos
+Filtros né nessa parte aqui você pode
+Filtros né nessa parte aqui você pode
+Filtros né nessa parte aqui você pode
+incluir vários filtros trabalhar com
+incluir vários filtros trabalhar com
+incluir vários filtros trabalhar com
+vários filtros para que você possa eh
+vários filtros para que você possa eh
+vários filtros para que você possa eh
+filtrar né essa busca essa que você fez
+filtrar né essa busca essa que você fez
+filtrar né essa busca essa que você fez
+por exemplo aqui no nosso caso capacete
+por exemplo aqui no nosso caso capacete
+por exemplo aqui no nosso caso capacete
+fechado então por exemplo aqui você pode
+fechado então por exemplo aqui você pode
+fechado então por exemplo aqui você pode
+colocar categoria eu vou colocar uma
+colocar categoria eu vou colocar uma
+colocar categoria eu vou colocar uma
+categoria acessórios para veículos eh
+categoria acessórios para veículos eh
+categoria acessórios para veículos eh
+obviamente que capacete fechado somente
+obviamente que capacete fechado somente
+obviamente que capacete fechado somente
+tem né em acessórios para veículos mas
+tem né em acessórios para veículos mas
+tem né em acessórios para veículos mas
+pode existir alguns produtos que estão
+pode existir alguns produtos que estão
+pode existir alguns produtos que estão
+aí posicionadas em várias categorias
+aí posicionadas em várias categorias
+aí posicionadas em várias categorias
+diferentes e aqui você pode por exemplo
+diferentes e aqui você pode por exemplo
+diferentes e aqui você pode por exemplo
+colocar somente publicação catálogo né
+colocar somente publicação catálogo né
+colocar somente publicação catálogo né
+eu aplico a informação e vai me trazer
+eu aplico a informação e vai me trazer
+eu aplico a informação e vai me trazer
+esse resultado de capacete fechado de
+esse resultado de capacete fechado de
+esse resultado de capacete fechado de
+maneira
+maneira
+maneira
+expandida para somente as publicações
+expandida para somente as publicações
+expandida para somente as publicações
+com
+com
+com
+catálogo eu posso e adicionar informação
+catálogo eu posso e adicionar informação
+catálogo eu posso e adicionar informação
+né eu posso colocar somente também as
+né eu posso colocar somente também as
+né eu posso colocar somente também as
+publicações com disposição de Premium ou
+publicações com disposição de Premium ou
+publicações com disposição de Premium ou
+somente as publicações de eh F filment
+somente as publicações de eh F filment
+somente as publicações de eh F filment
+Premium e catálogo então eu sempre vou
+Premium e catálogo então eu sempre vou
+Premium e catálogo então eu sempre vou
+aplicando o filtro que eu quero
+aplicando o filtro que eu quero
+aplicando o filtro que eu quero
+trabalhar E aí vai me trazendo resultado
+trabalhar E aí vai me trazendo resultado
+trabalhar E aí vai me trazendo resultado
+e obviamente aqui vai fazendo no filtro
+e obviamente aqui vai fazendo no filtro
+e obviamente aqui vai fazendo no filtro
+maior vai diminuindo o resultado tá
+maior vai diminuindo o resultado tá
+maior vai diminuindo o resultado tá
+lembrando que todo esses F todos esses
+lembrando que todo esses F todos esses
+lembrando que todo esses F todos esses
+filtros esse resultado que traz é dentro
+filtros esse resultado que traz é dentro
+filtros esse resultado que traz é dentro
+de um período estimado aqui tá bom Um
+de um período estimado aqui tá bom Um
+de um período estimado aqui tá bom Um
+quarto ponto também Interessante é você
+quarto ponto também Interessante é você
+quarto ponto também Interessante é você
+buscar esse esse produto capacete
+buscar esse esse produto capacete
+buscar esse esse produto capacete
+fechado por exemplo é dentro do da marca
+fechado por exemplo é dentro do da marca
+fechado por exemplo é dentro do da marca
+Tá eu vou só modificar aqui limpar todos
+Tá eu vou só modificar aqui limpar todos
+Tá eu vou só modificar aqui limpar todos
+os filtros sempre é importante vou
+os filtros sempre é importante vou
+os filtros sempre é importante vou
+colocar um outro produto garrafa térmica
+colocar um outro produto garrafa térmica
+colocar um outro produto garrafa térmica
+por exemplo e na garrafa térmica dentro
+por exemplo e na garrafa térmica dentro
+por exemplo e na garrafa térmica dentro
+da expandida vai trazer a mesma coisa tá
+da expandida vai trazer a mesma coisa tá
+da expandida vai trazer a mesma coisa tá
+todos os produtos que tem garrafa
+todos os produtos que tem garrafa
+todos os produtos que tem garrafa
+térmica no título independente do do da
+térmica no título independente do do da
+térmica no título independente do do da
+direção e aqui eu venho no filtro e
+direção e aqui eu venho no filtro e
+direção e aqui eu venho no filtro e
+coloco uma marca Stanley por exemplo
+coloco uma marca Stanley por exemplo
+coloco uma marca Stanley por exemplo
+aplico e vai me trazer todos os produtos
+aplico e vai me trazer todos os produtos
+aplico e vai me trazer todos os produtos
+que tiveram vendas com a marca Stanley
+que tiveram vendas com a marca Stanley
+que tiveram vendas com a marca Stanley
+né você percebe aqui que tem
+né você percebe aqui que tem
+né você percebe aqui que tem
+vários com essa essa palavra tá eh e
+vários com essa essa palavra tá eh e
+vários com essa essa palavra tá eh e
+aqui também você pode trabalhar a
+aqui também você pode trabalhar a
+aqui também você pode trabalhar a
+questão de buscar pelo vendedor tá um
+questão de buscar pelo vendedor tá um
+questão de buscar pelo vendedor tá um
+outro ponto importantíssimo então por
+outro ponto importantíssimo então por
+outro ponto importantíssimo então por
+exemplo se eu quero buscar é esse
+exemplo se eu quero buscar é esse
+exemplo se eu quero buscar é esse
+vendedor que tem aqui gfa térmica
+vendedor que tem aqui gfa térmica
+vendedor que tem aqui gfa térmica
+Stanley que é esse vendedor e quero
+Stanley que é esse vendedor e quero
+Stanley que é esse vendedor e quero
+encontrar somente as publicações dele de
+encontrar somente as publicações dele de
+encontrar somente as publicações dele de
+garrafa térmica Stanley eu posso
+garrafa térmica Stanley eu posso
+garrafa térmica Stanley eu posso
+agregá-los
+produtos dele na verdade pode ter mais
+produtos dele na verdade pode ter mais
+produtos dele na verdade pode ter mais
+de um produto né aqui no caso só tem um
+de um produto né aqui no caso só tem um
+de um produto né aqui no caso só tem um
+produto com garrafa térmica
+produto com garrafa térmica
+produto com garrafa térmica
+stany Ok mesma coisa e dependente do
+stany Ok mesma coisa e dependente do
+stany Ok mesma coisa e dependente do
+filtro que você colocar de marca
+filtro que você colocar de marca
+filtro que você colocar de marca
+vendedor ou qualquer outro você pode
+vendedor ou qualquer outro você pode
+vendedor ou qualquer outro você pode
+seguir né Essa essa publicação ou esse
+seguir né Essa essa publicação ou esse
+seguir né Essa essa publicação ou esse
+vendedor tá e fazer seus grupos de
+vendedor tá e fazer seus grupos de
+vendedor tá e fazer seus grupos de
+vendedores para que você possa
+vendedores para que você possa
+vendedores para que você possa
+acompanhar um outro ponto importante
+acompanhar um outro ponto importante
+acompanhar um outro ponto importante
+interessante também é que você pode
+interessante também é que você pode
+interessante também é que você pode
+limpar aqui os filtros
+limpar aqui os filtros
+limpar aqui os filtros
+e é que você pode buscar esse vendedor
+e é que você pode buscar esse vendedor
+e é que você pode buscar esse vendedor
+também não somente na nos filtros aqui
+também não somente na nos filtros aqui
+também não somente na nos filtros aqui
+tá mas senão você pode também buscar
+tá mas senão você pode também buscar
+tá mas senão você pode também buscar
+nessa parte onde tem a pesquisa eh
+nessa parte onde tem a pesquisa eh
+nessa parte onde tem a pesquisa eh
+expandida assim como se fosse as
+expandida assim como se fosse as
+expandida assim como se fosse as
+palavras então vamos aqui fazer um um um
+palavras então vamos aqui fazer um um um
+palavras então vamos aqui fazer um um um
+teste né Se eu pegar aqui esse vendedor
+teste né Se eu pegar aqui esse vendedor
+teste né Se eu pegar aqui esse vendedor
+aleatório colocá-lo
+aleatório colocá-lo
+aleatório colocá-lo
+aqui na pesquisa expandida ele vai me
+aqui na pesquisa expandida ele vai me
+aqui na pesquisa expandida ele vai me
+trazer todos os produtos que esse
+trazer todos os produtos que esse
+trazer todos os produtos que esse
+vendedor tem na pesquisa expandida e
+vendedor tem na pesquisa expandida e
+vendedor tem na pesquisa expandida e
+você vai notar a diferença de buscar
+você vai notar a diferença de buscar
+você vai notar a diferença de buscar
+pelo filtro é que aqui vai trazer todos
+pelo filtro é que aqui vai trazer todos
+pelo filtro é que aqui vai trazer todos
+os produtos independente da categoria
+os produtos independente da categoria
+os produtos independente da categoria
+que esse vendedor tá fazendo a
+que esse vendedor tá fazendo a
+que esse vendedor tá fazendo a
+publicação né então a gente esta
+publicação né então a gente esta
+publicação né então a gente esta
+trabalhando com ele em garrafas térmicas
+trabalhando com ele em garrafas térmicas
+trabalhando com ele em garrafas térmicas
+Mas ele também tem cesto de roupa bule e
+Mas ele também tem cesto de roupa bule e
+Mas ele também tem cesto de roupa bule e
+assim vai né vai várias coisas aí que
+assim vai né vai várias coisas aí que
+assim vai né vai várias coisas aí que
+ele que ele que ele vende Não somente
+ele que ele que ele vende Não somente
+ele que ele que ele vende Não somente
+uma categoria tá é a grande diferença de
+uma categoria tá é a grande diferença de
+uma categoria tá é a grande diferença de
+você buscar o vendedor por aqui
+você buscar o vendedor por aqui
+você buscar o vendedor por aqui
+diretamente pela pesquisa expandida ou
+diretamente pela pesquisa expandida ou
+diretamente pela pesquisa expandida ou
+de colocar o vendedor aqui no filtro Ok
+de colocar o vendedor aqui no filtro Ok
+de colocar o vendedor aqui no filtro Ok
+lembrando importante novamente que
+lembrando importante novamente que
+lembrando importante novamente que
+sempre limpar os filtros para que você
+sempre limpar os filtros para que você
+sempre limpar os filtros para que você
+possa recomeçar a sua a sua pesquisa né
+possa recomeçar a sua a sua pesquisa né
+possa recomeçar a sua a sua pesquisa né
+e não aí ficar eh buscando pesquisas que
+e não aí ficar eh buscando pesquisas que
+e não aí ficar eh buscando pesquisas que
+já estão aí predeterminadas tá sempre
+já estão aí predeterminadas tá sempre
+já estão aí predeterminadas tá sempre
+limpar os
+limpar os
+limpar os
+filtros
+filtros
+filtros
+B espero que com isso vocês consigam
+B espero que com isso vocês consigam
+B espero que com isso vocês consigam
+trabalhar bastante com explorador e a
+trabalhar bastante com explorador e a
+trabalhar bastante com explorador e a
+gente se vê nos próximos
+vídeos

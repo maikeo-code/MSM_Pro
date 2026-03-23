@@ -1,0 +1,866 @@
+Kind: captions
+Language: pt
+boa estamos ao vivo Boa tarde
+pessoal todo mundo entrando
+aí nessa
+terça-feira 4 da tarde é ao vivo hein
+gente não é
+gravação pessoal sempre me manda aqui Ju
+é gravação não é ao vivo é ao vivo então
+tô aqui Juliana
+Vital Estou aqui com a Kimber que é
+especialista da Bas linker E hoje vai
+bater um papo aqui com a gente a gente
+vai falar de Inteligência Artificial
+vamos falar de automação de integração
+com todos os pontos aí que os S precisam
+para melhorar a performance bate-papo
+rápido pra gente fazer um esquenta esse
+ano a gente tem muito conteúdo diferente
+conteúdo que a gente tem trabalhado em
+parceria com empresas que são
+especialistas em outras áreas né sempre
+tando aí em deixar esse ecossistema BL
+Seller completo e ajudar vocês por todas
+as partes né no metx ajuda muito tudo
+que é inteligência de vendas e a gente
+vai somando aí os especialistas de
+outras áreas para ajudarem vocês também
+por outros lados como automação
+integrações que é o caso aqui hoje tá
+vou esperar mais dois
+minutinhos e a gente começa
+pessoal só alguns avisos aqui depois
+quem tiver pergunta quiser deixando
+perguntas aqui pode enviar pra gente tá
+eh que no final Claro com o tempo a
+gente vai fazendo aqui a algumas
+respostas e selecionando algumas
+perguntas para responder tá
+bom Lá tem Camila Fernanda Moisés Boa
+tarde já tá mandando aqui um um oizinho
+pra gente no chat vamos esperar mais
+dois minutinhos para começar e o pessoal
+ir entrando
+e vamos
+lá Boa tarde
+César bom Primeiro vou apresentar aqui a
+Kim a maioria do pessoal já me conhece
+né sempre
+com vocês aqui da no Matrix mas sou a
+Juliana Vital da Matrix e a Kim é da Bas
+linker nosso especialista aí da Bas
+linker que vai comentar e ajudar vocês
+hoje sobre integrações Kim Obrigado por
+por aceitar nosso convite é super bacana
+ter você por aqui se quiser dar um oi
+pro pessoal antes da gente começar tudo
+bem pessoal boa tarde então sou a Kimber
+da linker sou especialista de grandes
+contas e hoje a gente vai estar
+mostrando pouquinho para vocês aí sobre
+vários recursos para ajudar a escalar a
+operação trazer várias funcionalidades
+de inteligência artificial para ajudar
+realmente vocês a venderem mais a gente
+vai estar conversando um pouquinho
+mostrando aí algumas soluções bem legais
+aí para vocês utilizarem dentro da
+operação de
+vocês show então começando gente a gente
+eh tem um assunto que não sai mais de
+pauta Ainda bem né que é a inteligência
+artificial o quanto a inteligência
+artificial vem evol indo e ajudando eh
+os negócios em diversas áreas e o
+e-commerce não é diferente a gente sabe
+que a inteligência artificial tem
+diversas facilidades e vantagens pro
+e-commerce né pros empresários e
+empresárias de e-commerce com automações
+e análises e diversos algoritmos que
+ajudam vocês a alcançarem uma
+performance melhor n a gente tem Days de
+algoritmos que ajudam vocês a melhorarem
+as publicações automaticamente que
+ajudam vocês a analisarem as publicações
+algoritmos que dão algumas algumas
+alguns caminhos de mercado quais são
+categorias e produtos que são eh mais
+demandados que vem tendência que
+comparam vocês com o mercado que fazem
+essa comparação ativa com base em todo o
+trabalho dos melhores vendedores da sua
+categoria comparando com você a gente
+tem diversas ferramentas né baseadas em
+Inteligência Artificial que a ajudam o
+Seller a ter uma performance melhor
+então hoje para fazer um review né pra
+gente relembrar um pouco algumas
+funcionalidades e exemplos de
+Inteligência Artificial que a gente tem
+aplicado na nossa plataforma a gente tem
+diversas mas eu trouxe aqui alguns
+exemplos rápidos para dividir com vocês
+e depois deixar o tempo para kimel que
+vai contar muito pra gente sobre
+integrações e automações que é um outro
+ponto super importante pros vendedores
+de Marketplace que tem uma necessidade
+forte de escalar Opera
+né e acompanhar essa operação com o
+crescimento e as automações e
+integrações ajudam bastante então vou
+compartilhar minha tela aqui e a gente
+já começa
+aqui vou só ajustar o tamanho para vocês
+deixa eu ajustar aqui Geralmente eu faço
+isso ao vivo Porque dependendo da
+transmissão o tamanho da tela Não fica
+legal então eu ajusto aqui com
+vocês não tá tá tão bagunçado o meu
+desktop não vai ser uma grandíssima
+vergonha então tá tranquilo eh O
+primeiro exemplo que eu queria
+compartilhar aqui com vocês tá é como
+vocês podem usar diretamente né as
+nossas funcionalidades de inteligência
+artificial para entender demanda tá
+dentro da metrix a gente tem aqui os
+exploradores dentro de Mercado Livre
+você tem oportunidades em uma nova
+categoria E você consegue analisar
+detalhadamente as categorias para
+entender Onde estão essas oportunidades
+e rapidamente a gente tem aqui para cada
+categoria né Qual é o ranking de
+palavras mais buscadas dentro dessa
+categoria Quais são as publicações com
+mais vendas dentro dessa categoria ou
+seja o top 10 aqui tá e você consegue
+entender Quanto já foi vendido né em
+total de faturamento em quantidade em
+unidades vendidas Qual é a tendência é
+uma publicação que vem crescendo dentro
+do ranking ela vem baixando o resultado
+ou ela tá dentro de um resultado estável
+basicamente aí nos últimos tempos tá E
+aí daqui você consegue identificar
+Pontos importantes né então encontrando
+oportunidades e basicamente
+identificando por exemplo né vendedores
+que T uma ótima performance publicação
+com ótima performance que vem crescendo
+na categoria E que você precisa Estar
+atento então que cresceu 10 posições que
+cresceu seu muitas posições nos últimos
+tempos e você pode ter um acompanhamento
+muito mais de perto né entender que que
+esse vendedor aqui que tem uma
+performance tão boa e cresceu né Muito
+tá aí na segunda publicação mais vendida
+da categoria Qual que é o histórico dele
+o que que ele vende né em faturamento em
+em unidades vendidas Qual que é o perfil
+dele em que categorias ele vende é um
+vendedor que vende só nessa categoria
+daqui você já consegue seguir esse
+vendedor tá
+a gente consegue ver as publicações de
+catálogo mais vendidas Quais são as
+marcas que são mais vendidas dentro da
+categoria E isso é super importante aqui
+a gente já faz uma análise também de
+qual é a competitividade dentro de uma
+marca é uma marca que tem baixa
+competitividade ten poucos vendedores
+ten muitos vendedores aend essa marca
+uma marca que tá crescendo dentro da
+categoria E assim vai e por último né
+Quais são os melhores vendedores da
+categoria para que você possa entender
+aprender com esses vendedores que que
+eles vêm vendendo Qual que é o volume de
+faturamento deles as melhores
+publicações desses vendedores Qual é o
+perfil vende só em uma categoria não
+vende vende em outras categorias e assim
+vai tá e aqui a gente tem toda a parte
+de inteligência artificial para cada
+categoria Quando vocês estão buscando
+analisar uma categoria buscando
+oportunidade dentro da categoria
+entendendo o que que vocês precisam
+fazer na categoria para se destacar a
+gente já traz com base no nosso
+algoritmo de Inteligência Artificial
+algumas recomendações para essa
+categoria olhando para as publicações
+que são as vencedoras da categoria que
+tem a melhor Performance em cada uma das
+cada um dos pilares então em relação à
+demanda Quais são as palavras mais
+importantes dentro dessa categoria para
+que você possa usar dentro de uma
+publicação Quais são os pontos mais
+importantes numa publicação nessa
+categoria que vai ajudar você a
+posicionar melhor isso tem a ver com a
+dinâmica
+analisando a dinâmica na categoria então
+nesta categoria é importante publicar em
+catálogo que ajuda muito a posicionar
+melhor é importante ativar uma
+estratégia aí de preços é importante ter
+mercado Flex habilitado tá Isso muda de
+categoria por categoria por a gente tá
+olhando a dinâmica da categoria O que
+funciona para cada categoria diante das
+melhores publicações e dos melhores
+resultados da categoria tá a mesma coisa
+a gente faz para
+então olhando a dinâmica dessa categoria
+uma coisa é posicionar o seu anúncio
+para que ele esteja bem posicionado no
+ranking né de resultados dentro da
+categoria outra coisa é que te ajude a
+vender né a conversão Então quais são os
+tópicos de uma publicação que te ajudam
+a ter melhor conversão que os
+consumidores estão valorizando dentro da
+categoria Então a gente tem exemplos
+aqui
+eh que ajudam você a ter uma melhor
+conversão dentro dessa categoria tá aqui
+é um grande exemplo
+de Inteligência Artificial um outro
+exemplo que a gente tem lá dentro de meu
+negócio em otimiza seus anúncios Você
+tem uma análise detalhada por
+Inteligência Artificial de qual é a
+performance das suas publicações para
+que você possa trabalhar e melhorar isso
+a gente tem o nosso índice de qualidade
+né um um um índice que é é composto pela
+nota de quatro pontos né o quão alinhada
+demanda está a sua publicação Qual é o A
+efetividade de posicionamento da sua
+publicação Qual é a efetividade de
+conversão da sua publicação tá E qual é
+a eficiência de conversão então quando a
+gente compara a conversão ideal dessa
+categoria quão longe está a conversão da
+sua publicação tá tudo isso baseado em
+Inteligência Artificial onde a gente dá
+aqui um número final paraas suas
+publicações tá e você pode fazer uma
+análise para cada um dos Tópicos Então
+eu tenho uma publicação que tem um um
+número aí eh que tá aceitável mas que
+você precisa trabalhar e melhorar esse
+número da publicação vou começar olhando
+por Demanda a gente vai te falar sua
+publicação tá de 100 ela tá 29 alinhada
+demanda Quais são as palavras que a
+gente sugere para que você melhore isso
+quais são as palavras que você já
+incluiu né dentro da publicação
+depois na parte de posicionamento você
+tá 50% eh alinhado a uma um bom
+posicionamento dentro dessa categoria Ou
+seja você tem muita coisa para melhorar
+Quais são os tópicos que te ajudam a
+melhorar o posicionamento então ter
+ativado full publicar em catálogo tudo
+isso vai te ajudar a melhorar no
+posicionamento que que você já fez nessa
+publicação que ajuda no posicionamento a
+gente deixa aqui marcado para você tá
+Depois a gente tem aqui que toda a parte
+de conversão Quais são as os pontos que
+ajudam a ter uma melhor conversão dentro
+dessa categoria né dentro dessa
+publicação então por exemplo publicar
+com exposição Premium aqui é importante
+para essa publicação é um dos pontos que
+você tá perdendo aqui e no final a gente
+te fala um pouquinho Ops eh a gente te
+fala aqui qual que é a sua conversão
+dentro desta publicação vers a conversão
+ideal ou seja comparando dentro dessa
+publicação com as publicações vencedoras
+da mesma categoria A gente encontra a
+conversão ideal da categoria E fala para
+você quão longe você está disso e quanto
+que você tá perdendo aí de dinheiro por
+não alcançar essa conversão tá mais uma
+outra funcionalidade aqui para vocês
+explorarem e de cada uma você pode
+entender o detalhe da categoria aquela
+que a gente tava vendo antes né Claro
+referente à publicação que você tá
+analisando os rankings de mercado
+referente à categoria da publicação que
+você tá analisando o explorador de
+anúncios que a gente vai ver já já tá
+com essa informação que tem o resultado
+de busca para essa publicação um outro
+ponto aqui também de Inteligência
+Artificial a gente traz uma análise das
+suas categorias já olhando todas as
+categorias que você vende a gente te
+fala qual que é a sua posição no ranking
+se você melhorou ou piorou quanto falta
+para você chegar num resultado melhor
+então quanto falta você vender para ser
+o top 10 dentro dessa categoria que você
+tá posicionado qual que é o seu
+percentual né de faturamento total da
+sua de toda sua conta quanto por cento
+vem dessa categoria compara com o
+faturamento do líder eficiência de
+conversão e daqui você pode ir pro
+detalhe da categoria olhar ranking de
+mercado ou ir para otimizar suas
+publicações dessa categoria diretamente
+a gente járás
+filtrado para você tá e por último um
+último exemplo aqui pra gente ser breve
+dar tempo para quem a gente tem os
+nossos exploradores aqui né o explorador
+de anúncios que vocês podem usar para
+fazer uma análise muito mais detalhada
+de demanda de concorrência encontrando
+oportunidades aqui então por exemplo
+buscando placas decorativas usando uma
+pesquisa expandida por Inteligência
+Artificial você consegue filtrar por
+diversos itens né aqui eu filtrei mínimo
+de 200 unidades vendidas tá máximo de
+119 Dias publicados porque eu quero
+publicações que são recentes e que tem
+aí uma boa performance para entender
+Quais são as tendências e quais são as
+publicações que eu preciso seguir então
+por exemplo tem uma publicação aí de 32
+Dias gente que já vendeu 40.000 tá e
+mais de 400 unidades é uma publicação
+que tá performando muito bem que que tá
+vendendo tá vendendo kit de placas
+autoadesivo enfim posso seguir esse
+vendedor posso entender aqui diretamente
+seguir a publicação e ver mais detalhes
+dessa publicação quando eu sigo a
+publicação lá no módulo de concorrência
+posso seguir o vendedor posso ir pro
+detalhe da categoria pras top buscas do
+mês para entender Nossa acertou muito o
+produto aqui tá muito alinhada a demanda
+por isso que rampou rápido o resultado
+tá e tudo isso aqui potenciado por
+Inteligência Artificial então um breve
+overview e agora deixo para Quim para
+quem tem perguntas né de de Inteligência
+Artificial da nmx pode mandar aqui no
+chat depois o nosso time responde para
+vocês se não der para responder na na
+chamada a gente entra em contato depois
+e faz todas as os esclarecimentos
+possíveis tá bom Quim deixo contigo para
+comentar aí tudo de integração e
+automação vamos lá vamos lá bom
+compartilhar minha tela com vocês e aí a
+gente inicia ão conseguiram ver tudo
+certinho tudo
+certinho então tá bom bom pessoal então
+então Eh já me apresentei um pouquinho
+para vocês né Eh hoje a gente vai trazer
+um tema de como a integração e a
+automação da sua loja pode te dar mais
+tempo e dinheiro né então a gente vai
+abordar um pouquinho hoje algumas
+funcionalidades né voltadas para esse
+tema aí que é otimizar o tempo e fazer
+com que eu com que isso Gere mais
+dinheiro aí pr pra tua operação de
+ecommerce então só um pouquinho do
+cronograma do que eu vou falar que é
+sobre a estrutura de Hub né o que que eu
+posso fazer dentro da ferramenta quais
+os canais que eu posso integrar como
+expandir as minhas vendas como Hub e
+algumas dicas práticas aí sobre
+integração e automação e também a
+importância do atendimento ao cliente tá
+então vamos começar com quem é b linker
+né acho que algumas pessoas ainda não
+não conhecem algumas já ouviram falar um
+pouquinho então só apresentar um
+pouquinho para vocês quem quem somos nós
+né a a Bas linker ela é uma empresa que
+hoje ela tá presente em oito países né
+Eh ela é o número o Hub número um na
+Europa hoje mundialmente a gente tem aí
+mais de 25.000 clientes estamos
+presentes em 180 países estamos no
+mercado há mais ou menos 18 anos eh
+temos mais de 1000 integrações e hoje a
+gente faz uma uma transação aí de GMV de
+80 bilhões né No No ano e estamos também
+né Eh fazendo gerenciamento aí dentro da
+base de mais de 85 milhões de anúncios
+ativos em todos os marketplaces então só
+para conhecerem um pouquinho do nosso
+institucional
+tá bom Aqui eu trouxe um pouquinho sobre
+eh os três pilares aí que a Bas linker
+trabalha eh a gente tem aí a parte de
+gestão de anúncios gestão de comunicação
+gestão de pedidos onde a gente consegue
+abordar aí vários temas né trazer várias
+funcionalidades abordando esses três
+tópicos e e hoje a gente vai trazer um
+pouquinho né de cada um aí para vocês
+conhecerem conhecerem O que que a Bas
+linker traz bom aqui falando um
+pouquinho só sobre marketplaces e
+integração algumas Lojas Virtuais que a
+gente trabalha os principais
+marketplaces que a gente tá integrando
+serviços de entrega a parte de RP
+sistemas contábeis e algumas outras
+integrações também que a gente tem
+dentro da plataforma mas lembrando a
+gente tem mais de 1000 integrações hoje
+no total então a gente só trouxe algumas
+principais aqui eh para mostrar para
+vocês tá bom falando um pouquinho sobre
+o sistema tá então aqui a gente tá
+trazendo um pouquinho sobre a facilidade
+de integrar vários vários CNPJ vários
+marketplaces dentro da base linker onde
+possui eh a facilidade aí de expansão da
+operação então é muito fácil você
+conectar a tua conta a partir do momento
+da conexão a gente já consegue trazer
+todas as informações para dentro da
+plataforma então aqui basicamente a
+gente só tá mostrando um pouquinho para
+vocês de como é fácil buscar o
+Marketplace que você quer ali e já fazer
+essa integração para trazer aqui para
+dentro da Bas link
+tá bom sobre
+eh o seu assistente picking list tá
+então a Bas linker hoje ela tem duas
+dois pontos muito fortes que é a parte
+de personalização da plataforma e a
+parte de automação de processos tá então
+o picking list por exemplo o nosso fluxo
+todo de expedição ele acontece de forma
+personalizada Então você consegue
+personalizar todo o teu fluxo de
+expedição o cliente mesmo consegue
+desenhar o que melhor se encaixa paraa
+operação dele porque fica muito mais
+fácil a gente consegue ter esse alto
+poder de adaptação né então o cliente
+pode desenhar para mim Ah eu quero que o
+meu pedido caia dentro da plataforma
+quero que a nota fiscal seja emitida de
+forma automática quero ir lá e
+personalizar o meu meu meu picking list
+por exemplo quero que saia foto do
+produto aqui quero que saiam as
+informações x y e z por exemplo porque
+eu quero entregar esse relatório na mão
+do meu do meu da minha separação quero
+que eles separem os produtos vá paraa
+minha bancada então a gente consegue
+personalizar realmente todo o fluxo onde
+o cliente mesmo desenha e a gente
+consegue entregar para ele o melhor
+fluxo que vai funcionar paraa operação
+dele né então fica muito mais fácil Essa
+adesão da plataforma eh e adaptação
+também tanto da operação como dos
+funcionários
+tá bom Um dos recursos muito legais que
+a gente tem dentro da plataforma é o
+tirar a foto Então hoje dentro do nossoo
+fluxo de expedição por exemplo a gente
+tem uma etapa do preparando pacote onde
+né vamos supor que os clientes eles o o
+vendedor ele separou lá os produtos tudo
+certinho veio paraa bancada de separação
+no momento da bip agem ele já tira uma
+foto desse produto essa foto Ela fica
+armazenada aqui dentro da da base linker
+faz pra segurança do cliente mesmo então
+hoje eu tenho muitos clientes que falam
+assim poxa
+eh eu não não consigo ter um controle de
+saber o que que foi enviado para um
+cliente se o cliente comprou duas duas
+unidades se eu realmente enviei duas às
+vezes acontece de mandar pedido errado
+acaba tendo um prejuízo abre uma
+reclamação e às vezes o cliente não tem
+nem como provar que ele realmente mandou
+eh mandou aquele produto pro pro pro
+vendedor né pro pro cliente dele então a
+gente tem essa foto mais paraa segurança
+do cliente para que ele tenha um
+controle total do que tá sendo enviado a
+forma com que tá com que está sendo
+enviado E essa foto Ela fica armazenada
+aqui dentro ele pode consultar ali
+dentro do PED do horário que foi tirado
+a foto quem tirou Qual foi a estação e
+tem acesso à imagem também tá então esse
+aqui é um recurso bem legal pessoal tem
+gostado bastante tenho bastante eh
+clientes que eu converso no dia a dia
+que por exemplo trazem para mim que
+fazem tiram essa foto pelo celular e
+hoje a gente consegue trazer essa
+ferramenta eh de forma muito mais
+automatizada dentro do
+sistema outro recurso que a gente tem
+que o pessoal gosta bastante se você
+tiver as tuas embalagens cadastrar
+dentro da Bas linker com as medidas dela
+e também as medidas do teu produto no
+momento da tua expedição ele já te dá
+uma indicação de qual a melhor embalagem
+você precisa enviar esse produto para
+que você tenha menos desperdício de
+espaço Então nesse no momento da
+expedição ali que você for né trazer os
+teus produtos pra bancada quando você
+for bipar o teu produto ele já vai te
+dar olha envia por essa embalagem aqui
+porque é que melhor vai se adaptar ao ao
+pedido que você precisa enviar para
+cliente seja um pedido carrinho ou seja
+por exemplo um produto único
+tá bom
+eh como eu falei a Bas liner ela é muito
+fundada em processos de automação né
+então ah desde a automação de por
+exemplo Caiu um pedido e emti a nota
+Como eu havia comentado como também
+personalização de status criar
+automações pros estatus a gente tem eh
+dois dois exemplos que eu queria trazer
+que são bem legais que é por exemplo
+criar botões de ação então eu posso
+criar um botão de atalho por exemplo
+para tirar uma foto do produto então
+quando eu clicar naquele botão vai tirar
+a foto na minha expedição ou até mesmo
+eu posso criar uma talha de teclado para
+que eu Acesse as minhas telas de
+perguntas mensagens saque de forma muito
+mais rápida em vez de eu ter que clicar
+entrar para aquela tela eu posso criar
+um botão de ação para que eu consiga
+fazer isso um atalho de teclado para que
+eu consiga fazer isso então é bem legal
+a gente consegue fazer trazer toda essa
+parte de personalização para tentar ali
+nos mínimos detalhes eh a automatizar e
+otimizar o teu fluxo de dia a dia teu
+fluxo de trabalho no dia a
+dia bom falando um pouquinho sobre a
+parte de comunicação com os clientes a
+gente trouxe eh alguns dados aqui né
+sobre a sobre a importância de da
+comunicação Então cinco principais
+motivos que levam o consumidor a
+desistir da compra online disparado ali
+né um dos dos principais é o atendimento
+ruim nos canais né experiência ruim de
+navegação altos preços enfim mas eh um
+dos dos dos principais é o atendimento
+ruim dos canais digitais né que é a
+parte de SAC realmente comunicação com o
+cliente a Bas linker tem um módulo de
+mensageria dentro da plataforma Onde
+você consegue organizar todo o teu fluxo
+de comunicação com o cliente seja
+mensagem pergunta de todos os
+marketplaces eles são módulo bem
+robustos então a gente tem integração
+com Gmail Facebook Instagram você
+consegue também automatizar esse
+processo criar respostas rápidas
+respostas eh automáticas inclusive
+respostas por Inteligência Artificial
+Sem falar que você também consegue
+organizar todo o teu fluxo por pastas
+então se você quiser eh organizar ali
+todas as perguntas do Mercado Livre
+deixar dentro de uma pasta todas as
+perguntas da chopee porque a gente
+também tem a parte de mensageria da
+chope organizar dentro de uma pasta você
+também consegue então desde trazer
+relatórios ações automáticas comunicação
+com multicanais respostas automáticas de
+forma inteligente que vão fazer com
+certeza otimizar o teu otimizar o teu
+processo ali de saque saque né com
+certeza convertei em mais vendas porque
+o teu teu tempo de resposta com o
+cliente vai ser muito mais rápido
+bom eh falando um pouquinho sobre os
+recursos de Inteligência Artificial eh
+eu trouxe três tópicos aqui eh falando
+um pouquinho só sobre essa parte que é a
+preenchimento da lista de parâmetros
+então vi que a Ju comentou também sobre
+a importância de saber quais são as
+palavras chaves o que trazer né Eh
+porque isso com certeza reflete
+positivamente na hora das vendas a gente
+tem esse recurso de preenchimento da
+lista de parâmetros pela Inteligência
+Artificial Então ela faz uma busca
+inteligente traz para você realmente
+Quais são os melhores parâmetros O que
+que você precisa trazer de informação
+para aquele anúncio que vai funcionar
+melhor dentro das vendas dos
+marketplaces a geração de descrições
+completas também então esse recurso é
+bem legal você pode definir por exemplo
+dentro da plataforma eh nas
+configurações se você quer fazer uma
+descrição profissional se você quer
+fazer uma descrição eh em forma de
+propaganda ou uma descrição um pouco
+mais casual quantos parágrafos você quer
+trazer para aquela descrição então dá
+inclusive as tuas próprias instruções né
+e deixar isso configurado Então quando
+você vai lá em gerar a descrição a gente
+já traz já gera a descrição através da
+inteligência artificial com base nas
+configurações que você deixou lá e outro
+recurso também é a remoção do fundo das
+imagens tá então você pode por exemplo
+fazer o teu produto colocar todas as
+informações né título por Inteligência
+Artificial descrição preenchimento de
+parâmetros jogou a foto lá a gente tem
+um recurso também de remover o fundo das
+imagens então ele já busca lá a imagem
+principal né o produto que você quer ele
+já remove o fundo e deixa ela no no
+modelo né que é mais adequado pro
+Marketplace aquele fundinho Branco tudo
+bonitinho para você realmente ter um
+anúncio com muita mais qualidade então
+óbvio que eh a gente não vai trazer né
+todo o pote de ouro assim então a gente
+tem muito mais recursos de inteligência
+artificial tem muito mais recursos
+dentro da plataforma a gente trouxe só
+alguns realmente para mostrar um
+pouquinho para vocês alguns diferenciais
+que a Bin tem no mercado eh e eu já
+queria aproveitar para vocês que tem
+curiosidade em conhecer um pouquinho
+mais sobre a inteligência artificial a
+gente vai estar trazendo toda todas as
+nossas ferramentas todas as nossas
+funcionalidades no Seller Day eh que vai
+acontecer na semana fora essa semana que
+vem na próxima né dia 21 né Ju 22 de
+Maio 22 22 22 perdão dia 22 eh vai
+acontecer o Seller Day a gente vai
+trazer todas as funcionalidades trazer
+muito mais conteúdo sobre inteligência
+artificial então se você tem curiosidade
+quer conhecer um pouquinho mais a gente
+tá disponibilizando um cupom de 35% de
+desconto para vocês comprarem o ingresso
+irem lá no evento conversar direto com a
+gente a gente vai est com uma equipe lá
+também então a gente vai tá disponível
+aí para conhecer a operação de cada um
+entender as necessidades de cada um e
+falar um pouquinho sobre esse tema da
+Inteligência Artificial mesmo o que que
+a gente pode te ajudar a vender mais e
+pode trazer de recurso aí operacional
+pra empresa de vocês então gente muito
+obrigada obrigado
+Kim super obrigado acho que muito claro
+vou fazer algumas perguntinhas aqui que
+o pessoal mandou foi mandando lá no no
+canal de perguntas eh tem uma primeira
+aqui que é da Ingrid né que ela trouxe
+uma dúvida sobre por se tratar de um Hub
+ela teria que continuar usando RP para
+emissão de nota fiscal vamos lá a
+baselinker hoje ela tem um faturador
+próprio para quem trabalha com mei ou
+Simples então se se os seus CNPJ forem
+mei ou simples a gente consegue fazer as
+emissões de nota fiscal direto por
+dentro da plataforma da Bas link não
+precisa de um RP integrado
+perfeito que é a questão do faturador
+próprio né e depois a gente tem uma
+outra pergunta aqui que se é possível
+utilizar mais de um CNPJ e se vocês
+cobram por mais de um CNPJ a gente tem
+muitos ces na Nub metrix que eles têm
+mais de um CNPJ que eles têm mais de uma
+loja
+eh e aí basicamente é uma uma dúvida que
+aparece aqui forte sim eh na verdade é
+uma uma operação assim Acho que quase
+9999% né das operações Sé os Sellers
+hoje que eu converso não trabalham com
+CNPJ só a gente não cobra por CNPJ a
+gente cobra realmente por pelo painel
+Então dentro do painel ele consegue
+trabalhar com múltiplos CNPJ eh consegue
+integrar tudo de maneira muito fácil
+muito prática a gente inclusive trabalha
+também para quem tem situação de
+múltiplos CDs quer trabalhar com
+múltiplos stocks a gente também consegue
+trabalhar com essa com essa dinâmica de
+operação mas Resumindo a gente não cobra
+não por por CNPJ a gente só cobra
+realmente pelo pelo painel então ele
+consegue trabalhar com múltiplos dentro
+do mesmo painel boa eh tem uma pergunta
+aqui do Rodrigo que eu vou responder se
+basicamente Bas Linger são a mesma
+plataforma não são e são duas empresas
+que não tem nenhuma conexão
+e não são empresas do mesmo grupo nada
+disso a Nub Matrix é uma plataforma de
+Sales intelligence ou ou seja uma
+plataforma que ajuda os vendedores a
+analisar o mercado a entender o que que
+as pessoas estão buscando Qual que é a
+tendência de produto produtos que tem eh
+dentro das categorias no Mercado Livre o
+que que os concorrentes estão fazendo
+como eles estão vendendo o que que eles
+estão vendendo quanto eles estão
+vendendo entender basicamente a dinâmica
+das categorias como que se apresenta a
+concorrência dentro de uma categoria
+quais são os produtos mais vendidos
+marcas enfim é toda uma plataforma de
+seios inteligence para que vocês
+analisem o mercado e analisem a sua
+performance e melhorem os resultados de
+vocês então a gente ajuda vocês a
+entenderem o que que vocês precisam
+melhorar nas publicações Qual que é o
+8020 de vocês ou seja Quais são as
+publicações mais importantes que são
+responsáveis por 80% do seu faturamento
+que você não pode descuidar e você vai
+analisar os concorrentes as categorias
+dessa publicação tudo isso e a base
+linker é um Hub de integração e
+automação ou seja são ferramentas
+totalmente complementares o que a no
+Matrix faz a base linker não faz e o que
+a Bas linker faz a nems não faz e
+nenhuma das duas pretendem fazer isso
+porque atuam de maneiras e em mercados e
+com objetivos totalmente diferentes mas
+por que que a gente traz né um parceiro
+uma outra ferramenta também para que
+vocês possam ver o nosso intuito além né
+da Nub metrix sempre foi poder trazer um
+conteúdo pro cé que ele consiga crescer
+de uma maneira sustentável que ele tenha
+uma escala melhor então a gente traz
+conteúdos conceituais né também com
+outros parceiros como também a gente
+traz empresas que são aí outras
+plataformas formas que são basicamente
+complementares e que ajudam vocês a
+crescerem tudo isso para que o Seller
+tenha aí maior visibilidade maior
+conhecimento e possa crescer obviamente
+usando a no metrix e usando outras
+plataformas que vão ajudar vocês a terem
+uma performance muito melhor que no caso
+é o caso da base linker aqui para tudo
+que é né automação integração é um Hub
+completíssimo e que ajuda vocês aí
+automatizar e escalarem muito rápido o
+negócio de vocês em múltiplas lojas né
+em múltiplos canais e tudo isso aí é o
+que a Bas linker consegue fazer espero é
+bem legal mesmo porque vocês trazem
+muito mais a parte de inteligência a
+parte estratégica e a gente traz muito
+da parte operacional Então eu acho que
+cliente trabalhando com as duas pontas
+ele consegue realmente ter um assim
+completo ter uma visão estratégica e
+conseguir escalar muito melhor as vendas
+dele porque ele consegue realmente ter
+as duas soluções ali de ponta do mercado
+né É isso aí gente para fechar aqui
+reforço para vocês quem tá em São Paulo
+quem é de São Paulo dia 22 de Maio a
+gente tem a nossa segunda edição do
+rimet Seller Day vai acontecer lá no
+shopping Eldorado no teatro das Artes
+onde foi o ano passado também ano
+passado a gente lotou o teatro deu
+soldout e a gente quer contar com vocês
+esse ano então a gente vai ter lá Bas
+linker vai palestrar vai ser um dos
+palestrantes é um dos patrocinadores do
+evento a gente tem palestra do Alex moro
+do Léo mantovan da Universidade
+Marketplace do d Tomé da americana
+Marketplace a gente tem muito conteúdo
+no evento para que vocês consigam aí
+aproveitar todo o restante do ano né a
+gente acabou de entrar no segundo quáter
+aí no segundo trimestre do ano e tem
+muita coisa pela frente muita data
+especial muita data de Alto alta demanda
+de alto volume e vocês prisão estar
+preparados para isso e com antecipação
+não adianta tentar se preparar em cima
+da data que não dá tempo então vai no
+evento aproveita os conteúdos a Bas
+linker deixou aqui um um cupom de
+desconto para vocês a Camila enviou aí o
+link da página do evento só aproveitar
+esse cupom de desconto quem não
+conseguiu cupom de desconto não tem
+problema manda mensagem aqui pra gente
+que a gente reenvia para vocês por
+e-mail e a gente espera vocês no evento
+kinder super Obrigado pelo tempo aqui
+com a gente hoje e vamos já planejar a
+próxima e depois do evento que no evento
+vai ter muito muita novidade Vamos
+guardar pro evento agora com certeza Com
+certeza Obrigada Ju você pelo tempo
+obrigada por quem participou e vão
+comprar o ingresso do evento que vai ser
+bem legal vai ser uma troca bem
+interessante e acho que tem muita coisa
+muita coisa legal para acontecer esse
+ano aí a gente quer ajudar todo mundo a
+escalar e vender mais tá bom obrigada
+galera obrigado gente tchau tchau

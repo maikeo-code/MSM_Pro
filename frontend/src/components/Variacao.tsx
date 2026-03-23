@@ -6,12 +6,22 @@ interface VariacaoProps {
 }
 
 /**
- * Badge de variacao percentual com seta verde (positivo) ou vermelha (negativo).
+ * Badge de variacao percentual com seta verde (positivo), cinza (neutro/zero) ou vermelha (negativo).
  * Renderiza null quando value e nulo/undefined.
  */
 export function Variacao({ value, unit = "%" }: VariacaoProps) {
   if (value == null) return null;
-  const isPositive = value >= 0;
+
+  // Tratar 0% como neutro (cinza, sem seta)
+  if (value === 0) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-xs font-medium text-muted-foreground">
+        0{unit}
+      </span>
+    );
+  }
+
+  const isPositive = value > 0;
   const Icon = isPositive ? TrendingUp : TrendingDown;
   const color = isPositive ? "text-green-600" : "text-red-500";
   return (
