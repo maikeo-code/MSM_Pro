@@ -3,6 +3,7 @@ Schemas Pydantic para o modulo financeiro (P&L).
 """
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -148,7 +149,7 @@ class TaxConfigOut(BaseModel):
 
 class TaxConfigIn(BaseModel):
     """Input para criar/atualizar configuracao de impostos."""
-    regime: str = "simples_nacional"
+    regime: Literal["simples_nacional", "lucro_presumido", "lucro_real", "mei"] = "simples_nacional"
     faixa_anual: Decimal
     aliquota_efetiva: Decimal
 

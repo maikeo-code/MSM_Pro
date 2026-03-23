@@ -553,8 +553,128 @@ async def get_dre(
     prev_fim = data_inicio - timedelta(days=1)
     prev_inicio = prev_fim - timedelta(days=days - 1)
 
-    # Calcular para período anterior
-    resumo_anterior = await get_financeiro_resumo(db, user_id, period=period)
+    # Reutilizar a função _aggregate interna para calcular período anterior com datas específicas
+    async def _aggregate(d_inicio: date, d_fim: date) -> dict:
+        """Agrega metricas de snapshots no intervalo [d_inicio, d_fim].
+
+        Uses latest-per-day deduplication to avoid counting multiple
+        snapshots from the same day.
+        """
+        from sqlalchemy import cast, Date
+        from app.vendas.models import Listing, ListingSnapshot
+        from app.produtos.models import Product
+
+        # Subquery: latest snapshot per listing per day (deduplication)
+        latest_per_day = (
+            select(
+                ListingSnapshot.listing_id,
+                cast(ListingSnapshot.captured_at, Date).label("snap_date"),
+                func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+            )
+            .where(
+                cast(ListingSnapshot.captured_at, Date) >= d_inicio,
+                cast(ListingSnapshot.captured_at, Date) <= d_fim,
+            )
+            .group_by(ListingSnapshot.listing_id, cast(ListingSnapshot.captured_at, Date))
+            .subquery()
+        )
+
+        # Revenue fallback: use price * sales_today when revenue is null
+        revenue_expr = func.coalesce(
+            ListingSnapshot.revenue,
+            ListingSnapshot.price * ListingSnapshot.sales_today,
+        )
+
+        rows = await db.execute(
+            select(
+                Listing.id,
+                Listing.listing_type,
+                Listing.sale_fee_pct,
+                Listing.avg_shipping_cost,
+                Listing.product_id,
+                func.sum(revenue_expr).label("revenue"),
+                func.sum(func.coalesce(ListingSnapshot.orders_count, ListingSnapshot.sales_today)).label("orders"),
+                func.sum(ListingSnapshot.cancelled_orders).label("cancelled"),
+                func.sum(ListingSnapshot.returns_count).label("returns"),
+            )
+            .join(ListingSnapshot, ListingSnapshot.listing_id == Listing.id)
+            .join(
+                latest_per_day,
+                (ListingSnapshot.listing_id == latest_per_day.c.listing_id)
+                & (ListingSnapshot.captured_at == latest_per_day.c.max_captured_at),
+            )
+            .where(
+                Listing.user_id == user_id,
+            )
+            .group_by(
+                Listing.id,
+                Listing.listing_type,
+                Listing.sale_fee_pct,
+                Listing.avg_shipping_cost,
+                Listing.product_id,
+            )
+        )
+        listing_rows = rows.all()
+
+        # Buscar custos dos produtos vinculados
+        product_ids = [r.product_id for r in listing_rows if r.product_id]
+        product_costs: dict = {}
+        if product_ids:
+            prod_result = await db.execute(
+                select(Product.id, Product.cost).where(Product.id.in_(product_ids))
+            )
+            product_costs = {str(p.id): p.cost for p in prod_result.all()}
+
+        vendas_brutas = Decimal("0")
+        taxas_ml_total = Decimal("0")
+        frete_total = Decimal("0")
+        custo_total = Decimal("0")
+        total_pedidos = 0
+        total_cancelamentos = 0
+        total_devolucoes = 0
+
+        for row in listing_rows:
+            rev = Decimal(str(row.revenue or 0))
+            orders = int(row.orders or 0)
+            taxa_pct = calcular_taxa_ml(row.listing_type, sale_fee_pct=row.sale_fee_pct)
+            taxa_valor = (rev * taxa_pct).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            frete_unit = Decimal(str(row.avg_shipping_cost or 0))
+            frete_listing = (frete_unit * orders).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+            vendas_brutas += rev
+            taxas_ml_total += taxa_valor
+            frete_total += frete_listing
+            total_pedidos += orders
+            total_cancelamentos += int(row.cancelled or 0)
+            total_devolucoes += int(row.returns or 0)
+
+            if row.product_id:
+                cost = product_costs.get(str(row.product_id), Decimal("0"))
+                custo_total += (Decimal(str(cost)) * orders).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        receita_liquida = vendas_brutas - taxas_ml_total - frete_total
+        margem_bruta = receita_liquida - custo_total
+        margem_pct = (
+            (margem_bruta / vendas_brutas * 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if vendas_brutas > 0
+            else Decimal("0")
+        )
+
+        return {
+            "vendas_brutas": vendas_brutas,
+            "taxas_ml_total": taxas_ml_total,
+            "frete_total": frete_total,
+            "receita_liquida": receita_liquida,
+            "custo_total": custo_total,
+            "margem_bruta": margem_bruta,
+            "margem_pct": margem_pct,
+            "total_pedidos": total_pedidos,
+            "total_cancelamentos": total_cancelamentos,
+            "total_devolucoes": total_devolucoes,
+        }
+
+    # Calcular período anterior com datas específicas
+    resumo_anterior = await _aggregate(prev_inicio, prev_fim)
 
     # Obter configuração de impostos do usuário
     from app.financeiro.models import TaxConfig
@@ -609,10 +729,8 @@ async def get_dre(
             return None
         return ((novo - antigo) / antigo * 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    # Recalcular para período anterior para comparação
-    resumo_prev = await get_financeiro_resumo(db, user_id, period=period)
-    receita_bruta_prev = resumo_prev["vendas_brutas"]
-    lucro_bruto_prev = resumo_prev["receita_liquida"] - resumo_prev["custo_total"]
+    receita_bruta_prev = resumo_anterior["vendas_brutas"]
+    lucro_bruto_prev = resumo_anterior["receita_liquida"] - resumo_anterior["custo_total"]
 
     return {
         "periodo": period,
@@ -630,7 +748,7 @@ async def get_dre(
         "margem_bruta_pct": margem_bruta_pct,
         "margem_liquida_pct": margem_liquida_pct,
         "variacao_receita_pct": _variacao(receita_bruta, receita_bruta_prev),
-        "variacao_lucro_pct": _variacao(lucro_operacional, lucro_bruto_prev - resumo_prev["custo_total"]),
+        "variacao_lucro_pct": _variacao(lucro_operacional, lucro_bruto_prev),
     }
 
 

@@ -107,6 +107,7 @@ async def remove_competitor(
     Remove um concorrente vinculado.
     """
     await service.remove_competitor(db, current_user.id, competitor_id)
+    await db.commit()
 
 
 @router.get("/{competitor_id}/history", response_model=CompetitorHistoryOut)

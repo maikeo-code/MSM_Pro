@@ -72,19 +72,21 @@ export default function Concorrencia() {
   });
 
   // Query para dados do meu listing (para comparação)
-  const expandedListingId = React.useMemo(() => {
-    if (!expandedCompetitor || !competitors.length) return null;
+  const expandedMlbId = React.useMemo(() => {
+    if (!expandedCompetitor || !competitors.length || !listings.length) return null;
     const comp = competitors.find((c) => c.id === expandedCompetitor);
-    return comp?.listing_id;
-  }, [expandedCompetitor, competitors]);
+    if (!comp) return null;
+    const listing = listings.find((l) => l.id === comp.listing_id);
+    return listing?.mlb_id || null;
+  }, [expandedCompetitor, competitors, listings]);
 
   const { data: myListingAnalysis } = useQuery({
-    queryKey: ["listingAnalysis", expandedListingId],
+    queryKey: ["listingAnalysis", expandedMlbId],
     queryFn: () =>
-      expandedListingId
-        ? listingsService.getAnalysis(expandedListingId, selectedChartDays)
+      expandedMlbId
+        ? listingsService.getAnalysis(expandedMlbId, selectedChartDays)
         : Promise.resolve(null),
-    enabled: !!expandedListingId,
+    enabled: !!expandedMlbId,
   });
 
   const addMutation = useMutation({

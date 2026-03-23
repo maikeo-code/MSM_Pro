@@ -127,10 +127,10 @@ function CashFlowTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-xs">
-      <p className="font-semibold text-gray-700 mb-1">{label}</p>
+    <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-xs text-popover-foreground">
+      <p className="font-semibold mb-1">{label}</p>
       <p className="text-green-700 font-medium">{fmtBRL(payload[0].value)}</p>
-      <p className="text-gray-500 mt-0.5">{payload[0].payload.orders_count} pedido(s)</p>
+      <p className="mt-0.5">{payload[0].payload.orders_count} pedido(s)</p>
     </div>
   );
 }
