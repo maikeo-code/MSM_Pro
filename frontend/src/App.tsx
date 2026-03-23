@@ -23,6 +23,9 @@ const ParetoChart = lazy(() => import("@/pages/Intel/Analytics/ParetoChart"));
 const SalesForecast = lazy(() => import("@/pages/Intel/Analytics/SalesForecast"));
 const SalesDistribution = lazy(() => import("@/pages/Intel/Analytics/SalesDistribution"));
 const InsightsPanel = lazy(() => import("@/pages/Intel/Analytics/InsightsPanel"));
+const Comparison = lazy(() => import("@/pages/Intel/Analytics/Comparison"));
+const ABC = lazy(() => import("@/pages/Intel/Analytics/ABC"));
+const InventoryHealth = lazy(() => import("@/pages/Intel/Analytics/InventoryHealth"));
 
 function App() {
   return (
@@ -104,6 +107,30 @@ function App() {
               element={
                 <Suspense fallback={<div className="p-8 text-gray-400">Carregando...</div>}>
                   <InsightsPanel />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/intel/comparison"
+              element={
+                <Suspense fallback={<div className="p-8 text-gray-400">Carregando...</div>}>
+                  <Comparison />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/intel/abc"
+              element={
+                <Suspense fallback={<div className="p-8 text-gray-400">Carregando...</div>}>
+                  <ABC />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/intel/inventory"
+              element={
+                <Suspense fallback={<div className="p-8 text-gray-400">Carregando...</div>}>
+                  <InventoryHealth />
                 </Suspense>
               }
             />
