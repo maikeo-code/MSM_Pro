@@ -56,14 +56,14 @@ export default function Intel() {
         </p>
       </div>
 
-      {/* Grid de cards 2x2 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-4xl">
+      {/* Grid de cards 3x2 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <IntelCard
           to="/intel/pareto"
           icon={<BarChart2 className="h-6 w-6 text-violet-600" />}
           iconBg="bg-violet-50"
           title="Pareto 80/20"
-          description="Identifique os anuncios que geram 80% da sua receita. Descubra quais sao os pilares do seu negocio e onde concentrar esforcos."
+          description="Identifique os anuncios que geram 80% da sua receita. Descubra quais sao os pilares do seu negocio."
           tag="Core"
         />
         <IntelCard
@@ -71,30 +71,52 @@ export default function Intel() {
           icon={<TrendingUp className="h-6 w-6 text-blue-600" />}
           iconBg="bg-blue-50"
           title="Projecao de Vendas"
-          description="Previsao de vendas por anuncio para os proximos 7 e 30 dias com intervalo de confianca e indicador de tendencia."
+          description="Previsao de vendas para os proximos 7 e 30 dias com intervalo de confianca e indicador de tendencia."
         />
         <IntelCard
           to="/intel/distribution"
           icon={<PieChart className="h-6 w-6 text-emerald-600" />}
           iconBg="bg-emerald-50"
           title="Distribuicao de Vendas"
-          description="Visualize como a receita esta distribuida entre seus anuncios. Mapa visual de proporcao e coeficiente de Gini."
+          description="Visualize como a receita esta distribuida entre seus anuncios. Coeficiente de Gini."
+        />
+        <IntelCard
+          to="/intel/comparison"
+          icon={<Calendar className="h-6 w-6 text-indigo-600" />}
+          iconBg="bg-indigo-50"
+          title="Comparacao MoM"
+          description="Compare receita e vendas entre periodo atual e anterior. Acompanhe variacao percentual e tendencias."
+        />
+        <IntelCard
+          to="/intel/abc"
+          icon={<TrendingDown className="h-6 w-6 text-orange-600" />}
+          iconBg="bg-orange-50"
+          title="Classificacao ABC"
+          description="Analise giro de estoque e classifique produtos por contribuicao. Identifique capital parado."
+        />
+        <IntelCard
+          to="/intel/inventory"
+          icon={<Package className="h-6 w-6 text-cyan-600" />}
+          iconBg="bg-cyan-50"
+          title="Saude do Estoque"
+          description="Dias de estoque, sell-through rate e alertas. Evite desabastecimentos e capital parado."
         />
         <IntelCard
           to="/intel/insights"
           icon={<Lightbulb className="h-6 w-6 text-amber-600" />}
           iconBg="bg-amber-50"
           title="Insights com IA"
-          description="Recomendacoes automaticas geradas por inteligencia artificial baseadas nos seus dados de vendas, estoque e conversao."
+          description="Recomendacoes automaticas baseadas em dados de vendas, estoque e conversao."
           tag="IA"
         />
       </div>
 
       {/* Nota informativa */}
-      <div className="mt-10 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 p-4 max-w-4xl">
+      <div className="mt-10 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 p-4">
         <p className="text-xs text-muted-foreground">
           <span className="font-semibold text-foreground">Nota:</span> Os dados de inteligencia sao calculados a partir dos snapshots sincronizados do Mercado Livre.
           Para resultados mais precisos, mantenha a sincronizacao diaria ativa e aguarde ao menos 7 dias de historico.
+          Comparacao MoM compara periodos identicos (7d com 7d anterior, etc).
         </p>
       </div>
     </div>
