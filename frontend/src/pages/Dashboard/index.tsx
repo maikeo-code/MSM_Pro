@@ -10,6 +10,7 @@ import { DiasBadge } from "@/components/DiasBadge";
 import { Variacao } from "@/components/Variacao";
 import { KpiCard } from "@/components/KpiCard";
 import { exportCSV } from "@/utils/exportCSV";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 // ─── Funil de Conversao Visual ──────────────────────────────────────────────
 function ConversionFunnel({ data }: { data: FunnelData | undefined }) {
@@ -251,6 +252,7 @@ const PERIOD_OPTIONS = [
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
+  const accountId = useActiveAccount();
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [funnelPeriod, setFunnelPeriod] = useState<string>("7d");
@@ -279,28 +281,28 @@ export default function Dashboard() {
   };
 
   const { data: listings, isLoading, isError, error } = useQuery({
-    queryKey: ["listings", tablePeriod],
-    queryFn: () => listingsService.list(tablePeriod),
+    queryKey: ["listings", tablePeriod, accountId],
+    queryFn: () => listingsService.list(tablePeriod, accountId),
     retry: 2,
   });
 
   const { data: kpi } = useQuery({
-    queryKey: ["kpi-summary"],
-    queryFn: () => listingsService.getKpiSummary(),
+    queryKey: ["kpi-summary", accountId],
+    queryFn: () => listingsService.getKpiSummary(accountId),
     retry: 2,
   });
 
   const { data: funnelData } = useQuery({
-    queryKey: ["funnel", funnelPeriod],
-    queryFn: () => listingsService.getFunnel(funnelPeriod),
+    queryKey: ["funnel", funnelPeriod, accountId],
+    queryFn: () => listingsService.getFunnel(funnelPeriod, accountId),
     retry: 2,
   });
 
   const [heatmapPeriod, setHeatmapPeriod] = useState("30d");
 
   const { data: heatmapData } = useQuery({
-    queryKey: ["heatmap", heatmapPeriod],
-    queryFn: () => listingsService.getHeatmap(heatmapPeriod),
+    queryKey: ["heatmap", heatmapPeriod, accountId],
+    queryFn: () => listingsService.getHeatmap(heatmapPeriod, accountId),
     retry: 2,
   });
 
