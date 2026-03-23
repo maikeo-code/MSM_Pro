@@ -16,7 +16,13 @@ AlertType = Literal[
     "no_sales_days",
     "competitor_price_below",
     "competitor_stockout",
+    "visits_spike",
+    "conversion_improved",
+    "stockout_forecast",
 ]
+
+# Níveis de severidade
+Severity = Literal["critical", "warning", "info"]
 
 # Canais de notificação suportados
 AlertChannel = Literal["email", "webhook"]
@@ -39,10 +45,11 @@ class AlertConfigCreate(BaseModel):
         description=(
             "Valor limite. Obrigatório para: conversion_below (%), "
             "stock_below (unidades), no_sales_days (dias), "
-            "competitor_price_below (R$)."
+            "competitor_price_below (R$), stockout_forecast (dias)."
         ),
     )
     channel: AlertChannel = "email"
+    severity: Severity | None = None
 
     @model_validator(mode="after")
     def validate_threshold_required(self) -> "AlertConfigCreate":
@@ -65,6 +72,7 @@ class AlertConfigUpdate(BaseModel):
     threshold: Decimal | None = None
     channel: AlertChannel | None = None
     is_active: bool | None = None
+    severity: Severity | None = None
 
 
 class AlertConfigOut(BaseModel):
@@ -76,6 +84,7 @@ class AlertConfigOut(BaseModel):
     threshold: Decimal | None
     channel: str
     is_active: bool
+    severity: str
     created_at: datetime
 
     model_config = {"from_attributes": True}

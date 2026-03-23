@@ -45,6 +45,7 @@ class AlertConfig(Base):
     last_triggered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None
     )
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="warning")
 
     # Relacionamentos
     user: Mapped["User"] = relationship("User", back_populates="alert_configs")  # type: ignore[name-defined]

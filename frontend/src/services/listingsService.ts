@@ -250,6 +250,36 @@ export interface CreatePromotionPayload {
   promotion_id?: string;
 }
 
+export interface SearchPositionResult {
+  found: boolean;
+  position?: number;
+  page?: number;
+  total_results: number;
+  keyword: string;
+  mlb_id: string;
+}
+
+export interface PriceHistoryItem {
+  id: string;
+  mlb_id: string;
+  old_price: number | null;
+  new_price: number | null;
+  source: string;
+  justification: string | null;
+  success: boolean;
+  error_message: string | null;
+  changed_at: string;
+}
+
+export interface SimulatePriceResult {
+  target_price: number;
+  estimated_sales_per_day: number;
+  estimated_revenue_per_day: number;
+  estimated_margin: number;
+  is_estimated: boolean;
+  elasticity: number | null;
+}
+
 const listingsService = {
   async list(period: string = "today"): Promise<ListingOut[]> {
     const { data } = await api.get<ListingOut[]>("/listings/", {
@@ -335,6 +365,27 @@ const listingsService = {
   async getHeatmap(period = "30d"): Promise<HeatmapData> {
     const { data } = await api.get<HeatmapData>("/listings/analytics/heatmap", {
       params: { period },
+    });
+    return data;
+  },
+
+  async getSearchPosition(mlbId: string, keyword: string): Promise<SearchPositionResult> {
+    const { data } = await api.get<SearchPositionResult>(`/listings/${mlbId}/search-position`, {
+      params: { keyword },
+    });
+    return data;
+  },
+
+  async getPriceHistory(mlbId: string, limit = 50): Promise<PriceHistoryItem[]> {
+    const { data } = await api.get<PriceHistoryItem[]>(`/listings/${mlbId}/price-history`, {
+      params: { limit },
+    });
+    return data;
+  },
+
+  async simulatePrice(mlbId: string, targetPrice: number): Promise<SimulatePriceResult> {
+    const { data } = await api.post<SimulatePriceResult>(`/listings/${mlbId}/simulate-price`, {
+      target_price: targetPrice,
     });
     return data;
   },

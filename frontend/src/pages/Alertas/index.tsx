@@ -246,6 +246,7 @@ export default function Alertas() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
+  const [filterSeverity, setFilterSeverity] = React.useState<Severity | "all">("all");
 
   const { data: alertas = [], isLoading, error } = useQuery({
     queryKey: ["alertas"],
@@ -382,10 +383,60 @@ export default function Alertas() {
 
       {/* Tabela de alertas */}
       <div className="rounded-lg border bg-card shadow-sm">
-        <div className="px-6 py-4 border-b">
+        <div className="px-6 py-4 border-b space-y-4">
           <h2 className="text-lg font-semibold">
             Alertas Configurados ({alertas.length})
           </h2>
+
+          {alertas.length > 0 && (
+            <div className="flex gap-2 items-center flex-wrap">
+              <span className="text-xs font-medium text-muted-foreground">Filtrar por severidade:</span>
+              <button
+                onClick={() => setFilterSeverity("all")}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                  filterSeverity === "all"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                Todos
+              </button>
+              <button
+                onClick={() => setFilterSeverity("critical")}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                  filterSeverity === "critical"
+                    ? "bg-red-600 text-white"
+                    : "bg-red-100 text-red-700 hover:bg-red-200"
+                )}
+              >
+                Críticos
+              </button>
+              <button
+                onClick={() => setFilterSeverity("warning")}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                  filterSeverity === "warning"
+                    ? "bg-yellow-600 text-white"
+                    : "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
+                )}
+              >
+                Avisos
+              </button>
+              <button
+                onClick={() => setFilterSeverity("info")}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                  filterSeverity === "info"
+                    ? "bg-blue-600 text-white"
+                    : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                )}
+              >
+                Info
+              </button>
+            </div>
+          )}
         </div>
 
         {isLoading ? (
@@ -424,7 +475,9 @@ export default function Alertas() {
                 </tr>
               </thead>
               <tbody>
-                {alertas.map((alerta) => (
+                {alertas
+                  .filter((alerta) => filterSeverity === "all" || alerta.severity === filterSeverity)
+                  .map((alerta) => (
                   <tr
                     key={alerta.id}
                     className={cn(

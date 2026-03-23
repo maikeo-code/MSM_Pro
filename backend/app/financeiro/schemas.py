@@ -99,3 +99,89 @@ class CashFlowOut(BaseModel):
     proximos_30d: Decimal = Decimal("0")   # Total a liberar em 15-30 dias
     total_pendente: Decimal = Decimal("0") # Total de todos os periodos
     timeline: list[CashFlowDayOut]         # Detalhamento dia a dia
+
+
+# ─── DRE Gerencial Simplificado ──────────────────────────────────────────────
+
+class DRELineOut(BaseModel):
+    """Uma linha do DRE com valor e percentual sobre receita bruta."""
+    label: str                              # Ex: "Receita Bruta", "(-) Taxas ML"
+    valor: Decimal = Decimal("0")          # Valor em R$
+    pct_receita: Decimal | None = None    # % sobre receita bruta (quando aplicavel)
+
+
+class DREOut(BaseModel):
+    """DRE Gerencial Simplificado (Income Statement)."""
+    periodo: str
+    data_inicio: date
+    data_fim: date
+    # Estrutura do DRE
+    receita_bruta: Decimal = Decimal("0")
+    taxa_ml: Decimal = Decimal("0")
+    frete: Decimal = Decimal("0")
+    cancelamentos_devolvidos: Decimal = Decimal("0")  # Valores de cancelamentos/devoluções
+    receita_liquida: Decimal = Decimal("0")
+    cmv_total: Decimal = Decimal("0")  # Custo dos produtos (CMV)
+    lucro_bruto: Decimal = Decimal("0")
+    impostos_estimados: Decimal = Decimal("0")  # Baseado em tax_config
+    lucro_operacional: Decimal = Decimal("0")
+    # Percentuais
+    margem_bruta_pct: Decimal = Decimal("0")
+    margem_liquida_pct: Decimal = Decimal("0")
+    # Comparacao com periodo anterior
+    variacao_receita_pct: Decimal | None = None
+    variacao_lucro_pct: Decimal | None = None
+
+    model_config = {"from_attributes": True}
+
+
+# ─── Configuracao de Impostos ────────────────────────────────────────────────
+
+class TaxConfigOut(BaseModel):
+    """Configuracao de regime tributario do usuario."""
+    regime: str                             # simples_nacional, lucro_presumido, lucro_real
+    faixa_anual: Decimal = Decimal("0")    # Faixa de faturamento anual em R$
+    aliquota_efetiva: Decimal = Decimal("0")  # Taxa em decimal (0.04 = 4%)
+
+    model_config = {"from_attributes": True}
+
+
+class TaxConfigIn(BaseModel):
+    """Input para criar/atualizar configuracao de impostos."""
+    regime: str = "simples_nacional"
+    faixa_anual: Decimal
+    aliquota_efetiva: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+# ─── Rentabilidade por SKU ───────────────────────────────────────────────────
+
+class RentabilidadeSKUItemOut(BaseModel):
+    """Rentabilidade de um SKU (Product)."""
+    product_id: str  # UUID
+    sku: str
+    nome: str
+    receita_total: Decimal = Decimal("0")
+    custo_total: Decimal = Decimal("0")
+    margem_total: Decimal = Decimal("0")
+    margem_pct: Decimal | None = None
+    num_listings: int = 0
+    num_vendas: int = 0
+    melhor_listing_mlb: str | None = None  # MLB com melhor margem
+    pior_listing_mlb: str | None = None    # MLB com pior margem
+
+    model_config = {"from_attributes": True}
+
+
+class RentabilidadeSKUOut(BaseModel):
+    """Lista de rentabilidade por SKU para o periodo."""
+    periodo: str
+    data_inicio: date
+    data_fim: date
+    items: list[RentabilidadeSKUItemOut]
+    total_skus: int = 0
+    receita_total: Decimal = Decimal("0")
+    margem_total: Decimal = Decimal("0")
+
+    model_config = {"from_attributes": True}

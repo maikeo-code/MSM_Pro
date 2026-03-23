@@ -63,6 +63,77 @@ export interface InsightsResponse {
   generated_at: string;
 }
 
+// ─── Temporal Comparison (MoM) ─────────────────────────────────────────────
+
+export interface ComparisonItem {
+  mlb_id: string;
+  title: string;
+  revenue_current: number;
+  revenue_previous: number;
+  revenue_delta_pct: number;
+  sales_current: number;
+  sales_previous: number;
+  sales_delta_pct: number;
+}
+
+export interface ComparisonResponse {
+  items: ComparisonItem[];
+  period_days: number;
+  total_revenue_current: number;
+  total_revenue_previous: number;
+  total_revenue_delta_pct: number;
+  total_sales_current: number;
+  total_sales_previous: number;
+  total_sales_delta_pct: number;
+}
+
+// ─── ABC Classification ────────────────────────────────────────────────────
+
+export interface ABCItem {
+  mlb_id: string;
+  title: string;
+  classification: "A" | "B" | "C";
+  revenue_30d: number;
+  revenue_pct: number;
+  cumulative_pct: number;
+  units_sold: number;
+  current_stock: number;
+  turnover_rate: number;
+  metric: string;
+}
+
+export interface ABCResponse {
+  items: ABCItem[];
+  period_days: number;
+  metric_used: string;
+  total_revenue: number;
+  class_a_revenue_pct: number;
+  class_b_revenue_pct: number;
+  class_c_revenue_pct: number;
+}
+
+// ─── Inventory Health ──────────────────────────────────────────────────────
+
+export interface InventoryHealthItem {
+  mlb_id: string;
+  title: string;
+  current_stock: number;
+  avg_daily_sales: number;
+  sell_through_rate: number;
+  days_of_stock: number;
+  health_status: "healthy" | "overstocked" | "critical_low";
+}
+
+export interface InventoryHealthResponse {
+  items: InventoryHealthItem[];
+  period_days: number;
+  total_items: number;
+  healthy_count: number;
+  overstocked_count: number;
+  critical_low_count: number;
+  avg_days_of_stock: number;
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export const analyticsService = {
@@ -93,6 +164,30 @@ export const analyticsService = {
   async getInsights(): Promise<InsightsResponse> {
     const { data } = await api.get<InsightsResponse>(
       `/intel/analytics/insights`
+    );
+    return data;
+  },
+
+  async getComparison(period: "7d" | "15d" | "30d" = "30d"): Promise<ComparisonResponse> {
+    const { data } = await api.get<ComparisonResponse>(
+      `/intel/analytics/comparison?period=${period}`
+    );
+    return data;
+  },
+
+  async getABC(
+    period: "7d" | "15d" | "30d" = "30d",
+    metric: "revenue" | "units" | "margin" = "revenue"
+  ): Promise<ABCResponse> {
+    const { data } = await api.get<ABCResponse>(
+      `/intel/analytics/abc?period=${period}&metric=${metric}`
+    );
+    return data;
+  },
+
+  async getInventoryHealth(period: "7d" | "15d" | "30d" = "30d"): Promise<InventoryHealthResponse> {
+    const { data } = await api.get<InventoryHealthResponse>(
+      `/intel/analytics/inventory-health?period=${period}`
     );
     return data;
   },

@@ -7,7 +7,47 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.concorrencia.models import Competitor, CompetitorSnapshot
 from app.concorrencia.schemas import CompetitorCreate, CompetitorHistoryOut, CompetitorOut
+from app.mercadolivre.client import MLClient, MLClientError
 from app.vendas.models import Listing
+
+
+async def _enrich_competitor_from_ml(
+    competitor: Competitor,
+    ml_token: str,
+) -> None:
+    """
+    Busca dados reais do concorrente na API ML e popula title, seller_nickname, thumbnail.
+    Erros de API são silenciados — se falhar, o competitor é salvo com dados parciais.
+    """
+    try:
+        async with MLClient(ml_token) as client:
+            item_data = await client.get_item(competitor.mlb_id)
+
+            # Extrai título
+            if "title" in item_data:
+                competitor.title = item_data["title"]
+
+            # Extrai seller_nickname (seller.nickname)
+            if "seller" in item_data and isinstance(item_data["seller"], dict):
+                competitor.seller_nickname = item_data["seller"].get("nickname")
+
+            # Extrai thumbnail URL
+            if "thumbnail" in item_data:
+                competitor.thumbnail = item_data["thumbnail"]
+    except MLClientError as e:
+        # Log silencioso — o concorrente é criado mesmo se o enriquecimento falhar
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            f"Falha ao enriquecer competitor {competitor.mlb_id}: {str(e)}"
+        )
+    except Exception as e:
+        # Qualquer outro erro também é silencioso
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            f"Erro inesperado ao enriquecer competitor {competitor.mlb_id}: {str(e)}"
+        )
 
 
 async def add_competitor(
@@ -15,9 +55,11 @@ async def add_competitor(
     user_id: UUID,
     listing_id: UUID,
     competitor_mlb_id: str,
+    ml_token: str | None = None,
 ) -> Competitor:
     """
     Vincula um concorrente (MLB externo) a um listing do usuário.
+    Se ml_token for fornecido, busca e enriquece dados reais do concorrente imediatamente.
     """
     # Valida que o listing pertence ao usuário
     listing_result = await db.execute(
@@ -56,6 +98,11 @@ async def add_competitor(
         mlb_id=competitor_id,
         is_active=True,
     )
+
+    # Enriquece com dados da API ML se token for fornecido
+    if ml_token:
+        await _enrich_competitor_from_ml(competitor, ml_token)
+
     db.add(competitor)
     await db.flush()
     await db.refresh(competitor)

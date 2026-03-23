@@ -5,6 +5,8 @@ export interface CompetitorOut {
   listing_id: string;
   mlb_id: string;
   title: string | null;
+  seller_nickname: string | null;
+  thumbnail: string | null;
   is_active: boolean;
   created_at: string;
 }

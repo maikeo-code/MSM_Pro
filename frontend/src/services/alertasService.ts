@@ -5,9 +5,15 @@ export type AlertType =
   | "stock_below"
   | "competitor_price_change"
   | "no_sales_days"
-  | "competitor_price_below";
+  | "competitor_price_below"
+  | "competitor_stockout"
+  | "visits_spike"
+  | "conversion_improved"
+  | "stockout_forecast";
 
 export type AlertChannel = "email" | "webhook";
+
+export type Severity = "critical" | "warning" | "info";
 
 export interface AlertConfigOut {
   id: string;
@@ -18,6 +24,7 @@ export interface AlertConfigOut {
   threshold: number | null;
   channel: AlertChannel;
   is_active: boolean;
+  severity: Severity;
   created_at: string;
 }
 
@@ -27,12 +34,14 @@ export interface AlertConfigCreate {
   product_id?: string | null;
   threshold?: number | null;
   channel?: AlertChannel;
+  severity?: Severity;
 }
 
 export interface AlertConfigUpdate {
   threshold?: number | null;
   channel?: AlertChannel;
   is_active?: boolean;
+  severity?: Severity;
 }
 
 export interface AlertEventOut {

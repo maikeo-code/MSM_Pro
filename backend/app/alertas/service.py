@@ -22,6 +22,35 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
+# Helper: cálculo automático de severidade
+# ============================================================
+
+
+def _calculate_severity(alert_type: str, threshold: Decimal | None) -> str:
+    """Calcula severidade automática baseada no tipo e threshold."""
+    threshold_val = float(threshold) if threshold is not None else 0
+
+    # Severidade crítica
+    if alert_type == "stock_below" and threshold_val <= 3:
+        return "critical"
+    if alert_type == "no_sales_days" and threshold_val >= 5:
+        return "critical"
+
+    # Severidade warning
+    if alert_type == "stock_below" and threshold_val <= 10:
+        return "warning"
+    if alert_type == "competitor_price_change":
+        return "warning"
+
+    # Padrão: info (oportunidades, alertas leves)
+    if alert_type in ("visits_spike", "conversion_improved"):
+        return "info"
+
+    # Padrão para outros: warning
+    return "warning"
+
+
+# ============================================================
 # CRUD — AlertConfig
 # ============================================================
 
@@ -64,6 +93,9 @@ async def create_alert_config(
                 detail="SKU não encontrado ou não pertence ao usuário",
             )
 
+    # Determina severidade automática se não fornecida
+    severity = payload.severity or _calculate_severity(payload.alert_type, payload.threshold)
+
     alert = AlertConfig(
         user_id=user_id,
         listing_id=payload.listing_id,
@@ -71,6 +103,7 @@ async def create_alert_config(
         alert_type=payload.alert_type,
         threshold=payload.threshold,
         channel=payload.channel,
+        severity=severity,
         is_active=True,
     )
     db.add(alert)
@@ -138,6 +171,8 @@ async def update_alert_config(
         alert.channel = payload.channel
     if payload.is_active is not None:
         alert.is_active = payload.is_active
+    if payload.severity is not None:
+        alert.severity = payload.severity
 
     await db.flush()
     await db.refresh(alert)
@@ -285,6 +320,18 @@ async def _check_condition(db: AsyncSession, alert: AlertConfig) -> str | None:
     # --- competitor_price_below ---
     if atype == "competitor_price_below":
         return await _check_competitor_price_below(db, alert)
+
+    # --- visits_spike (oportunidade) ---
+    if atype == "visits_spike":
+        return await _check_visits_spike(db, alert)
+
+    # --- conversion_improved (oportunidade) ---
+    if atype == "conversion_improved":
+        return await _check_conversion_improved(db, alert)
+
+    # --- stockout_forecast (previsão) ---
+    if atype == "stockout_forecast":
+        return await _check_stockout_forecast(db, alert)
 
     logger.warning("Tipo de alerta desconhecido: %s", atype)
     return None
@@ -536,5 +583,187 @@ async def _check_competitor_price_below(
                     f"R$ {float(price_limit):.2f} "
                     f"(anúncio monitorado: {my_mlb})"
                 )
+
+    return None
+
+
+async def _check_visits_spike(db: AsyncSession, alert: AlertConfig) -> str | None:
+    """
+    Verifica se as visitas de hoje estão >150% da média dos últimos 7 dias.
+    Tipo: visits_spike (oportunidade, severity=info)
+    """
+    from app.vendas.models import Listing, ListingSnapshot
+
+    listing_ids = await _get_listing_ids_for_alert(db, alert)
+    if not listing_ids:
+        return None
+
+    since = datetime.now(timezone.utc) - timedelta(days=7)
+    now = datetime.now(timezone.utc)
+
+    for lid in listing_ids:
+        # Snapshots dos últimos 7 dias
+        result = await db.execute(
+            select(ListingSnapshot)
+            .where(
+                ListingSnapshot.listing_id == lid,
+                ListingSnapshot.captured_at >= since,
+            )
+            .order_by(ListingSnapshot.captured_at.desc())
+        )
+        snaps = result.scalars().all()
+        if not snaps:
+            continue
+
+        # Média de visitas (excluindo hoje)
+        seven_days_ago = now - timedelta(days=7)
+        older_snaps = [s for s in snaps if s.captured_at < (now - timedelta(days=1))]
+        if not older_snaps:
+            continue
+
+        avg_visits = sum(s.visits_today for s in older_snaps) / len(older_snaps)
+
+        # Snapshot de hoje
+        today_snap = next((s for s in snaps if s.captured_at.date() == now.date()), None)
+        if today_snap is None:
+            continue
+
+        if today_snap.visits_today > avg_visits * 1.5:
+            listing_result = await db.execute(
+                select(Listing).where(Listing.id == lid)
+            )
+            listing = listing_result.scalar_one_or_none()
+            title = listing.mlb_id if listing else str(lid)
+            return (
+                f"Oportunidade: {title} com pico de visitas! "
+                f"{int(today_snap.visits_today)} visitas hoje "
+                f"(média: {int(avg_visits)} visitas/dia)"
+            )
+
+    return None
+
+
+async def _check_conversion_improved(db: AsyncSession, alert: AlertConfig) -> str | None:
+    """
+    Verifica se a conversão subiu >20% vs média dos últimos 7 dias.
+    Tipo: conversion_improved (oportunidade, severity=info)
+    """
+    from app.vendas.models import Listing, ListingSnapshot
+
+    listing_ids = await _get_listing_ids_for_alert(db, alert)
+    if not listing_ids:
+        return None
+
+    since = datetime.now(timezone.utc) - timedelta(days=7)
+    now = datetime.now(timezone.utc)
+
+    for lid in listing_ids:
+        result = await db.execute(
+            select(ListingSnapshot)
+            .where(
+                ListingSnapshot.listing_id == lid,
+                ListingSnapshot.captured_at >= since,
+                ListingSnapshot.conversion_rate.isnot(None),
+            )
+            .order_by(ListingSnapshot.captured_at.desc())
+        )
+        snaps = result.scalars().all()
+        if not snaps:
+            continue
+
+        # Média de conversão (últimos 7 dias, excluindo hoje)
+        older_snaps = [s for s in snaps if s.captured_at < (now - timedelta(days=1)) and s.conversion_rate]
+        if not older_snaps:
+            continue
+
+        avg_conversion = sum(
+            float(s.conversion_rate) for s in older_snaps
+        ) / len(older_snaps)
+
+        # Conversão de hoje
+        today_snap = next((s for s in snaps if s.captured_at.date() == now.date()), None)
+        if today_snap is None or today_snap.conversion_rate is None:
+            continue
+
+        today_conversion = float(today_snap.conversion_rate)
+        improvement = (today_conversion - avg_conversion) / max(avg_conversion, 0.01) * 100
+
+        if improvement > 20:
+            listing_result = await db.execute(
+                select(Listing).where(Listing.id == lid)
+            )
+            listing = listing_result.scalar_one_or_none()
+            title = listing.mlb_id if listing else str(lid)
+            return (
+                f"Oportunidade: {title} com conversão melhorada! "
+                f"{today_conversion:.2f}% hoje vs {avg_conversion:.2f}% "
+                f"(+{improvement:.1f}%)"
+            )
+
+    return None
+
+
+async def _check_stockout_forecast(db: AsyncSession, alert: AlertConfig) -> str | None:
+    """
+    Verifica se o estoque vai acabar em menos de threshold dias.
+    Tipo: stockout_forecast (severidade baseada em urgência)
+
+    Lógica:
+    - Calcula velocidade média de vendas dos últimos 14 dias
+    - Estima dias até stockout = estoque_atual / velocidade_venda
+    - Se < threshold, dispara alerta
+    """
+    from app.vendas.models import Listing, ListingSnapshot
+
+    forecast_days = int(alert.threshold or 7)
+    listing_ids = await _get_listing_ids_for_alert(db, alert)
+    if not listing_ids:
+        return None
+
+    since = datetime.now(timezone.utc) - timedelta(days=14)
+
+    for lid in listing_ids:
+        # Snapshots dos últimos 14 dias
+        result = await db.execute(
+            select(ListingSnapshot)
+            .where(
+                ListingSnapshot.listing_id == lid,
+                ListingSnapshot.captured_at >= since,
+            )
+            .order_by(ListingSnapshot.captured_at.desc())
+        )
+        snaps = result.scalars().all()
+        if not snaps:
+            continue
+
+        # Calcula velocidade de venda média
+        total_sales = sum(s.sales_today for s in snaps)
+        days_with_data = len(snaps)
+        if days_with_data == 0:
+            continue
+
+        avg_sales_per_day = total_sales / days_with_data
+
+        # Snapshot mais recente (estoque atual)
+        latest = snaps[0]
+        current_stock = latest.stock
+
+        if avg_sales_per_day <= 0:
+            # Sem vendas, não há risco
+            continue
+
+        days_to_stockout = current_stock / avg_sales_per_day
+
+        if days_to_stockout < forecast_days:
+            listing_result = await db.execute(
+                select(Listing).where(Listing.id == lid)
+            )
+            listing = listing_result.scalar_one_or_none()
+            title = listing.mlb_id if listing else str(lid)
+            return (
+                f"Previsão de estoque: {title} acabará em {int(days_to_stockout)} dias "
+                f"no ritmo atual ({avg_sales_per_day:.1f} un/dia, "
+                f"{int(current_stock)} restantes)"
+            )
 
     return None

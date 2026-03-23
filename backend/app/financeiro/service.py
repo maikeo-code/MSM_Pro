@@ -512,6 +512,371 @@ async def get_financeiro_timeline(
     }
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Servicos de DRE, Impostos e Rentabilidade por SKU
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+async def get_dre(
+    db: AsyncSession,
+    user_id,
+    period: str = "30d",
+) -> dict[str, Any]:
+    """
+    Retorna DRE Gerencial Simplificado (Income Statement).
+
+    Estrutura:
+    - Receita Bruta = soma vendas brutas
+    - (-) Taxas ML = soma taxas
+    - (-) Frete = soma frete
+    - (-) Cancelamentos/Devoluções = soma valores cancelados/devolvidos
+    = Receita Líquida
+    - (-) CMV = soma custo dos produtos vendidos
+    = Lucro Bruto
+    - (-) Impostos Estimados = baseado em tax_config
+    = Lucro Operacional Estimado
+
+    Também compara com período anterior para variações.
+    """
+    # Obter resumo P&L atual
+    resumo_atual = await get_financeiro_resumo(db, user_id, period=period)
+    data_inicio, data_fim = _parse_period(period)
+
+    # Período anterior
+    days = (data_fim - data_inicio).days + 1
+    prev_fim = data_inicio - timedelta(days=1)
+    prev_inicio = prev_fim - timedelta(days=days - 1)
+
+    # Calcular para período anterior
+    resumo_anterior = await get_financeiro_resumo(db, user_id, period=period)
+
+    # Obter configuração de impostos do usuário
+    from app.financeiro.models import TaxConfig
+
+    tax_config_row = await db.execute(
+        select(TaxConfig).where(TaxConfig.user_id == user_id)
+    )
+    tax_config = tax_config_row.scalars().first()
+
+    # Calcular DRE
+    receita_bruta = resumo_atual["vendas_brutas"]
+    taxa_ml = resumo_atual["taxas_ml_total"]
+    frete = resumo_atual["frete_total"]
+    cancelamentos_devolvidos = Decimal("0")  # Será calculado abaixo
+
+    # Estimar valor de cancelamentos/devoluções (usando contagem)
+    if resumo_atual["total_cancelamentos"] > 0 or resumo_atual["total_devolucoes"] > 0:
+        if resumo_atual["total_pedidos"] > 0:
+            preco_medio = receita_bruta / resumo_atual["total_pedidos"]
+            cancelamentos_devolvidos = (
+                (resumo_atual["total_cancelamentos"] + resumo_atual["total_devolucoes"]) * preco_medio
+            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    receita_liquida = receita_bruta - taxa_ml - frete - cancelamentos_devolvidos
+    cmv_total = resumo_atual["custo_total"]
+    lucro_bruto = receita_liquida - cmv_total
+
+    # Calcular impostos estimados
+    impostos_estimados = Decimal("0")
+    if tax_config and receita_bruta > 0:
+        impostos_estimados = (receita_bruta * tax_config.aliquota_efetiva).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+
+    lucro_operacional = lucro_bruto - impostos_estimados
+
+    # Calcular percentuais
+    margem_bruta_pct = (
+        (lucro_bruto / receita_bruta * 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if receita_bruta > 0
+        else Decimal("0")
+    )
+    margem_liquida_pct = (
+        (lucro_operacional / receita_bruta * 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if receita_bruta > 0
+        else Decimal("0")
+    )
+
+    # Variações vs período anterior
+    def _variacao(novo: Decimal, antigo: Decimal) -> Decimal | None:
+        if antigo == 0:
+            return None
+        return ((novo - antigo) / antigo * 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    # Recalcular para período anterior para comparação
+    resumo_prev = await get_financeiro_resumo(db, user_id, period=period)
+    receita_bruta_prev = resumo_prev["vendas_brutas"]
+    lucro_bruto_prev = resumo_prev["receita_liquida"] - resumo_prev["custo_total"]
+
+    return {
+        "periodo": period,
+        "data_inicio": data_inicio,
+        "data_fim": data_fim,
+        "receita_bruta": receita_bruta,
+        "taxa_ml": taxa_ml,
+        "frete": frete,
+        "cancelamentos_devolvidos": cancelamentos_devolvidos,
+        "receita_liquida": receita_liquida,
+        "cmv_total": cmv_total,
+        "lucro_bruto": lucro_bruto,
+        "impostos_estimados": impostos_estimados,
+        "lucro_operacional": lucro_operacional,
+        "margem_bruta_pct": margem_bruta_pct,
+        "margem_liquida_pct": margem_liquida_pct,
+        "variacao_receita_pct": _variacao(receita_bruta, receita_bruta_prev),
+        "variacao_lucro_pct": _variacao(lucro_operacional, lucro_bruto_prev - resumo_prev["custo_total"]),
+    }
+
+
+async def get_tax_config(
+    db: AsyncSession,
+    user_id,
+) -> dict[str, Any] | None:
+    """Obter configuração de impostos do usuário."""
+    from app.financeiro.models import TaxConfig
+
+    result = await db.execute(
+        select(TaxConfig).where(TaxConfig.user_id == user_id)
+    )
+    tax_config = result.scalars().first()
+
+    if not tax_config:
+        return None
+
+    return {
+        "regime": tax_config.regime,
+        "faixa_anual": tax_config.faixa_anual,
+        "aliquota_efetiva": tax_config.aliquota_efetiva,
+    }
+
+
+async def set_tax_config(
+    db: AsyncSession,
+    user_id,
+    regime: str,
+    faixa_anual: Decimal,
+    aliquota_efetiva: Decimal,
+) -> dict[str, Any]:
+    """Criar ou atualizar configuração de impostos do usuário."""
+    from app.financeiro.models import TaxConfig
+    from sqlalchemy import delete
+
+    # Tentar encontrar config existente
+    result = await db.execute(
+        select(TaxConfig).where(TaxConfig.user_id == user_id)
+    )
+    tax_config = result.scalars().first()
+
+    if tax_config:
+        # Atualizar
+        tax_config.regime = regime
+        tax_config.faixa_anual = Decimal(str(faixa_anual))
+        tax_config.aliquota_efetiva = Decimal(str(aliquota_efetiva))
+    else:
+        # Criar novo
+        tax_config = TaxConfig(
+            user_id=user_id,
+            regime=regime,
+            faixa_anual=Decimal(str(faixa_anual)),
+            aliquota_efetiva=Decimal(str(aliquota_efetiva)),
+        )
+        db.add(tax_config)
+
+    await db.commit()
+    await db.refresh(tax_config)
+
+    return {
+        "regime": tax_config.regime,
+        "faixa_anual": tax_config.faixa_anual,
+        "aliquota_efetiva": tax_config.aliquota_efetiva,
+    }
+
+
+async def get_rentabilidade_por_sku(
+    db: AsyncSession,
+    user_id,
+    period: str = "30d",
+) -> dict[str, Any]:
+    """
+    Retorna rentabilidade agregada por SKU (Product).
+
+    Para cada SKU:
+    - Receita total
+    - Custo total
+    - Margem total e %
+    - Número de listings vinculados
+    - Número de vendas
+    - Melhor e pior listing por margem
+    """
+    from app.vendas.models import Listing, ListingSnapshot
+    from app.produtos.models import Product
+    from sqlalchemy import cast, Date
+
+    data_inicio, data_fim = _parse_period(period)
+    d_inicio_dt = datetime(data_inicio.year, data_inicio.month, data_inicio.day, tzinfo=timezone.utc)
+    d_fim_dt = datetime(data_fim.year, data_fim.month, data_fim.day, 23, 59, 59, tzinfo=timezone.utc)
+
+    # Subquery: latest snapshot per listing per day (deduplication)
+    latest_per_day = (
+        select(
+            ListingSnapshot.listing_id,
+            cast(ListingSnapshot.captured_at, Date).label("snap_date"),
+            func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+        )
+        .where(
+            ListingSnapshot.captured_at >= d_inicio_dt,
+            ListingSnapshot.captured_at <= d_fim_dt,
+        )
+        .group_by(ListingSnapshot.listing_id, cast(ListingSnapshot.captured_at, Date))
+        .subquery()
+    )
+
+    # Revenue fallback: use price * sales_today when revenue is null
+    revenue_expr = func.coalesce(
+        ListingSnapshot.revenue,
+        ListingSnapshot.price * ListingSnapshot.sales_today,
+    )
+
+    # Agrupar por product_id (SKU)
+    rows = await db.execute(
+        select(
+            Listing.product_id,
+            Listing.mlb_id,
+            Listing.title,
+            func.sum(revenue_expr).label("revenue"),
+            func.sum(func.coalesce(ListingSnapshot.orders_count, ListingSnapshot.sales_today)).label("orders"),
+            Listing.listing_type,
+            Listing.sale_fee_pct,
+            Listing.avg_shipping_cost,
+        )
+        .join(ListingSnapshot, ListingSnapshot.listing_id == Listing.id)
+        .join(
+            latest_per_day,
+            (ListingSnapshot.listing_id == latest_per_day.c.listing_id)
+            & (ListingSnapshot.captured_at == latest_per_day.c.max_captured_at),
+        )
+        .where(
+            Listing.user_id == user_id,
+            Listing.product_id.isnot(None),
+        )
+        .group_by(
+            Listing.product_id,
+            Listing.mlb_id,
+            Listing.title,
+            Listing.listing_type,
+            Listing.sale_fee_pct,
+            Listing.avg_shipping_cost,
+        )
+        .order_by(Listing.product_id)
+    )
+    listing_rows = rows.all()
+
+    # Buscar dados dos produtos
+    product_ids = list(set([str(r.product_id) for r in listing_rows if r.product_id]))
+    products_data: dict = {}
+    if product_ids:
+        prod_result = await db.execute(
+            select(Product).where(Product.id.in_(product_ids))
+        )
+        for prod in prod_result.scalars().all():
+            products_data[str(prod.id)] = {
+                "sku": prod.sku,
+                "nome": prod.name,
+                "cost": prod.cost,
+            }
+
+    # Agrupar por product_id
+    by_sku: dict[str, dict] = {}
+    for row in listing_rows:
+        product_id_str = str(row.product_id)
+        if product_id_str not in by_sku:
+            by_sku[product_id_str] = {
+                "sku": products_data.get(product_id_str, {}).get("sku", ""),
+                "nome": products_data.get(product_id_str, {}).get("nome", ""),
+                "cost_unitario": products_data.get(product_id_str, {}).get("cost", Decimal("0")),
+                "listings": [],
+                "receita_total": Decimal("0"),
+                "custo_total": Decimal("0"),
+                "num_vendas": 0,
+            }
+
+        rev = Decimal(str(row.revenue or 0))
+        orders = int(row.orders or 0)
+        taxa_pct = calcular_taxa_ml(row.listing_type, sale_fee_pct=row.sale_fee_pct)
+        taxa_valor = (rev * taxa_pct).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        frete_unit = Decimal(str(row.avg_shipping_cost or 0))
+        frete_listing = (frete_unit * orders).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        receita_liquida = rev - taxa_valor - frete_listing
+
+        custo_unitario = by_sku[product_id_str]["cost_unitario"]
+        custo_listing = (custo_unitario * orders).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        margem = receita_liquida - custo_listing
+
+        by_sku[product_id_str]["listings"].append({
+            "mlb_id": row.mlb_id,
+            "title": row.title[:50],
+            "receita": receita_liquida,
+            "margem": margem,
+        })
+        by_sku[product_id_str]["receita_total"] += receita_liquida
+        by_sku[product_id_str]["custo_total"] += custo_listing
+        by_sku[product_id_str]["num_vendas"] += orders
+
+    # Montar resultado final
+    items = []
+    total_receita = Decimal("0")
+    total_margem = Decimal("0")
+
+    for product_id_str, sku_data in by_sku.items():
+        receita = sku_data["receita_total"]
+        custo = sku_data["custo_total"]
+        margem = receita - custo
+        margem_pct = (
+            (margem / receita * 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if receita > 0
+            else Decimal("0")
+        )
+
+        # Encontrar melhor e pior listing
+        listings = sku_data["listings"]
+        melhor_listing = None
+        pior_listing = None
+        if listings:
+            sorted_by_margem = sorted(listings, key=lambda x: x["margem"], reverse=True)
+            melhor_listing = sorted_by_margem[0]["mlb_id"]
+            pior_listing = sorted_by_margem[-1]["mlb_id"]
+
+        items.append({
+            "product_id": product_id_str,
+            "sku": sku_data["sku"],
+            "nome": sku_data["nome"],
+            "receita_total": receita,
+            "custo_total": custo,
+            "margem_total": margem,
+            "margem_pct": margem_pct,
+            "num_listings": len(listings),
+            "num_vendas": sku_data["num_vendas"],
+            "melhor_listing_mlb": melhor_listing,
+            "pior_listing_mlb": pior_listing,
+        })
+
+        total_receita += receita
+        total_margem += margem
+
+    # Ordenar por receita decrescente
+    items.sort(key=lambda x: x["receita_total"], reverse=True)
+
+    return {
+        "periodo": period,
+        "data_inicio": data_inicio,
+        "data_fim": data_fim,
+        "items": items,
+        "total_skus": len(items),
+        "receita_total": total_receita,
+        "margem_total": total_margem,
+    }
+
+
 async def get_cashflow(
     db: AsyncSession,
     user_id,

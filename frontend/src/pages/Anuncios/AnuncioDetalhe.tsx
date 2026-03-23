@@ -25,6 +25,8 @@ import { CalculadoraMargem } from "./components/CalculadoraMargem";
 import { PerformanceCharts } from "./components/PerformanceCharts";
 import { PriceBandsTable } from "./components/PriceBandsTable";
 import { ConcorrenteCard } from "./components/ConcorrenteCard";
+import { SearchPosition } from "./components/SearchPosition";
+import { PriceHistory } from "./components/PriceHistory";
 import type { ChartView, ChartDataPoint } from "./components/types";
 
 // ─── Tipos locais (apenas o que o componente principal ainda usa) ─────────────
@@ -388,7 +390,14 @@ export default function AnuncioDetalhe() {
         margem={margem}
         margemLoading={margemLoading}
         hasSku={!!analysis.sku?.id}
+        mlbId={mlbId}
       />
+
+      {/* ─── Posicao na Busca ──────────────────────────────────────────────────── */}
+      <SearchPosition mlbId={mlbId!} />
+
+      {/* ─── Historico de Precos ───────────────────────────────────────────────── */}
+      <PriceHistory mlbId={mlbId!} />
 
       {/* ─── Health Card ─────────────────────────────────────────────────────── */}
       {health && (

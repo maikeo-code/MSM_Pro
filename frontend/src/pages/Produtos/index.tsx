@@ -1,11 +1,12 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Check, X, Package } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X, Package, Link, Unlink, ChevronRight } from "lucide-react";
 import productsService, {
   ProductOut,
   ProductCreate,
   ProductUpdate,
 } from "@/services/productsService";
+import listingsService from "@/services/listingsService";
 import { formatCurrency, cn } from "@/lib/utils";
 
 interface FormState {
@@ -125,11 +126,24 @@ export default function Produtos() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [drawerOpenProductId, setDrawerOpenProductId] = React.useState<string | null>(null);
+  const [showLinkForm, setShowLinkForm] = React.useState(false);
+  const [selectedMlbId, setSelectedMlbId] = React.useState("");
 
   const { data: products = [], isLoading, error } = useQuery({
     queryKey: ["products"],
     queryFn: () => productsService.list(),
   });
+
+  // Buscar listings do produto aberto no drawer
+  const { data: listings = [] } = useQuery({
+    queryKey: ["listings"],
+    queryFn: () => listingsService.list("today"),
+  });
+
+  const drawerProduct = products.find((p) => p.id === drawerOpenProductId);
+  const linkedListings = listings.filter((l) => l.product_id === drawerOpenProductId);
+  const unlinkedListings = listings.filter((l) => !l.product_id);
 
   const createMutation = useMutation({
     mutationFn: (payload: ProductCreate) => productsService.create(payload),
@@ -152,6 +166,16 @@ export default function Produtos() {
     mutationFn: (id: string) => productsService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+
+  const linkSkuMutation = useMutation({
+    mutationFn: ({ mlbId, productId }: { mlbId: string; productId: string | null }) =>
+      listingsService.linkSku(mlbId, productId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["listings"] });
+      setShowLinkForm(false);
+      setSelectedMlbId("");
     },
   });
 
@@ -307,6 +331,13 @@ export default function Produtos() {
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-2">
                           <button
+                            onClick={() => setDrawerOpenProductId(product.id)}
+                            className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors"
+                          >
+                            <Link className="h-3 w-3" />
+                            MLBs
+                          </button>
+                          <button
                             onClick={() => setEditingId(product.id)}
                             className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors"
                           >
@@ -385,6 +416,182 @@ export default function Produtos() {
             </table>
           </div>
         </div>
+      )}
+
+      {/* Drawer de vinculacao de MLBs */}
+      {drawerProduct && (
+        <div className={cn(
+          "fixed inset-y-0 right-0 w-full max-w-2xl bg-background border-l shadow-lg z-50 transition-transform duration-200",
+          drawerOpenProductId ? "translate-x-0" : "translate-x-full"
+        )}>
+          {/* Header */}
+          <div className="border-b p-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Vincular Anuncios (MLBs)</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {drawerProduct.sku} — {drawerProduct.name}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setDrawerOpenProductId(null);
+                setShowLinkForm(false);
+                setSelectedMlbId("");
+              }}
+              className="text-muted-foreground hover:text-foreground text-2xl font-light"
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="overflow-y-auto h-[calc(100vh-120px)] p-6 space-y-6">
+            {/* Anuncios vinculados */}
+            <div className="space-y-3">
+              <h3 className="font-semibold">
+                Anuncios Vinculados ({linkedListings.length})
+              </h3>
+              {linkedListings.length === 0 ? (
+                <div className="rounded-md bg-muted px-4 py-6 text-center text-sm text-muted-foreground">
+                  Nenhum anuncio vinculado a este SKU.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {linkedListings.map((listing) => (
+                    <div
+                      key={listing.id}
+                      className="flex items-center justify-between rounded-md border bg-card p-4 hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-mono text-sm font-semibold text-primary">
+                          {listing.mlb_id}
+                        </p>
+                        <p className="text-sm text-foreground line-clamp-1">
+                          {listing.title}
+                        </p>
+                        <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                          <div>
+                            <span className="font-mono font-semibold text-foreground">
+                              {formatCurrency(listing.price)}
+                            </span>
+                          </div>
+                          {listing.last_snapshot && (
+                            <>
+                              <div>
+                                Estoque: <span className="font-semibold text-foreground">
+                                  {listing.last_snapshot.stock}
+                                </span>
+                              </div>
+                              <div>
+                                Vendas 7d: <span className="font-semibold text-foreground">
+                                  {listing.last_snapshot.sales_today}
+                                </span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          linkSkuMutation.mutate({
+                            mlbId: listing.mlb_id,
+                            productId: null,
+                          });
+                        }}
+                        disabled={linkSkuMutation.isPending}
+                        className="ml-4 inline-flex items-center gap-1 rounded-md border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 shrink-0"
+                      >
+                        <Unlink className="h-3 w-3" />
+                        Desvincular
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Formulario para vincular novo MLB */}
+            {!showLinkForm ? (
+              <button
+                onClick={() => setShowLinkForm(true)}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Vincular Novo Anuncio
+              </button>
+            ) : (
+              <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Selecionar MLB sem SKU
+                  </label>
+                  <select
+                    value={selectedMlbId}
+                    onChange={(e) => setSelectedMlbId(e.target.value)}
+                    className="w-full h-10 mt-1 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">-- Escolha um anuncio --</option>
+                    {unlinkedListings.map((listing) => (
+                      <option key={listing.id} value={listing.mlb_id}>
+                        {listing.mlb_id} — {listing.title.substring(0, 50)}...
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      if (selectedMlbId) {
+                        linkSkuMutation.mutate({
+                          mlbId: selectedMlbId,
+                          productId: drawerProduct.id,
+                        });
+                      }
+                    }}
+                    disabled={!selectedMlbId || linkSkuMutation.isPending}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    <Check className="h-4 w-4" />
+                    Confirmar
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowLinkForm(false);
+                      setSelectedMlbId("");
+                    }}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Info sobre MLBs sem SKU */}
+            {unlinkedListings.length > 0 && (
+              <div className="rounded-md bg-blue-50 border border-blue-200 p-4 text-sm text-blue-900">
+                <p className="font-semibold mb-1">Anuncios disponiveis</p>
+                <p className="text-xs">
+                  Existem {unlinkedListings.length} anuncio(s) sem SKU vinculado que podem ser
+                  associados a este produto.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Overlay do drawer */}
+      {drawerOpenProductId && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 transition-opacity duration-200"
+          onClick={() => {
+            setDrawerOpenProductId(null);
+            setShowLinkForm(false);
+            setSelectedMlbId("");
+          }}
+        />
       )}
     </div>
   );

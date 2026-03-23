@@ -30,13 +30,39 @@ async def add_competitor(
 ):
     """
     Vincula um concorrente (MLB externo) a um listing do usuário.
+    Busca dados reais do concorrente na API ML para enriquecer os dados (título, seller, thumbnail).
     """
+    from sqlalchemy import select
+    from app.auth.models import MLAccount
+    from app.vendas.models import Listing
+
+    # Busca o listing para obter a conta ML vinculada
+    listing_result = await db.execute(
+        select(Listing).where(
+            Listing.id == payload.listing_id,
+            Listing.user_id == current_user.id,
+        )
+    )
+    listing = listing_result.scalar_one_or_none()
+
+    # Busca o token da conta ML do listing
+    ml_token = None
+    if listing and listing.ml_account_id:
+        ml_account_result = await db.execute(
+            select(MLAccount).where(MLAccount.id == listing.ml_account_id)
+        )
+        ml_account = ml_account_result.scalar_one_or_none()
+        if ml_account and ml_account.access_token:
+            ml_token = ml_account.access_token
+
     competitor = await service.add_competitor(
         db,
         current_user.id,
         payload.listing_id,
         payload.competitor_mlb_id,
+        ml_token=ml_token,
     )
+    await db.commit()
     return competitor
 
 

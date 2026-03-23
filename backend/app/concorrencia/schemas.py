@@ -15,6 +15,8 @@ class CompetitorOut(BaseModel):
     listing_id: UUID
     mlb_id: str
     title: str | None
+    seller_nickname: str | None
+    thumbnail: str | None
     is_active: bool
     created_at: datetime
 

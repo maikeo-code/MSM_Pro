@@ -1,4 +1,7 @@
-import { Calculator } from "lucide-react";
+import React from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Calculator, TrendingUp } from "lucide-react";
+import listingsService from "@/services/listingsService";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 
 interface MargemData {
@@ -19,6 +22,7 @@ interface CalculadoraMargemProps {
   margem: MargemData | undefined;
   margemLoading: boolean;
   hasSku: boolean;
+  mlbId?: string;
 }
 
 export function CalculadoraMargem({
@@ -28,14 +32,25 @@ export function CalculadoraMargem({
   margem,
   margemLoading,
   hasSku,
+  mlbId,
 }: CalculadoraMargemProps) {
+  const simPrecoNum = simPreco !== "" ? parseFloat(simPreco) : null;
+
+  const { data: simulation, isLoading: simLoading } = useQuery({
+    queryKey: ["simulate-price", mlbId, simPrecoNum],
+    queryFn: () => listingsService.simulatePrice(mlbId!, simPrecoNum!),
+    enabled: !!mlbId && simPrecoNum !== null && simPrecoNum > 0,
+    retry: 1,
+  });
+
   return (
-    <div className="rounded-lg border bg-card p-6">
-      <div className="flex items-center gap-2 mb-4">
+    <div className="rounded-lg border bg-card p-6 space-y-6">
+      <div className="flex items-center gap-2">
         <Calculator className="h-5 w-5 text-primary" />
         <h2 className="text-lg font-semibold">Calculadora de Margem</h2>
       </div>
 
+      {/* Seção de input e margem atual */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div className="flex flex-col gap-1">
@@ -122,6 +137,63 @@ export function CalculadoraMargem({
           )}
         </div>
       </div>
+
+      {/* Simulação de impacto de preço */}
+      {simPrecoNum !== null && simPrecoNum > 0 && simulation && (
+        <div className="border-t pt-4">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold text-sm">Impacto da Mudanca de Preco</h3>
+            {simulation.is_estimated && (
+              <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-medium">
+                Estimado
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-md bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground mb-1">Preco Simulado</p>
+              <p className="font-bold text-lg text-foreground">
+                {formatCurrency(simulation.target_price)}
+              </p>
+            </div>
+            <div className="rounded-md bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground mb-1">Vendas Est./Dia</p>
+              <p className="font-bold text-lg text-foreground">
+                {simulation.estimated_sales_per_day.toFixed(1)}
+              </p>
+            </div>
+            <div className="rounded-md bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground mb-1">Receita Est./Dia</p>
+              <p className="font-bold text-lg text-green-600">
+                {formatCurrency(simulation.estimated_revenue_per_day)}
+              </p>
+            </div>
+            <div className="rounded-md bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground mb-1">Margem Estimada</p>
+              <p className={cn(
+                "font-bold text-lg",
+                simulation.estimated_margin >= 0 ? "text-green-600" : "text-red-600"
+              )}>
+                {formatCurrency(simulation.estimated_margin)}
+              </p>
+            </div>
+          </div>
+
+          {simulation.elasticity !== null && (
+            <p className="text-xs text-muted-foreground mt-3">
+              Elasticidade calculada: {simulation.elasticity.toFixed(2)} (baseado em historico de 90 dias)
+            </p>
+          )}
+        </div>
+      )}
+
+      {simLoading && (
+        <div className="border-t pt-4 text-sm text-muted-foreground">
+          Simulando impacto do novo preco...
+        </div>
+      )}
     </div>
   );
 }
