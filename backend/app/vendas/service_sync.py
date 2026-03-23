@@ -1,9 +1,12 @@
 """
 Sincronização de anúncios e snapshots com o Mercado Livre.
 """
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta
 from decimal import Decimal
 from uuid import UUID
+
+# Timezone BRT (UTC-3)
+BRT = timezone(timedelta(hours=-3))
 
 from fastapi import HTTPException, status
 from sqlalchemy import cast, Date, select
@@ -190,7 +193,7 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         # Busca visitas de hoje via time_window (endpoint que funciona por dia)
                         visits_today = 0
                         try:
-                            today_str = date.today().isoformat()
+                            today_str = datetime.now(BRT).date().isoformat()
                             visits_resp = await client._request(
                                 "GET",
                                 f"/items/{mlb_id}/visits/time_window",
@@ -212,7 +215,7 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         existing_snap_result = await db.execute(
                             select(ListingSnapshot).where(
                                 ListingSnapshot.listing_id == listing.id,
-                                cast(ListingSnapshot.captured_at, Date) == date.today(),
+                                cast(ListingSnapshot.captured_at, Date) == datetime.now(BRT).date(),
                             ).order_by(ListingSnapshot.captured_at.desc()).limit(1)
                         )
                         existing_snap = existing_snap_result.scalar_one_or_none()
@@ -240,7 +243,7 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
 
                 # Busca vendas de hoje via orders API e atualiza snapshots
                 try:
-                    today = date.today()
+                    today = datetime.now(BRT).date()
                     today_start = f"{today.isoformat()}T00:00:00.000-03:00"
 
                     orders_resp = await client._request(

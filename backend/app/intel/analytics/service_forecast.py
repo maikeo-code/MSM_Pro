@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.vendas.models import Listing, ListingSnapshot
 from .schemas import ForecastPoint, ForecastResponse
 
+# Timezone BRT (UTC-3)
+BRT = timezone(timedelta(hours=-3))
+
 
 # ─── Pure-Python linear regression (avoids numpy dependency) ────────────────
 
@@ -113,7 +116,7 @@ async def get_sales_forecast(
 
     # Minimal viable data: at least 2 points required
     if len(history_dates) < 2:
-        today = date.today()
+        today = datetime.now(BRT).date()
         flat_value = history_sales[0] if history_sales else 0.0
         return _flat_forecast(mlb_id, today, flat_value)
 

@@ -19,6 +19,21 @@ export interface ReputationRisk {
   items: RiskItem[];
 }
 
+export interface HealthDimensionItem {
+  dimension: string; // claims, mediations, cancellations, late_shipments
+  rate: number;
+  status: "good" | "warning" | "critical";
+  threshold_good: number;
+  threshold_warning: number;
+}
+
+export interface ReputationThresholds {
+  claims: number;
+  mediations: number;
+  cancellations: number;
+  late_shipments: number;
+}
+
 export interface ReputationCurrent {
   ml_account_id: string;
   nickname: string | null;
@@ -36,6 +51,10 @@ export interface ReputationCurrent {
   completed_sales_60d: number;
   total_revenue_60d: number;
   captured_at: string | null;
+  // Thresholds dinâmicos retornados pelo backend
+  thresholds?: ReputationThresholds;
+  // Health score por dimensão
+  health_by_dimension?: HealthDimensionItem[];
 }
 
 export interface ReputationSnapshot {

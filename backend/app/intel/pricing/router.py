@@ -4,6 +4,9 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
 from uuid import UUID
 
+# Timezone BRT (UTC-3)
+BRT = timezone(timedelta(hours=-3))
+
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy import and_, cast, desc, func, select
 from sqlalchemy import Date as SADate
@@ -46,6 +49,10 @@ def _rec_to_out(rec: PriceRecommendation, listing: Listing, product_sku: str | N
     raw_breakdown = rec.score_breakdown or {}
     ci_raw = raw_breakdown.pop("conversion_index", None) if isinstance(raw_breakdown, dict) else None
 
+    # has_active_promotion: buscar do listing snapshot mais recente ou null se não disponível
+    # Por enquanto, retornar None (pode ser enriquecido depois se necessário)
+    has_active_promotion = None
+
     return {
         "id": rec.id,
         "listing_id": rec.listing_id,
@@ -77,6 +84,7 @@ def _rec_to_out(rec: PriceRecommendation, listing: Listing, product_sku: str | N
         "health_score": rec.health_score,
         "competitor_avg_price": float(rec.competitor_avg_price) if rec.competitor_avg_price is not None else None,
         "competitor_min_price": float(rec.competitor_min_price) if rec.competitor_min_price is not None else None,
+        "has_active_promotion": has_active_promotion,
         "status": rec.status,
         "applied_at": rec.applied_at,
         "report_date": rec.report_date,
@@ -98,7 +106,7 @@ async def _enrich_with_periods(
     if not listing_ids:
         return
 
-    today = date.today()
+    today = datetime.now(BRT).date()
     yesterday = today - timedelta(days=1)
     day_before_yesterday = today - timedelta(days=2)
     date_7d_ago = today - timedelta(days=6)
@@ -211,7 +219,7 @@ async def list_recommendations(
     Retorna todas as recomendacoes do usuario para a data solicitada,
     com resumo agregado (total por acao, confianca media).
     """
-    target_date = report_date or date.today()
+    target_date = report_date or datetime.now(BRT).date()
 
     # Filtros base
     conditions = [
@@ -480,7 +488,7 @@ async def recommendation_history(
             detail=f"Anuncio {mlb_id} nao encontrado",
         )
 
-    cutoff = date.today() - timedelta(days=days)
+    cutoff = datetime.now(BRT).date() - timedelta(days=days)
 
     stmt = (
         select(PriceRecommendation)

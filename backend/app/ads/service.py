@@ -4,6 +4,9 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
+# Timezone BRT (UTC-3)
+BRT = timezone(timedelta(hours=-3))
+
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,7 +54,7 @@ async def get_campaign_detail(
         return None
 
     # Filtra snapshots no banco (evita carregar ALL snapshots em memória)
-    cutoff = date.today() - timedelta(days=days)
+    cutoff = datetime.now(BRT).date() - timedelta(days=days)
     snaps_result = await db.execute(
         select(AdSnapshot)
         .where(
@@ -177,7 +180,7 @@ async def sync_ads_from_ml(
     logger.info(f"Conta {ml_account.id}: advertiser_id={advertiser_id}")
 
     # Passo 2: busca campanhas com métricas dos últimos 30 dias
-    today = date.today()
+    today = datetime.now(BRT).date()
     date_from = (today - timedelta(days=30)).isoformat()
     date_to = today.isoformat()
 

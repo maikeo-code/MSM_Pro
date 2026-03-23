@@ -5,6 +5,9 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
+# Timezone BRT (UTC-3)
+BRT = timezone(timedelta(hours=-3))
+
 from fastapi import HTTPException, status
 from sqlalchemy import cast, Date, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,7 +45,7 @@ async def get_funnel_analytics(db: AsyncSession, user_id: UUID, period_days: int
     if not listing_ids:
         return {"visitas": 0, "vendas": 0, "conversao": 0.0, "receita": 0.0}
 
-    today_dt = date.today()
+    today_dt = datetime.now(BRT).date()
     date_from = today_dt - timedelta(days=period_days - 1)
 
     # Subquery: último snapshot de cada listing em cada dia do intervalo

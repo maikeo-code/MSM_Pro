@@ -161,7 +161,8 @@ function mapSnapshotToTimelinePoint(s: AdSnapshotOut): AdsCampanhaTimelinePoint 
 
 function mapDetailToDetalhe(raw: AdsCampaignDetailOut): AdsCampanhaDetalhe {
   const summary = raw.summary as Record<string, number>;
-  const roas = summary.roas != null ? Number(summary.roas) : null;
+  // Backend retorna roas_geral e acos_geral, não roas e acos
+  const roas = summary.roas_geral != null ? Number(summary.roas_geral) : null;
 
   // Agrega métricas dos snapshots para exibir na linha da tabela quando o detalhe carrega
   const totalVendas = raw.snapshots.reduce((s, snap) => s + snap.attributed_sales, 0);
@@ -179,7 +180,7 @@ function mapDetailToDetalhe(raw: AdsCampaignDetailOut): AdsCampanhaDetalhe {
     roas_objetivo: raw.campaign.roas_target != null ? Number(raw.campaign.roas_target) : 0,
     vendas_ads: totalVendas,
     roas: roas ?? 0,
-    acos: summary.acos != null ? Number(summary.acos) : 0,
+    acos: summary.acos_geral != null ? Number(summary.acos_geral) : 0,
     investimento: totalInvestimento,
     cliques: totalCliques,
     impressoes: totalImpressoes,
@@ -207,11 +208,21 @@ const adsService = {
     };
   },
 
-  // Backend: GET /ads/{campaignId}?period=30d → AdsCampaignDetailOut
+  // Backend: GET /ads/{campaignId}?days=30 → AdsCampaignDetailOut
   // Retorna AdsCampanhaDetalhe com timeline normalizada
   async getCampanha(campaignId: string, period: string = "30d"): Promise<AdsCampanhaDetalhe> {
+    // Converter período em formato string (ex: "30d") para dias (int)
+    const daysMap: Record<string, number> = {
+      "7d": 7,
+      "15d": 15,
+      "30d": 30,
+      "60d": 60,
+      "90d": 90,
+    };
+    const days = daysMap[period] ?? 30;
+
     const { data } = await api.get<AdsCampaignDetailOut>(`/ads/${campaignId}`, {
-      params: { period },
+      params: { days },
     });
     return mapDetailToDetalhe(data);
   },

@@ -85,7 +85,7 @@ export interface RecommendationSummary {
   increase_count: number;
   decrease_count: number;
   hold_count: number;
-  avg_confidence: string;
+  avg_confidence: string; // Backend retorna percentual de "high" confidence (ex: "75%")
 }
 
 export interface RecommendationListResponse {
