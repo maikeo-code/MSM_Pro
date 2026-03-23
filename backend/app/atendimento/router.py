@@ -164,6 +164,12 @@ async def ai_suggestion(
 
 # ─── Response Templates ────────────────────────────────────────────────────────
 
+@router.get("/templates-test")
+async def templates_test():
+    """Teste simples para verificar se rotas estão carregando."""
+    return {"status": "ok", "msg": "Templates route is loaded"}
+
+
 @router.get("/templates", response_model=list[ResponseTemplateOut])
 async def list_response_templates(
     current_user: Annotated[User, Depends(get_current_user)],
