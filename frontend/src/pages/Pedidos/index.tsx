@@ -116,12 +116,20 @@ function StatusBadge({
 
 // ─── Pagina Principal ─────────────────────────────────────────────────────────
 
+const PERIOD_OPTIONS = [
+  { value: "7", label: "Últimos 7 dias" },
+  { value: "15", label: "Últimos 15 dias" },
+  { value: "30", label: "Últimos 30 dias" },
+  { value: "60", label: "Últimos 60 dias" },
+];
+
 export default function Pedidos() {
   const [search, setSearch] = useState("");
+  const [period, setPeriod] = useState("30"); // Default: 30 dias
 
   const { data: orders = [], isLoading, isError } = useQuery<OrderOut[]>({
-    queryKey: ["orders"],
-    queryFn: listOrders,
+    queryKey: ["orders", period],
+    queryFn: () => listOrders(`${period}d`),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -219,16 +227,37 @@ export default function Pedidos() {
         />
       </div>
 
-      {/* Filtro de busca */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Buscar por MLB ID, comprador ou order ID..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-2 rounded-md border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
+      {/* Filtros: período e busca */}
+      <div className="flex items-center gap-4">
+        {/* Seletor de período */}
+        <div>
+          <label className="block text-xs text-gray-600 font-medium mb-1">
+            Período
+          </label>
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+            className="rounded-md border border-gray-200 bg-white text-sm text-gray-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {PERIOD_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Busca */}
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar por MLB ID, comprador ou order ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 rounded-md border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
       </div>
 
       {/* Tabela */}

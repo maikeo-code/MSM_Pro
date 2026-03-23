@@ -313,6 +313,7 @@ function AtendimentoCard({
               Acao Necessaria
             </span>
           )}
+          <SLABadge dateCreated={item.date_created} compact={true} />
           {item.from_user && (
             <span className="text-xs text-gray-500">
               {item.from_user.nickname}
@@ -420,7 +421,7 @@ export default function Atendimento() {
   const allItems = data?.items ?? [];
   const byType = data?.by_type ?? {};
 
-  // Filtros client-side
+  // Filtros client-side com ordenação por urgência (SLA)
   const filtered = useMemo(() => {
     let items = allItems;
 
@@ -432,6 +433,12 @@ export default function Atendimento() {
       items = items.filter(
         (i) => i.requires_action || PENDING_STATUSES.has(i.status),
       );
+      // Ordenar por urgência (SLA menos tempo restante primeiro)
+      items.sort((a, b) => {
+        const hoursA = calculateHoursRemaining(a.date_created);
+        const hoursB = calculateHoursRemaining(b.date_created);
+        return hoursA - hoursB;
+      });
     } else if (statusFilter === "fechados") {
       items = items.filter(
         (i) => !i.requires_action && !PENDING_STATUSES.has(i.status),
@@ -446,6 +453,16 @@ export default function Atendimento() {
       allItems.filter(
         (i) => i.requires_action || PENDING_STATUSES.has(i.status),
       ).length,
+    [allItems],
+  );
+
+  // Contar itens com SLA em risco (<2h)
+  const slaAtRiskCount = useMemo(
+    () =>
+      allItems.filter((i) => {
+        const hours = calculateHoursRemaining(i.date_created);
+        return hours < 2 && hours >= 0;
+      }).length,
     [allItems],
   );
 
@@ -495,6 +512,36 @@ export default function Atendimento() {
           icon={RotateCcw}
           hasAlert={true}
         />
+        <div
+          className={cn(
+            "rounded-lg border p-4 flex items-center gap-4",
+            slaAtRiskCount > 0
+              ? "bg-red-50 border-red-200"
+              : "bg-green-50 border-green-200",
+          )}
+        >
+          <span
+            className={cn(
+              "p-2 rounded-lg",
+              slaAtRiskCount > 0
+                ? "bg-red-100 text-red-600"
+                : "bg-green-100 text-green-600",
+            )}
+          >
+            <Clock className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-xs text-gray-500 font-medium">SLA em Risco</p>
+            <p
+              className={cn(
+                "text-2xl font-bold",
+                slaAtRiskCount > 0 ? "text-red-700" : "text-green-700",
+              )}
+            >
+              {slaAtRiskCount}
+            </p>
+          </div>
+        </div>
         <div
           className={cn(
             "rounded-lg border p-4 flex items-center gap-4",
