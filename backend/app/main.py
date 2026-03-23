@@ -21,6 +21,7 @@ import app.reputacao.models  # noqa: F401
 import app.ads.models  # noqa: F401
 import app.intel.models  # noqa: F401
 import app.financeiro.models  # noqa: F401
+import app.atendimento.models  # noqa: F401
 
 # Importa tasks para que sejam registradas no Celery
 import app.jobs.tasks  # noqa: F401
