@@ -25,13 +25,13 @@ from app.atendimento.service import (
     get_ai_suggestion,
     respond_to_item,
 )
-from app.atendimento.service_templates import (
-    list_templates,
-    get_template,
-    create_template,
-    update_template,
-    delete_template,
-)
+# from app.atendimento.service_templates import (
+#     list_templates,
+#     get_template,
+#     create_template,
+#     update_template,
+#     delete_template,
+# )
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +181,8 @@ async def list_response_templates(
 ):
     """Lista todos os templates de resposta do usuário."""
     try:
+        # Importar dentro da função para evitar circular imports
+        from app.atendimento.service_templates import list_templates
         return await list_templates(db=db, user=current_user, category=category)
     except Exception as e:
         logger.error("Erro ao listar templates: %s", e)
@@ -195,6 +197,7 @@ async def get_response_template(
 ):
     """Obtém um template específico."""
     try:
+        from app.atendimento.service_templates import get_template
         return await get_template(db=db, user=current_user, template_id=template_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -211,6 +214,7 @@ async def create_response_template(
 ):
     """Cria um novo template de resposta."""
     try:
+        from app.atendimento.service_templates import create_template
         return await create_template(db=db, user=current_user, data=body)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -228,6 +232,7 @@ async def update_response_template(
 ):
     """Atualiza um template existente."""
     try:
+        from app.atendimento.service_templates import update_template
         return await update_template(db=db, user=current_user, template_id=template_id, data=body)
     except ValueError as e:
         raise HTTPException(status_code=404 if "not found" in str(e) else 400, detail=str(e))
@@ -244,6 +249,7 @@ async def delete_response_template(
 ):
     """Deleta um template."""
     try:
+        from app.atendimento.service_templates import delete_template
         await delete_template(db=db, user=current_user, template_id=template_id)
         return {"success": True, "message": "Template deletado com sucesso"}
     except ValueError as e:
