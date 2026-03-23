@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { BarChart2, TrendingUp, PieChart, Lightbulb, ChevronRight } from "lucide-react";
+import { BarChart2, TrendingUp, PieChart, Lightbulb, ChevronRight, Calendar, Package, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── Card de navegacao para sub-modulo ────────────────────────────────────────
