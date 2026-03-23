@@ -42,6 +42,9 @@ class AlertConfig(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    last_triggered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
 
     # Relacionamentos
     user: Mapped["User"] = relationship("User", back_populates="alert_configs")  # type: ignore[name-defined]

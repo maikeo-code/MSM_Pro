@@ -84,17 +84,19 @@ def sync_all_snapshots(self):
     Executado diariamente às 06:00 BRT.
     Uses Redis lock to prevent duplicate execution across workers.
     """
-    loop = asyncio.new_event_loop()
-    try:
-        if not loop.run_until_complete(acquire_task_lock("sync_all_snapshots", timeout=900)):
+    async def _run():
+        if not await acquire_task_lock("sync_all_snapshots", timeout=900):
             return {"status": "skipped", "reason": "lock_held"}
-        return run_async(_sync_all_snapshots_async())
+        try:
+            return await _sync_all_snapshots_async()
+        finally:
+            await release_task_lock("sync_all_snapshots")
+
+    try:
+        return run_async(_run())
     except Exception as exc:
         logger.error(f"Erro em sync_all_snapshots: {exc}")
         raise
-    finally:
-        loop.run_until_complete(release_task_lock("sync_all_snapshots"))
-        loop.close()
 
 
 # --- Task: Sincronizar snapshots recentes (horária) ---
@@ -129,7 +131,12 @@ def refresh_expired_tokens(self):
 
 # --- Task: Sincronizar snapshots dos concorrentes ---
 
-@celery_app.task(name="app.jobs.tasks.sync_competitor_snapshots", bind=True)
+@celery_app.task(
+    name="app.jobs.tasks.sync_competitor_snapshots",
+    bind=True,
+    max_retries=2,
+    default_retry_delay=120,
+)
 def sync_competitor_snapshots(self):
     """
     Sincroniza o preço atual de todos os concorrentes ativos.
@@ -139,12 +146,17 @@ def sync_competitor_snapshots(self):
         return run_async(_sync_competitor_snapshots_async())
     except Exception as exc:
         logger.error(f"Erro em sync_competitor_snapshots: {exc}")
-        raise
+        raise self.retry(exc=exc, countdown=2 ** self.request.retries)
 
 
 # --- Task: Avaliar alertas e disparar notificações ---
 
-@celery_app.task(name="app.jobs.tasks.evaluate_alerts", bind=True)
+@celery_app.task(
+    name="app.jobs.tasks.evaluate_alerts",
+    bind=True,
+    max_retries=2,
+    default_retry_delay=120,
+)
 def evaluate_alerts(self):
     """
     Avalia todas as configurações de alerta ativas.
@@ -154,7 +166,7 @@ def evaluate_alerts(self):
         return run_async(_evaluate_alerts_async())
     except Exception as exc:
         logger.error(f"Erro em evaluate_alerts: {exc}")
-        raise
+        raise self.retry(exc=exc, countdown=2 ** self.request.retries)
 
 
 # --- Task: Sincronizar reputacao do vendedor ---
@@ -180,17 +192,19 @@ def sync_orders(self):
     Sincroniza pedidos individuais dos ultimos 2 dias.
     Uses Redis lock to prevent duplicate execution.
     """
-    loop = asyncio.new_event_loop()
-    try:
-        if not loop.run_until_complete(acquire_task_lock("sync_orders", timeout=600)):
+    async def _run():
+        if not await acquire_task_lock("sync_orders", timeout=600):
             return {"status": "skipped", "reason": "lock_held"}
-        return run_async(_sync_orders_async())
+        try:
+            return await _sync_orders_async()
+        finally:
+            await release_task_lock("sync_orders")
+
+    try:
+        return run_async(_run())
     except Exception as exc:
         logger.error(f"Erro em sync_orders: {exc}")
         raise
-    finally:
-        loop.run_until_complete(release_task_lock("sync_orders"))
-        loop.close()
 
 
 # --- Task: Enviar digest semanal ---
@@ -243,14 +257,16 @@ def send_daily_intel_report(self):
     Executado diariamente as 08:00 BRT (11:00 UTC).
     Uses Redis lock to prevent duplicate execution.
     """
-    loop = asyncio.new_event_loop()
-    try:
-        if not loop.run_until_complete(acquire_task_lock("daily_intel_report", timeout=1200)):
+    async def _run():
+        if not await acquire_task_lock("daily_intel_report", timeout=1200):
             return {"status": "skipped", "reason": "lock_held"}
-        return run_async(_send_daily_intel_report_async())
+        try:
+            return await _send_daily_intel_report_async()
+        finally:
+            await release_task_lock("daily_intel_report")
+
+    try:
+        return run_async(_run())
     except Exception as exc:
         logger.error("Erro em send_daily_intel_report: %s", exc)
         raise
-    finally:
-        loop.run_until_complete(release_task_lock("daily_intel_report"))
-        loop.close()

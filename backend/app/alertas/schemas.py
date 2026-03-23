@@ -15,6 +15,7 @@ AlertType = Literal[
     "competitor_price_change",
     "no_sales_days",
     "competitor_price_below",
+    "competitor_stockout",
 ]
 
 # Canais de notificação suportados

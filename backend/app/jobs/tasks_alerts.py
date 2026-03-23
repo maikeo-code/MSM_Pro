@@ -67,9 +67,13 @@ async def _evaluate_alerts_async():
                 logger.error(f"Erro ao avaliar alerta {config.id}: {e}")
                 errors_count += 1
 
-        # Detectar stock-out de concorrentes apos avaliar alertas configurados
-        stockout_triggered = await _check_competitor_stockout(db)
-        triggered += stockout_triggered
+        # Detectar stock-out de concorrentes (independente — com try/except separado)
+        try:
+            stockout_triggered = await _check_competitor_stockout(db)
+            triggered += stockout_triggered
+        except Exception as e:
+            logger.error(f"Erro ao verificar competitor stockout: {e}")
+            # Continua mesmo se stockout falhar — não afeta alertas configurados
 
         await db.commit()
         logger.info(

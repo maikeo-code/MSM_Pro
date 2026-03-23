@@ -216,6 +216,9 @@ async def evaluate_single_alert(
     """
     Avalia se a condição de um alerta foi atendida.
     Retorna um AlertEvent se disparado, None caso contrário.
+
+    Implementa deduplicação temporal: verifica se o alerta foi disparado
+    nos últimos 24h (cooldown) para evitar notificações duplicadas.
     """
     try:
         message = await _check_condition(db, alert)
@@ -226,11 +229,30 @@ async def evaluate_single_alert(
     if message is None:
         return None
 
+    # --- Verifica cooldown de 24h ---
+    now = datetime.now(timezone.utc)
+    if alert.last_triggered_at is not None:
+        time_since_last = now - alert.last_triggered_at
+        cooldown = timedelta(hours=24)
+        if time_since_last < cooldown:
+            logger.info(
+                "Alerta %s ainda em cooldown (disparado há %s). "
+                "Ignorando para evitar duplicação.",
+                alert.id,
+                time_since_last,
+            )
+            return None
+
+    # --- Cria evento e atualiza timestamp ---
     event = AlertEvent(
         alert_config_id=alert.id,
         message=message,
     )
     db.add(event)
+
+    # Atualiza last_triggered_at para o cooldown funcionar na próxima avaliação
+    alert.last_triggered_at = now
+
     await db.flush()
     await db.refresh(event)
     logger.info("Alerta disparado: %s | %s", alert.alert_type, message)
