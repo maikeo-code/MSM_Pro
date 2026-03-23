@@ -40,7 +40,8 @@ async def _sync_ads_async():
                 )
                 continue
 
-            client = MLClient(account.access_token)
+            # Passa ml_account_id ao cliente para suportar refresh automático
+            client = MLClient(account.access_token, ml_account_id=str(account.id))
             try:
                 result = await sync_ads_from_ml(db, client, account)
                 total_campaigns += result.get("synced_campaigns", 0)

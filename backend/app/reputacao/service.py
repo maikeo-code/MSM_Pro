@@ -71,7 +71,8 @@ async def fetch_and_save_reputation(
         logger.warning(f"Sem token ML para conta {account.nickname}")
         return None
 
-    client = MLClient(account.access_token)
+    # Passa ml_account_id ao cliente para suportar refresh automático
+    client = MLClient(account.access_token, ml_account_id=str(account.id))
     try:
         data = await client.get_seller_reputation(account.ml_user_id)
     except MLClientError as e:

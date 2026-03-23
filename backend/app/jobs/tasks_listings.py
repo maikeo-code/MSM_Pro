@@ -52,10 +52,29 @@ async def _sync_listing_snapshot_async(
             logger.warning(f"Conta ML não encontrada para listing {listing_id}")
             return {"error": f"Conta ML não encontrada para listing {listing_id}"}
 
+        # Verifica se o token está prestes a expirar (< 30min) e renova se necessário
+        if account.token_expires_at:
+            token_expiry_threshold = datetime.now(timezone.utc) + timedelta(minutes=30)
+            if account.token_expires_at < token_expiry_threshold:
+                logger.info(
+                    f"Token de {account.nickname} expira em < 30min, tentando renovar..."
+                )
+                from app.auth.service import refresh_ml_token_by_id
+
+                new_token = await refresh_ml_token_by_id(account.id)
+                if new_token:
+                    account.access_token = new_token
+                    logger.info(f"Token renovado para {account.nickname}")
+                else:
+                    logger.error(
+                        f"Falha ao renovar token para {account.nickname}, prosseguindo com token atual"
+                    )
+
         # Chama a API ML
+        # Passa ml_account_id ao cliente para que ele possa fazer refresh automático em caso de 401
         client = None
         try:
-            client = MLClient(account.access_token)
+            client = MLClient(account.access_token, ml_account_id=str(account.id))
 
             # Busca dados do item
             item_data = await client.get_item(listing.mlb_id)

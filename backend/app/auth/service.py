@@ -141,6 +141,81 @@ async def refresh_ml_token(account: MLAccount) -> dict:
     return response.json()
 
 
+async def refresh_ml_token_by_id(account_id: UUID) -> str | None:
+    """
+    Renova o token de uma conta ML específica pelo ID.
+    Retorna o novo access_token se sucesso, None se falha.
+    Salva o token renovado no banco.
+
+    Args:
+        account_id: UUID da conta MLAccount a renovar
+
+    Returns:
+        str: novo access_token se sucesso
+        None: se falha na renovação
+    """
+    from app.core.database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(MLAccount).where(MLAccount.id == account_id))
+        account = result.scalar_one_or_none()
+
+        if not account or not account.refresh_token:
+            logger.warning(f"Conta {account_id} não encontrada ou sem refresh_token")
+            return None
+
+        try:
+            token_data = await _exchange_refresh_token(account.refresh_token)
+            access_token = token_data.get("access_token")
+            refresh_token = token_data.get("refresh_token", account.refresh_token)
+            expires_in = token_data.get("expires_in", 21600)  # 6h padrão
+
+            # Atualiza a conta no banco
+            account.access_token = access_token
+            account.refresh_token = refresh_token
+            account.token_expires_at = datetime.now(timezone.utc) + timedelta(
+                seconds=expires_in
+            )
+            await db.commit()
+
+            logger.info(
+                f"Token renovado via refresh_ml_token_by_id para {account.nickname} (exp={account.token_expires_at})"
+            )
+            return access_token
+
+        except Exception as e:
+            logger.error(f"Falha ao renovar token para {account_id}: {e}")
+            return None
+
+
+async def _exchange_refresh_token(refresh_token: str) -> dict:
+    """
+    Helper interno para trocar refresh_token por novo access_token.
+    Usado tanto por refresh_ml_token quanto refresh_ml_token_by_id.
+    """
+    from fastapi import HTTPException, status
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            settings.ml_token_url,
+            data={
+                "grant_type": "refresh_token",
+                "client_id": settings.ml_client_id,
+                "client_secret": settings.ml_client_secret,
+                "refresh_token": refresh_token,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=30,
+        )
+
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Erro ao renovar token ML: {response.text}",
+        )
+    return response.json()
+
+
 async def get_ml_user_info(access_token: str) -> dict:
     """Busca informações do usuário ML autenticado."""
     async with httpx.AsyncClient() as client:

@@ -70,7 +70,8 @@ async def _sync_competitor_snapshots_async():
             )
             first_account = first_acc_result.scalar_one_or_none()
             if first_account and first_account.access_token:
-                bulk_client = MLClient(first_account.access_token)
+                # Passa ml_account_id ao cliente para suportar refresh automático
+                bulk_client = MLClient(first_account.access_token, ml_account_id=str(first_account.id))
                 try:
                     visits_data = await bulk_client.get_items_visits_bulk(
                         comp_mlb_ids, date_from=today_str, date_to=today_str
@@ -115,7 +116,8 @@ async def _sync_competitor_snapshots_async():
                         )
                         continue
 
-                    client = MLClient(account.access_token)
+                    # Passa ml_account_id ao cliente para suportar refresh automático
+                    client = MLClient(account.access_token, ml_account_id=str(account.id))
                     try:
                         item_data = await client.get_item(comp.mlb_id)
                     except MLClientError as e:

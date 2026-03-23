@@ -60,10 +60,19 @@ class MLClient:
     """
     Cliente HTTP para a API do Mercado Livre.
     Respeita rate limit de 1 req/seg e implementa retry com backoff exponencial.
+    Suporta refresh automático de token OAuth quando 401 for retornado.
     """
 
-    def __init__(self, access_token: str):
+    def __init__(self, access_token: str, ml_account_id: str | None = None):
+        """
+        Inicializa o cliente ML.
+
+        Args:
+            access_token: Token de acesso OAuth do Mercado Livre
+            ml_account_id: ID da conta MLAccount no banco (usado para refresh automático)
+        """
         self.access_token = access_token
+        self.ml_account_id = ml_account_id
         self._client = httpx.AsyncClient(
             base_url=ML_API_BASE,
             headers={
@@ -83,6 +92,33 @@ class MLClient:
         """Rate limit distribuído via Redis SETNX — seguro entre múltiplos workers."""
         await _distributed_rate_limit()
 
+    async def _refresh_token_and_retry(self) -> bool:
+        """
+        Tenta renovar o token da conta ML e retorna sucesso.
+        Retorna True se renovação foi bem-sucedida, False caso contrário.
+        """
+        if not self.ml_account_id:
+            return False
+
+        try:
+            # Evita importação circular; importa quando necessário
+            from app.auth.service import refresh_ml_token_by_id
+
+            new_token = await refresh_ml_token_by_id(self.ml_account_id)
+            if new_token:
+                self.access_token = new_token
+                # Atualiza header do cliente com novo token
+                self._client.headers["Authorization"] = f"Bearer {new_token}"
+                return True
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Falha ao renovar token para conta {self.ml_account_id}: {e}"
+            )
+
+        return False
+
     async def _request(
         self,
         method: str,
@@ -93,6 +129,7 @@ class MLClient:
         """
         Executa requisição com retry e backoff exponencial.
         Respeita rate limit de 1 req/seg.
+        Se receber 401, tenta renovar o token automaticamente antes de falhar.
         """
         await self._rate_limit()
 
@@ -108,7 +145,25 @@ class MLClient:
                     continue
 
                 if response.status_code == 401:
-                    raise MLClientError("Token ML expirado ou inválido", status_code=401)
+                    # Token expirado — tenta renovar e repetir a requisição
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(
+                        f"Token expirado para conta {self.ml_account_id}, tentando renovar..."
+                    )
+
+                    if await self._refresh_token_and_retry():
+                        # Token renovado com sucesso — tenta novamente a requisição original
+                        logger.info(
+                            f"Token renovado para conta {self.ml_account_id}, repetindo requisição..."
+                        )
+                        continue
+                    else:
+                        # Falha na renovação — leva um MLClientError
+                        raise MLClientError(
+                            "Token ML expirado e falha ao renovar",
+                            status_code=401,
+                        )
 
                 if response.status_code >= 500:
                     # Erro do servidor — tenta novamente com backoff

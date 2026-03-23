@@ -53,7 +53,8 @@ async def _sync_orders_async():
                     )
                     continue
 
-                client = MLClient(account.access_token)
+                # Passa ml_account_id ao cliente para suportar refresh automático
+                client = MLClient(account.access_token, ml_account_id=str(account.id))
                 try:
                     offset = 0
                     limit = 50
