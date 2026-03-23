@@ -269,10 +269,32 @@ async def get_financeiro_detalhado(
     """
     from app.vendas.models import Listing, ListingSnapshot
     from app.produtos.models import Product
+    from sqlalchemy import cast, Date
 
     data_inicio, data_fim = _parse_period(period)
     d_inicio_dt = datetime(data_inicio.year, data_inicio.month, data_inicio.day, tzinfo=timezone.utc)
     d_fim_dt = datetime(data_fim.year, data_fim.month, data_fim.day, 23, 59, 59, tzinfo=timezone.utc)
+
+    # Subquery: latest snapshot per listing per day (deduplication)
+    latest_per_day = (
+        select(
+            ListingSnapshot.listing_id,
+            cast(ListingSnapshot.captured_at, Date).label("snap_date"),
+            func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+        )
+        .where(
+            ListingSnapshot.captured_at >= d_inicio_dt,
+            ListingSnapshot.captured_at <= d_fim_dt,
+        )
+        .group_by(ListingSnapshot.listing_id, cast(ListingSnapshot.captured_at, Date))
+        .subquery()
+    )
+
+    # Revenue fallback: use price * sales_today when revenue is null
+    revenue_expr = func.coalesce(
+        ListingSnapshot.revenue,
+        ListingSnapshot.price * ListingSnapshot.sales_today,
+    )
 
     rows = await db.execute(
         select(
@@ -284,16 +306,19 @@ async def get_financeiro_detalhado(
             Listing.sale_fee_pct,
             Listing.avg_shipping_cost,
             Listing.product_id,
-            func.sum(ListingSnapshot.revenue).label("revenue"),
-            func.sum(ListingSnapshot.orders_count).label("orders"),
+            func.sum(revenue_expr).label("revenue"),
+            func.sum(func.coalesce(ListingSnapshot.orders_count, ListingSnapshot.sales_today)).label("orders"),
             func.sum(ListingSnapshot.cancelled_orders).label("cancelled"),
             func.sum(ListingSnapshot.returns_count).label("returns"),
         )
         .join(ListingSnapshot, ListingSnapshot.listing_id == Listing.id)
+        .join(
+            latest_per_day,
+            (ListingSnapshot.listing_id == latest_per_day.c.listing_id)
+            & (ListingSnapshot.captured_at == latest_per_day.c.max_captured_at),
+        )
         .where(
             Listing.user_id == user_id,
-            ListingSnapshot.captured_at >= d_inicio_dt,
-            ListingSnapshot.captured_at <= d_fim_dt,
         )
         .group_by(
             Listing.id,
@@ -305,7 +330,7 @@ async def get_financeiro_detalhado(
             Listing.avg_shipping_cost,
             Listing.product_id,
         )
-        .order_by(func.sum(ListingSnapshot.revenue).desc().nullslast())
+        .order_by(func.sum(revenue_expr).desc().nullslast())
     )
     listing_rows = rows.all()
 
@@ -393,6 +418,27 @@ async def get_financeiro_timeline(
         SQLDate,
     ).label("snap_date")
 
+    # Subquery: latest snapshot per listing per day (deduplication)
+    latest_per_day = (
+        select(
+            ListingSnapshot.listing_id,
+            brt_date,
+            func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+        )
+        .where(
+            ListingSnapshot.captured_at >= d_inicio_dt,
+            ListingSnapshot.captured_at <= d_fim_dt,
+        )
+        .group_by(ListingSnapshot.listing_id, brt_date)
+        .subquery()
+    )
+
+    # Revenue fallback: use price * sales_today when revenue is null
+    revenue_expr = func.coalesce(
+        ListingSnapshot.revenue,
+        ListingSnapshot.price * ListingSnapshot.sales_today,
+    )
+
     # Agrupa por dia e listing para poder calcular taxa por listing_type
     rows = await db.execute(
         select(
@@ -400,22 +446,25 @@ async def get_financeiro_timeline(
             Listing.listing_type,
             Listing.sale_fee_pct,
             Listing.avg_shipping_cost,
-            func.sum(ListingSnapshot.revenue).label("revenue"),
-            func.sum(ListingSnapshot.orders_count).label("orders"),
+            func.sum(revenue_expr).label("revenue"),
+            func.sum(func.coalesce(ListingSnapshot.orders_count, ListingSnapshot.sales_today)).label("orders"),
         )
         .join(Listing, ListingSnapshot.listing_id == Listing.id)
+        .join(
+            latest_per_day,
+            (ListingSnapshot.listing_id == latest_per_day.c.listing_id)
+            & (ListingSnapshot.captured_at == latest_per_day.c.max_captured_at),
+        )
         .where(
             Listing.user_id == user_id,
-            ListingSnapshot.captured_at >= d_inicio_dt,
-            ListingSnapshot.captured_at <= d_fim_dt,
         )
         .group_by(
-            cast(func.timezone("America/Sao_Paulo", ListingSnapshot.captured_at), SQLDate),
+            brt_date,
             Listing.listing_type,
             Listing.sale_fee_pct,
             Listing.avg_shipping_cost,
         )
-        .order_by(cast(func.timezone("America/Sao_Paulo", ListingSnapshot.captured_at), SQLDate))
+        .order_by(brt_date)
     )
     all_rows = rows.all()
 
@@ -490,14 +539,14 @@ async def get_cashflow(
     limite_30d = hoje + timedelta(days=30)
 
     # Busca todos os pedidos aprovados das contas do usuario
-    # com envio ainda em andamento (sem confirmacao de entrega final)
+    # com envio ainda pendente de liberacao financeira (D+8 ainda nao venceu)
     rows = await db.execute(
         select(Order)
         .join(MLAccount, Order.ml_account_id == MLAccount.id)
         .where(
             MLAccount.user_id == user_id,
             Order.payment_status == "approved",
-            Order.shipping_status.in_(["shipped", "to_be_agreed", "pending", "ready_to_ship"]),
+            Order.shipping_status.in_(["shipped", "to_be_agreed", "pending", "ready_to_ship", "delivered"]),
         )
         .order_by(Order.order_date.asc())
     )

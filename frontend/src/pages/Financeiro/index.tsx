@@ -210,7 +210,7 @@ function CashFlowSection({ cashflow, loading }: { cashflow: CashFlow | undefined
   // Formata data YYYY-MM-DD => DD/MM para exibir no grafico
   const chartData = (cashflow?.timeline ?? []).map((d) => ({
     ...d,
-    dateLabel: d.date.slice(5).replace("-", "/"), // "MM/DD"
+    dateLabel: d.date.slice(8) + "/" + d.date.slice(5, 7), // "DD/MM"
     amount: Number(d.amount),
   }));
 
@@ -456,7 +456,11 @@ export default function Financeiro() {
                 tick={{ fontSize: 11, fill: "#9ca3af" }}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(v) => v >= 1000 ? `R$${(v / 1000).toFixed(0)}k` : `R$${v.toFixed(0)}`}
+                tickFormatter={(v) => {
+                  if (v >= 1000) return `R$${(v / 1000).toFixed(0)}k`;
+                  if (v === 0) return "R$0";
+                  return `R$${v.toFixed(0)}`;
+                }}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend
