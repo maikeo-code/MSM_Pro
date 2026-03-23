@@ -38,6 +38,8 @@ class MLAccountOut(BaseModel):
     token_expires_at: datetime | None
     is_active: bool
     created_at: datetime
+    active_listings_count: int = 0  # será preenchido no router
+    last_sync_at: datetime | None = None  # será preenchido no router
 
     model_config = {"from_attributes": True}
 

@@ -115,14 +115,49 @@ async def list_ml_accounts(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Lista todas as contas ML do usuário."""
+    """Lista todas as contas ML do usuário com metadados enriquecidos.
+
+    Retorna: id, nickname, email, token_expires_at, ativo, contagem de anuncios ativos.
+    """
+    from sqlalchemy import func
+
+    from app.vendas.models import Listing
+
     result = await db.execute(
         select(MLAccount).where(
             MLAccount.user_id == current_user.id,
             MLAccount.is_active == True,  # noqa: E712
         )
     )
-    return result.scalars().all()
+    accounts = result.scalars().all()
+
+    # Enriquece cada conta com dados adicionais
+    enriched_accounts = []
+    for account in accounts:
+        # Conta anuncios ativos
+        listings_result = await db.execute(
+            select(func.count(Listing.id)).where(
+                Listing.ml_account_id == account.id,
+                Listing.status == "active",
+            )
+        )
+        active_listings = listings_result.scalar() or 0
+
+        enriched_accounts.append(
+            MLAccountOut(
+                id=account.id,
+                ml_user_id=account.ml_user_id,
+                nickname=account.nickname,
+                email=account.email,
+                token_expires_at=account.token_expires_at,
+                is_active=account.is_active,
+                created_at=account.created_at,
+                active_listings_count=active_listings,
+                last_sync_at=None,  # pode ser implementado com sync_logs no futuro
+            )
+        )
+
+    return enriched_accounts
 
 
 @router.delete("/ml/accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)

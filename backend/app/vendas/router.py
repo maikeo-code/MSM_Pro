@@ -118,14 +118,18 @@ async def export_listings(
         pattern=r"^(today|7d|15d|30d|60d)$",
         description="Periodo: today (padrao), 7d, 15d, 30d, 60d",
     ),
+    ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
 ):
-    """Exporta listings em formato CSV com metricas do periodo solicitado."""
+    """Exporta listings em formato CSV com metricas do periodo solicitado.
+
+    Se ml_account_id for fornecido, exporta apenas os anuncios dessa conta ML.
+    """
     import csv
     import io
 
     from fastapi.responses import StreamingResponse
 
-    listings = await service.list_listings(db, current_user.id, period=period)
+    listings = await service.list_listings(db, current_user.id, period=period, ml_account_id=ml_account_id)
 
     def _snap_get(snap, key, default=""):
         """Lê campo de snapshot que pode ser ORM ou dict."""
@@ -222,11 +226,15 @@ async def get_funnel(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     period: str = Query(default="7d", pattern=r"^(7d|15d|30d|60d)$", description="Periodo do funil"),
+    ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
 ):
-    """Retorna dados do funil de conversao: visitas, vendas, conversao, receita."""
+    """Retorna dados do funil de conversao: visitas, vendas, conversao, receita.
+
+    Se ml_account_id for fornecido, filtra apenas os dados dessa conta ML.
+    """
     period_map = {"7d": 7, "15d": 15, "30d": 30, "60d": 60}
     days = period_map.get(period, 7)
-    return await service.get_funnel_analytics(db, current_user.id, days)
+    return await service.get_funnel_analytics(db, current_user.id, days, ml_account_id=ml_account_id)
 
 
 @router.get("/analytics/heatmap", response_model=HeatmapOut)
@@ -264,10 +272,14 @@ async def list_orders(
         description="Periodo: 1d, 2d, 7d (padrao), 15d, 30d, 60d",
     ),
     mlb_id: str | None = Query(default=None, description="Filtrar por anuncio MLB"),
+    ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
 ):
     """
     Lista pedidos individuais sincronizados do Mercado Livre.
-    Filtros: periodo e mlb_id. Ordenado por data de criacao descendente.
+    Filtros: periodo, mlb_id e ml_account_id (opcional).
+    Ordenado por data de criacao descendente.
+
+    Se ml_account_id for fornecido, filtra apenas os pedidos dessa conta ML.
     """
     from sqlalchemy import and_, select
 
@@ -279,14 +291,18 @@ async def list_orders(
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
     # Subquery: ids das contas ML do usuario
-    acc_result = await db.execute(
-        select(MLAccount.id).where(
-            and_(
-                MLAccount.user_id == current_user.id,
-                MLAccount.is_active == True,  # noqa: E712
-            )
+    acc_query = select(MLAccount.id).where(
+        and_(
+            MLAccount.user_id == current_user.id,
+            MLAccount.is_active == True,  # noqa: E712
         )
     )
+
+    # Filtro opcional por ml_account_id
+    if ml_account_id is not None:
+        acc_query = acc_query.where(MLAccount.id == ml_account_id)
+
+    acc_result = await db.execute(acc_query)
     account_ids = [row[0] for row in acc_result.fetchall()]
     if not account_ids:
         return []

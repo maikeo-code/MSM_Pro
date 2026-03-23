@@ -110,6 +110,7 @@ async def get_financeiro_resumo(
     db: AsyncSession,
     user_id,
     period: str = "30d",
+    ml_account_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Retorna resumo P&L agregado para o periodo selecionado.
@@ -173,6 +174,7 @@ async def get_financeiro_resumo(
             )
             .where(
                 Listing.user_id == user_id,
+                *([] if ml_account_id is None else [Listing.ml_account_id == ml_account_id])
             )
             .group_by(
                 Listing.id,
@@ -263,6 +265,7 @@ async def get_financeiro_detalhado(
     db: AsyncSession,
     user_id,
     period: str = "30d",
+    ml_account_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Retorna breakdown financeiro por anuncio (MLB) para o periodo.
@@ -319,6 +322,7 @@ async def get_financeiro_detalhado(
         )
         .where(
             Listing.user_id == user_id,
+            *([] if ml_account_id is None else [Listing.ml_account_id == ml_account_id])
         )
         .group_by(
             Listing.id,
@@ -400,6 +404,7 @@ async def get_financeiro_timeline(
     db: AsyncSession,
     user_id,
     period: str = "30d",
+    ml_account_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Retorna serie temporal diaria de metricas financeiras para graficos.
@@ -457,6 +462,7 @@ async def get_financeiro_timeline(
         )
         .where(
             Listing.user_id == user_id,
+            *([] if ml_account_id is None else [Listing.ml_account_id == ml_account_id])
         )
         .group_by(
             brt_date,
@@ -880,6 +886,7 @@ async def get_rentabilidade_por_sku(
 async def get_cashflow(
     db: AsyncSession,
     user_id,
+    ml_account_id: str | None = None,
 ) -> dict:
     """
     Calcula o cash flow projetado para os proximos 30 dias.
@@ -896,6 +903,8 @@ async def get_cashflow(
       - proximos_30d: liberacoes entre 15 e 30 dias
 
     Retorna a linha do tempo detalhada por dia.
+
+    Se ml_account_id for fornecido, filtra apenas os dados dessa conta ML.
     """
     from app.auth.models import MLAccount
     from app.vendas.models import Order
@@ -905,7 +914,7 @@ async def get_cashflow(
 
     # Busca todos os pedidos aprovados das contas do usuario
     # com envio ainda pendente de liberacao financeira (D+8 ainda nao venceu)
-    rows = await db.execute(
+    query = (
         select(Order)
         .join(MLAccount, Order.ml_account_id == MLAccount.id)
         .where(
@@ -913,8 +922,15 @@ async def get_cashflow(
             Order.payment_status == "approved",
             Order.shipping_status.in_(["shipped", "to_be_agreed", "pending", "ready_to_ship", "delivered"]),
         )
-        .order_by(Order.order_date.asc())
     )
+
+    # Filtro opcional por ml_account_id
+    if ml_account_id is not None:
+        query = query.where(Order.ml_account_id == ml_account_id)
+
+    query = query.order_by(Order.order_date.asc())
+
+    rows = await db.execute(query)
     orders = rows.scalars().all()
 
     # Agrupa liberacoes por data

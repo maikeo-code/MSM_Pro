@@ -31,15 +31,21 @@ _DAY_NAMES = [
 ]
 
 
-async def get_funnel_analytics(db: AsyncSession, user_id: UUID, period_days: int = 7) -> dict:
+async def get_funnel_analytics(
+    db: AsyncSession, user_id: UUID, period_days: int = 7, ml_account_id: UUID | None = None
+) -> dict:
     """
     FEATURE 2: Funil de conversão — agrega visitas, vendas, conversão e receita
     de todos os anúncios do usuário no período selecionado.
+
+    Se ml_account_id for fornecido, filtra apenas os dados dessa conta ML.
     """
-    # Busca listing_ids do usuário
-    listings_result = await db.execute(
-        select(Listing.id).where(Listing.user_id == user_id)
-    )
+    # Busca listing_ids do usuário (opcional: filtra por conta ML)
+    query = select(Listing.id).where(Listing.user_id == user_id)
+    if ml_account_id is not None:
+        query = query.where(Listing.ml_account_id == ml_account_id)
+
+    listings_result = await db.execute(query)
     listing_ids = [row[0] for row in listings_result.fetchall()]
 
     if not listing_ids:
@@ -371,6 +377,7 @@ async def get_sales_heatmap(
     db: AsyncSession,
     user_id: UUID,
     period_days: int = 30,
+    ml_account_id: UUID | None = None,
 ) -> dict:
     """
     Retorna heatmap de vendas nos ultimos N dias.
@@ -378,6 +385,8 @@ async def get_sales_heatmap(
     Estrategia:
     1. Tenta usar tabela Order (granularidade dia+hora) via extract('dow') e extract('hour')
     2. Se nao houver Orders suficientes (< 3 registros), faz FALLBACK para ListingSnapshots por dia
+
+    Se ml_account_id for fornecido, filtra apenas os dados dessa conta ML.
 
     Retorno: HeatmapOut com has_hourly_data indicando qual estrategia foi usada.
     Dia da semana padronizado: 0=segunda, 6=domingo (Python weekday()).
@@ -391,7 +400,7 @@ async def get_sales_heatmap(
     # ── 1. Tentar estrategia Orders (dia+hora) ───────────────────────────────
     # Agrupa por (dow_postgres, hour) usando extract. PostgreSQL DOW: 0=domingo, 6=sabado
     # Convertemos para Python weekday (0=segunda) logo apos.
-    order_agg_result = await db.execute(
+    query = (
         select(
             func.extract("dow", Order.order_date).label("pg_dow"),
             func.extract("hour", Order.order_date).label("hour"),
@@ -403,8 +412,15 @@ async def get_sales_heatmap(
             Order.order_date >= cutoff,
             Order.payment_status == "approved",
         )
-        .group_by("pg_dow", "hour")
     )
+
+    # Filtro opcional por ml_account_id
+    if ml_account_id is not None:
+        query = query.where(Order.ml_account_id == ml_account_id)
+
+    query = query.group_by("pg_dow", "hour")
+
+    order_agg_result = await db.execute(query)
     order_rows = order_agg_result.fetchall()
 
     has_hourly_data = len(order_rows) >= 3
@@ -464,7 +480,7 @@ async def get_sales_heatmap(
         ).model_dump()
 
     # ── 2. FALLBACK: ListingSnapshots por dia ────────────────────────────────
-    snaps_result = await db.execute(
+    snap_query = (
         select(ListingSnapshot)
         .join(Listing, ListingSnapshot.listing_id == Listing.id)
         .where(
@@ -472,6 +488,12 @@ async def get_sales_heatmap(
             ListingSnapshot.captured_at >= cutoff,
         )
     )
+
+    # Filtro opcional por ml_account_id
+    if ml_account_id is not None:
+        snap_query = snap_query.where(Listing.ml_account_id == ml_account_id)
+
+    snaps_result = await db.execute(snap_query)
     snapshots = snaps_result.scalars().all()
 
     counts_by_day: dict[int, int] = {i: 0 for i in range(7)}
