@@ -13,6 +13,7 @@ import {
   Target,
   Info,
 } from "lucide-react";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 import {
   ComposedChart,
   Bar,
@@ -104,19 +105,20 @@ function CustomTooltip({
 // ─── Pagina Principal ─────────────────────────────────────────────────────────
 export default function Publicidade() {
   const queryClient = useQueryClient();
+  const accountId = useActiveAccount();
   const [selectedCampanha, setSelectedCampanha] = useState<string | null>(null);
   const [chartPeriod, setChartPeriod] = useState<Period>("30d");
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["ads"],
-    queryFn: () => adsService.list(),
+    queryKey: ["ads", accountId],
+    queryFn: () => adsService.list(accountId),
     retry: 2,
   });
 
   const { data: campanhaDetalhe, isLoading: loadingDetalhe } = useQuery({
-    queryKey: ["ads-campanha", selectedCampanha, chartPeriod],
-    queryFn: () => adsService.getCampanha(selectedCampanha!, chartPeriod),
+    queryKey: ["ads-campanha", selectedCampanha, chartPeriod, accountId],
+    queryFn: () => adsService.getCampanha(selectedCampanha!, chartPeriod, accountId),
     enabled: !!selectedCampanha,
     retry: 2,
   });

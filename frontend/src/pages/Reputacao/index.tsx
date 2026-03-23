@@ -106,12 +106,23 @@ interface MetricConfig {
   valueField: keyof ReputationCurrent;
 }
 
-const METRICS: MetricConfig[] = [
-  { key: "claims", label: "Reclamacoes", limit: 1, rateField: "claims_rate", valueField: "claims_value" },
-  { key: "mediations", label: "Mediacoes", limit: 0.5, rateField: "mediations_rate", valueField: "mediations_value" },
-  { key: "cancellations", label: "Cancelamentos", limit: 0.5, rateField: "cancellations_rate", valueField: "cancellations_value" },
-  { key: "late_shipments", label: "Atrasos no envio", limit: 6, rateField: "late_shipments_rate", valueField: "late_shipments_value" },
-];
+// Thresholds padrão (serão sobrescritos pelo backend se disponível)
+const DEFAULT_THRESHOLDS = {
+  claims: 3.0,
+  mediations: 2.0,
+  cancellations: 2.0,
+  late_shipments: 15.0,
+};
+
+function getMetricsWithThresholds(reputation: ReputationCurrent | null): MetricConfig[] {
+  const thresholds = reputation?.thresholds || DEFAULT_THRESHOLDS;
+  return [
+    { key: "claims", label: "Reclamacoes", limit: thresholds.claims, rateField: "claims_rate", valueField: "claims_value" },
+    { key: "mediations", label: "Mediacoes", limit: thresholds.mediations, rateField: "mediations_rate", valueField: "mediations_value" },
+    { key: "cancellations", label: "Cancelamentos", limit: thresholds.cancellations, rateField: "cancellations_rate", valueField: "cancellations_value" },
+    { key: "late_shipments", label: "Atrasos no envio", limit: thresholds.late_shipments, rateField: "late_shipments_rate", valueField: "late_shipments_value" },
+  ];
+}
 
 function getMetricStatus(
   value: number,
@@ -503,7 +514,7 @@ export default function Reputacao() {
 
       {/* 4 KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {METRICS.map((metric) => (
+        {getMetricsWithThresholds(reputation).map((metric) => (
           <MetricCard key={metric.key} metric={metric} reputation={reputation} />
         ))}
       </div>
@@ -532,12 +543,14 @@ export default function Reputacao() {
                 />
                 <Legend />
                 {/* Linhas de limite critico por metrica */}
-                <ReferenceLine y={1} stroke="#ef4444" strokeDasharray="4 3" strokeWidth={1.5}
-                  label={{ value: "Limite Recl. 1%", position: "right", fill: "#ef4444", fontSize: 9 }} />
-                <ReferenceLine y={0.5} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1.5}
-                  label={{ value: "Limite Med./Canc. 0.5%", position: "right", fill: "#f97316", fontSize: 9 }} />
-                <ReferenceLine y={6} stroke="#3b82f6" strokeDasharray="4 3" strokeWidth={1.5}
-                  label={{ value: "Limite Atrasos 6%", position: "right", fill: "#3b82f6", fontSize: 9 }} />
+                <ReferenceLine y={reputation?.thresholds?.claims || 3.0} stroke="#ef4444" strokeDasharray="4 3" strokeWidth={1.5}
+                  label={{ value: `Limite Recl. ${reputation?.thresholds?.claims?.toFixed(1) || 3.0}%`, position: "right", fill: "#ef4444", fontSize: 9 }} />
+                <ReferenceLine y={reputation?.thresholds?.mediations || 2.0} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1.5}
+                  label={{ value: `Limite Med. ${reputation?.thresholds?.mediations?.toFixed(1) || 2.0}%`, position: "right", fill: "#f97316", fontSize: 9 }} />
+                <ReferenceLine y={reputation?.thresholds?.cancellations || 2.0} stroke="#fbbf24" strokeDasharray="4 3" strokeWidth={1.5}
+                  label={{ value: `Limite Canc. ${reputation?.thresholds?.cancellations?.toFixed(1) || 2.0}%`, position: "right", fill: "#fbbf24", fontSize: 9 }} />
+                <ReferenceLine y={reputation?.thresholds?.late_shipments || 15.0} stroke="#3b82f6" strokeDasharray="4 3" strokeWidth={1.5}
+                  label={{ value: `Limite Atrasos ${reputation?.thresholds?.late_shipments?.toFixed(1) || 15.0}%`, position: "right", fill: "#3b82f6", fontSize: 9 }} />
                 <Line
                   type="monotone"
                   dataKey="reclamacoes"

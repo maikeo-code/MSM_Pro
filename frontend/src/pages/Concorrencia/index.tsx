@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import competitorsService, { CompetitorCreate, CompetitorOut } from "@/services/competitorsService";
 import listingsService from "@/services/listingsService";
 import { cn } from "@/lib/utils";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 interface AddFormState {
   listing_id: string;
@@ -45,6 +46,7 @@ const PriceGapIndicator: React.FC<{ gapPct: number | undefined }> = ({ gapPct })
 
 export default function Concorrencia() {
   const queryClient = useQueryClient();
+  const accountId = useActiveAccount();
   const [showForm, setShowForm] = React.useState(false);
   const [form, setForm] = React.useState<AddFormState>(EMPTY_FORM);
   const [formError, setFormError] = React.useState<string | null>(null);
@@ -52,21 +54,21 @@ export default function Concorrencia() {
   const [selectedChartDays, setSelectedChartDays] = React.useState(30);
 
   const { data: competitors = [], isLoading, error } = useQuery({
-    queryKey: ["competitors"],
-    queryFn: () => competitorsService.list(),
+    queryKey: ["competitors", accountId],
+    queryFn: () => competitorsService.list(accountId),
   });
 
   const { data: listings = [] } = useQuery({
-    queryKey: ["listings"],
-    queryFn: () => listingsService.list(),
+    queryKey: ["listings", accountId],
+    queryFn: () => listingsService.list("today", accountId),
   });
 
   // Query para histórico do concorrente expandido
   const { data: competitorHistory } = useQuery({
-    queryKey: ["competitorHistory", expandedCompetitor, selectedChartDays],
+    queryKey: ["competitorHistory", expandedCompetitor, selectedChartDays, accountId],
     queryFn: () =>
       expandedCompetitor
-        ? competitorsService.getHistory(expandedCompetitor, selectedChartDays)
+        ? competitorsService.getHistory(expandedCompetitor, selectedChartDays, accountId)
         : Promise.resolve(null),
     enabled: !!expandedCompetitor,
   });
@@ -81,10 +83,10 @@ export default function Concorrencia() {
   }, [expandedCompetitor, competitors, listings]);
 
   const { data: myListingAnalysis } = useQuery({
-    queryKey: ["listingAnalysis", expandedMlbId],
+    queryKey: ["listingAnalysis", expandedMlbId, selectedChartDays, accountId],
     queryFn: () =>
       expandedMlbId
-        ? listingsService.getAnalysis(expandedMlbId, selectedChartDays)
+        ? listingsService.getAnalysis(expandedMlbId, selectedChartDays, accountId)
         : Promise.resolve(null),
     enabled: !!expandedMlbId,
   });

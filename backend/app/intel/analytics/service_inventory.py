@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.vendas.models import Listing, ListingSnapshot
@@ -35,16 +35,24 @@ async def get_inventory_health(
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=period_days)
 
+    # ─ Subquery to get latest stock per listing ────────────────────────────────────
+    latest_stock_subq = (
+        select(
+            ListingSnapshot.listing_id,
+            ListingSnapshot.stock,
+        )
+        .order_by(ListingSnapshot.listing_id, desc(ListingSnapshot.captured_at))
+        .distinct(ListingSnapshot.listing_id)
+    ).subquery()
+
     # ─ Fetch aggregated data per listing ────────────────────────────────────────
     stmt = (
         select(
             Listing.mlb_id,
             Listing.title,
             func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label("total_sales"),
-            # Get latest snapshot for current stock
-            func.first_value(ListingSnapshot.stock)
-            .over(partition_by=Listing.id, order_by=ListingSnapshot.captured_at.desc())
-            .label("current_stock"),
+            # Get latest stock
+            func.coalesce(latest_stock_subq.c.stock, 0).label("current_stock"),
         )
         .outerjoin(
             ListingSnapshot,
@@ -53,8 +61,12 @@ async def get_inventory_health(
                 ListingSnapshot.captured_at >= cutoff,
             ),
         )
+        .outerjoin(
+            latest_stock_subq,
+            latest_stock_subq.c.listing_id == Listing.id,
+        )
         .where(Listing.user_id == user_id)
-        .group_by(Listing.mlb_id, Listing.title, Listing.id)
+        .group_by(Listing.mlb_id, Listing.title, Listing.id, latest_stock_subq.c.stock)
     )
 
     result = await db.execute(stmt)
@@ -101,7 +113,11 @@ async def get_inventory_health(
         )
 
         # Classify health status
-        if days_of_stock == float("inf") or days_of_stock < 7:
+        if days_of_stock == float("inf"):
+            # No sales in period: either new product or overstocked with no demand
+            health_status = "no_sales"
+            overstocked_count += 1
+        elif days_of_stock < 7:
             health_status = "critical_low"
             critical_low_count += 1
         elif days_of_stock > 90:

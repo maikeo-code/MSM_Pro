@@ -29,10 +29,10 @@ class ReputationSnapshotOut(BaseModel):
 
 class ReputationThresholdsOut(BaseModel):
     """Limites de nivel por KPI para exibicao no frontend."""
-    claims: float = 1.0          # Reclamacoes: max 1%
-    mediations: float = 0.5      # Mediações: max 0.5%
-    cancellations: float = 0.5   # Cancelamentos: max 0.5%
-    late_shipments: float = 6.0  # Atrasos envio: max 6%
+    claims: float = 3.0          # Reclamacoes: max 3%
+    mediations: float = 2.0      # Mediações: max 2%
+    cancellations: float = 2.0   # Cancelamentos: max 2%
+    late_shipments: float = 15.0  # Atrasos envio: max 15%
 
 
 class HealthDimensionItem(BaseModel):
@@ -84,7 +84,7 @@ class RiskItem(BaseModel):
     current_count: int                        # Ocorrencias atuais calculadas
     max_allowed: int                          # Max permitido antes de rebaixar
     buffer: int                               # Folga = max_allowed - current_count
-    risk_level: Literal["critical", "warning", "safe"]
+    risk_level: Literal["critical", "warning", "safe", "no_data"]
 
 
 class ReputationRiskOut(BaseModel):

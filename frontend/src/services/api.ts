@@ -43,7 +43,7 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       removeStoredToken();
-      useAuthStore.getState().logout();
+      useAuthStore.getState().clearAuth();
       // Redireciona para login se não estiver na página de login
       if (!window.location.pathname.includes("/login")) {
         window.location.href = "/login";

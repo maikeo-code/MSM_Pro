@@ -144,7 +144,7 @@ class InventoryHealthItem(BaseModel):
     avg_daily_sales: float
     sell_through_rate: float      # sales / (sales + stock)
     days_of_stock: float          # stock / avg_daily_sales
-    health_status: Literal["healthy", "overstocked", "critical_low"]
+    health_status: Literal["healthy", "overstocked", "critical_low", "no_sales"]
 
 
 class InventoryHealthResponse(BaseModel):

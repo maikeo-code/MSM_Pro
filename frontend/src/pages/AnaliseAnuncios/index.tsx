@@ -3,18 +3,20 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Package, Search, TrendingUp, ArrowUpDown } from "lucide-react";
 import analysisService, { type AnuncioAnalise } from "@/services/analysisService";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 type SortKey = keyof AnuncioAnalise | null;
 type SortDirection = "asc" | "desc";
 
 export default function AnaliseAnuncios() {
+  const accountId = useActiveAccount();
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const { data: response, isLoading, error } = useQuery({
-    queryKey: ["analysis-listings"],
-    queryFn: () => analysisService.getListingsAnalysis(),
+    queryKey: ["analysis-listings", accountId],
+    queryFn: () => analysisService.getListingsAnalysis(accountId),
   });
 
   const anuncios = response?.anuncios ?? [];

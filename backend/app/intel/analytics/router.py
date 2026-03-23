@@ -107,7 +107,7 @@ async def insights(
 async def comparison(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    period: str = Query(default="30d", regex="^(7d|15d|30d)$", description="Periodo: 7d, 15d ou 30d"),
+    period: str = Query(default="30d", pattern="^(7d|15d|30d)$", description="Periodo: 7d, 15d ou 30d"),
 ) -> ComparisonResponse:
     """
     Comparacao temporal (Mes a Mes) de receita e vendas.
@@ -124,8 +124,8 @@ async def comparison(
 async def abc_classification(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    period: str = Query(default="30d", regex="^(7d|15d|30d)$", description="Periodo: 7d, 15d ou 30d"),
-    metric: str = Query(default="revenue", regex="^(revenue|units|margin)$", description="Metrica: revenue, units ou margin"),
+    period: str = Query(default="30d", pattern="^(7d|15d|30d)$", description="Periodo: 7d, 15d ou 30d"),
+    metric: str = Query(default="revenue", pattern="^(revenue|units|margin)$", description="Metrica: revenue, units ou margin"),
 ) -> ABCResponse:
     """
     Classificacao ABC por giro de estoque e contribuicao.
@@ -145,7 +145,7 @@ async def abc_classification(
 async def inventory_health(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    period: str = Query(default="30d", regex="^(7d|15d|30d)$", description="Periodo: 7d, 15d ou 30d"),
+    period: str = Query(default="30d", pattern="^(7d|15d|30d)$", description="Periodo: 7d, 15d ou 30d"),
 ) -> InventoryHealthResponse:
     """
     Analise de saude do estoque por anuncio.

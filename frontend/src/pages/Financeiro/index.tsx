@@ -23,6 +23,7 @@ import {
 import financeiroService, { type FinanceiroDetalhado, type FinanceiroResumo, type CashFlow } from "@/services/financeiroService";
 import { cn } from "@/lib/utils";
 import { KpiCard } from "@/components/KpiCard";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 // ─── Formatadores ─────────────────────────────────────────────────────────────
 const fmtBRL = (v: number) =>
@@ -264,29 +265,30 @@ function CashFlowSection({ cashflow, loading }: { cashflow: CashFlow | undefined
 
 // ─── Pagina Principal ─────────────────────────────────────────────────────────
 export default function Financeiro() {
+  const accountId = useActiveAccount();
   const [period, setPeriod] = useState<Period>("30d");
 
   const { data: resumo, isLoading: loadingResumo, isError: errorResumo } = useQuery({
-    queryKey: ["financeiro-resumo", period],
-    queryFn: () => financeiroService.getResumo(period),
+    queryKey: ["financeiro-resumo", period, accountId],
+    queryFn: () => financeiroService.getResumo(period, accountId),
     retry: 2,
   });
 
   const { data: timeline, isLoading: loadingTimeline, isError: errorTimeline } = useQuery({
-    queryKey: ["financeiro-timeline", period],
-    queryFn: () => financeiroService.getTimeline(period),
+    queryKey: ["financeiro-timeline", period, accountId],
+    queryFn: () => financeiroService.getTimeline(period, accountId),
     retry: 2,
   });
 
   const { data: detalhado, isLoading: loadingDetalhado, isError: errorDetalhado } = useQuery({
-    queryKey: ["financeiro-detalhado", period],
-    queryFn: () => financeiroService.getDetalhado(period),
+    queryKey: ["financeiro-detalhado", period, accountId],
+    queryFn: () => financeiroService.getDetalhado(period, accountId),
     retry: 2,
   });
 
   const { data: cashflow, isLoading: loadingCashflow, isError: errorCashflow } = useQuery({
-    queryKey: ["financeiro-cashflow"],
-    queryFn: () => financeiroService.getCashflow(),
+    queryKey: ["financeiro-cashflow", accountId],
+    queryFn: () => financeiroService.getCashflow(accountId),
     retry: 2,
   });
 

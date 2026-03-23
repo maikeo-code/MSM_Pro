@@ -11,6 +11,7 @@ import {
 import { listOrders, type OrderOut } from "@/services/ordersService";
 import { formatCurrency, formatDateTime, cn } from "@/lib/utils";
 import { KpiCard } from "@/components/KpiCard";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -124,12 +125,13 @@ const PERIOD_OPTIONS = [
 ];
 
 export default function Pedidos() {
+  const accountId = useActiveAccount();
   const [search, setSearch] = useState("");
   const [period, setPeriod] = useState("30"); // Default: 30 dias
 
   const { data: orders = [], isLoading, isError } = useQuery<OrderOut[]>({
-    queryKey: ["orders", period],
-    queryFn: () => listOrders(`${period}d`),
+    queryKey: ["orders", period, accountId],
+    queryFn: () => listOrders(`${period}d`, accountId),
     staleTime: 5 * 60 * 1000,
   });
 

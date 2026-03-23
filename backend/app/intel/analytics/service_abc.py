@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.vendas.models import Listing, ListingSnapshot
@@ -35,6 +35,16 @@ async def get_abc_analysis(
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=period_days)
 
+    # ─ Subquery to get latest stock per listing ────────────────────────────────────
+    latest_stock_subq = (
+        select(
+            ListingSnapshot.listing_id,
+            ListingSnapshot.stock,
+        )
+        .order_by(ListingSnapshot.listing_id, desc(ListingSnapshot.captured_at))
+        .distinct(ListingSnapshot.listing_id)
+    ).subquery()
+
     # ─ Fetch data from snapshots and current stock ────────────────────────────────
     stmt = (
         select(
@@ -43,8 +53,8 @@ async def get_abc_analysis(
             Listing.title,
             func.coalesce(func.sum(ListingSnapshot.revenue), 0).label("revenue_sum"),
             func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label("units_sum"),
-            # Get the latest snapshot to extract current stock
-            func.array_agg(ListingSnapshot.stock, ordering_by=ListingSnapshot.captured_at.desc()).label("stocks"),
+            # Get the latest stock
+            func.coalesce(latest_stock_subq.c.stock, 0).label("current_stock"),
         )
         .outerjoin(
             ListingSnapshot,
@@ -53,8 +63,12 @@ async def get_abc_analysis(
                 ListingSnapshot.captured_at >= cutoff,
             ),
         )
+        .outerjoin(
+            latest_stock_subq,
+            latest_stock_subq.c.listing_id == Listing.id,
+        )
         .where(Listing.user_id == user_id)
-        .group_by(Listing.id, Listing.mlb_id, Listing.title)
+        .group_by(Listing.id, Listing.mlb_id, Listing.title, latest_stock_subq.c.stock)
         .order_by(func.sum(ListingSnapshot.revenue).desc().nullslast())
     )
 
@@ -77,8 +91,8 @@ async def get_abc_analysis(
     for row in rows:
         revenue = float(row.revenue_sum or 0)
         units = int(row.units_sum or 0)
-        # Get latest stock from array (first element due to DESC ordering)
-        current_stock = row.stocks[0] if row.stocks else 0
+        # Get latest stock
+        current_stock = row.current_stock or 0
 
         # Compute turnover: units_sold / current_stock
         turnover = units / current_stock if current_stock > 0 else 0.0

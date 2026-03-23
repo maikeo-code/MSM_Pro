@@ -9,6 +9,7 @@ import {
   Sparkles,
   Send,
   X,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -16,6 +17,8 @@ import {
   type AtendimentoItem,
   type AtendimentoStats,
 } from "@/services/atendimentoService";
+import { SLABadge, calculateHoursRemaining } from "./components";
+import { TemplatesModal } from "./components/TemplatesModal";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -131,6 +134,7 @@ function RespostaModal({
   const queryClient = useQueryClient();
   const [texto, setTexto] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const config = getTypeConfig(item.type);
   const Icon = config.icon;
 
@@ -164,7 +168,17 @@ function RespostaModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <>
+      {templatesOpen && (
+        <TemplatesModal
+          onSelect={(templateText) => {
+            setTexto(templateText);
+            setTemplatesOpen(false);
+          }}
+          onClose={() => setTemplatesOpen(false)}
+        />
+      )}
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
@@ -231,14 +245,23 @@ function RespostaModal({
           <div>
             <div className="flex items-center justify-between mb-1">
               <p className="text-xs text-gray-500 font-medium">Sua resposta</p>
-              <button
-                onClick={handleAiSuggestion}
-                disabled={aiLoading}
-                className="inline-flex items-center gap-1.5 text-xs text-violet-600 hover:text-violet-800 font-medium disabled:opacity-50 transition-colors"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                {aiLoading ? "Gerando..." : "Sugerir com IA"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTemplatesOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  Templates
+                </button>
+                <button
+                  onClick={handleAiSuggestion}
+                  disabled={aiLoading}
+                  className="inline-flex items-center gap-1.5 text-xs text-violet-600 hover:text-violet-800 font-medium disabled:opacity-50 transition-colors"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {aiLoading ? "Gerando..." : "Sugerir com IA"}
+                </button>
+              </div>
             </div>
             <textarea
               value={texto}
@@ -278,6 +301,7 @@ function RespostaModal({
         </div>
       </div>
     </div>
+    </>
   );
 }
 

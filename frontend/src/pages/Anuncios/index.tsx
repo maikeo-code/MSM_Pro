@@ -7,6 +7,7 @@ import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { DiasBadge } from "@/components/DiasBadge";
 import { Variacao } from "@/components/Variacao";
 import { exportCSV } from "@/utils/exportCSV";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 // ─── Health badge (usa quality_score do backend) ─────────────────────────────
 function HealthBadge({ score }: { score: number | null }) {
@@ -36,17 +37,18 @@ const PERIOD_OPTIONS = [
 ] as const;
 
 export default function Anuncios() {
+  const accountId = useActiveAccount();
   const [searchTerm, setSearchTerm] = useState("");
   const [tablePeriod, setTablePeriod] = useState<string>("today");
 
   const { data: listings, isLoading, error } = useQuery({
-    queryKey: ["listings", tablePeriod],
-    queryFn: () => listingsService.list(tablePeriod),
+    queryKey: ["listings", tablePeriod, accountId],
+    queryFn: () => listingsService.list(tablePeriod, accountId),
   });
 
   const { data: kpi } = useQuery({
-    queryKey: ["kpi-summary"],
-    queryFn: () => listingsService.getKpiSummary(),
+    queryKey: ["kpi-summary", accountId],
+    queryFn: () => listingsService.getKpiSummary(accountId),
     retry: 2,
   });
 
