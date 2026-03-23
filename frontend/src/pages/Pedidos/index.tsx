@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { listOrders, type OrderOut } from "@/services/ordersService";
 import { formatCurrency, formatDateTime, cn } from "@/lib/utils";
+import { KpiCard } from "@/components/KpiCard";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -110,27 +111,6 @@ function StatusBadge({
     >
       {label}
     </span>
-  );
-}
-
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-
-interface KpiCardProps {
-  label: string;
-  value: string;
-  icon: React.ReactNode;
-  iconBg?: string;
-}
-
-function KpiCard({ label, value, icon, iconBg = "bg-blue-50 text-blue-600" }: KpiCardProps) {
-  return (
-    <div className="bg-white rounded-lg shadow-sm p-5 flex flex-col gap-2 border border-gray-100">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500 font-medium">{label}</p>
-        <span className={cn("p-2 rounded-lg", iconBg)}>{icon}</span>
-      </div>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
-    </div>
   );
 }
 

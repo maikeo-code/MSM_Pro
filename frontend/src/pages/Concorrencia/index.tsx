@@ -4,6 +4,7 @@ import { Plus, Trash2, Users, ExternalLink } from "lucide-react";
 import competitorsService, { CompetitorCreate } from "@/services/competitorsService";
 import listingsService from "@/services/listingsService";
 import { formatDate, cn } from "@/lib/utils";
+import { EmptyState } from "@/components/EmptyState";
 
 interface AddFormState {
   listing_id: string;
@@ -193,21 +194,21 @@ export default function Concorrencia() {
             Carregando concorrentes...
           </div>
         ) : activeCompetitors.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            <Users className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="font-medium text-foreground">Nenhum concorrente monitorado</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Adicione o MLB ID de um concorrente para comecar a monitorar os precos.
-            </p>
-            {!showForm && (
-              <button
-                onClick={() => setShowForm(true)}
-                className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                Adicionar Primeiro Concorrente
-              </button>
-            )}
+          <div className="px-6 py-8">
+            <EmptyState
+              icon={<Users className="h-6 w-6" />}
+              title="Nenhum concorrente monitorado"
+              description="Adicione o MLB ID de um concorrente para começar a monitorar os preços."
+              action={!showForm && (
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  Adicionar Primeiro Concorrente
+                </button>
+              )}
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">

@@ -26,6 +26,7 @@ import {
 } from "recharts";
 import adsService, { type AdsCampanha } from "@/services/adsService";
 import { cn } from "@/lib/utils";
+import { KpiCard } from "@/components/KpiCard";
 
 // ─── Formatadores ─────────────────────────────────────────────────────────────
 const fmtBRL = (v: number) =>
@@ -73,26 +74,6 @@ function DiagnosticoBadge({ value }: { value: AdsCampanha["diagnostico"] }) {
   );
 }
 
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-interface KpiCardProps {
-  label: string;
-  value: string;
-  icon: React.ReactNode;
-  iconBg?: string;
-}
-
-function KpiCard({ label, value, icon, iconBg = "bg-blue-50 text-blue-600" }: KpiCardProps) {
-  return (
-    <div className="bg-white rounded-lg shadow-sm p-5 flex flex-col gap-2 border border-gray-100">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500 font-medium">{label}</p>
-        <span className={cn("p-2 rounded-lg", iconBg)}>{icon}</span>
-      </div>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
-    </div>
-  );
-}
-
 // ─── Tooltip customizado ──────────────────────────────────────────────────────
 function CustomTooltip({
   active,
@@ -105,13 +86,13 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-xs">
-      <p className="font-semibold text-gray-700 mb-2">{label}</p>
+    <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-xs text-popover-foreground">
+      <p className="font-semibold mb-2">{label}</p>
       {payload.map((p) => (
         <div key={p.dataKey} className="flex items-center gap-2 mb-1">
           <span className="h-2 w-2 rounded-full inline-block" style={{ background: p.color }} />
-          <span className="text-gray-500">{p.name}:</span>
-          <span className="font-medium text-gray-900">
+          <span>{p.name}:</span>
+          <span className="font-medium">
             {p.dataKey === "cliques" ? fmtNum(p.value) : fmtNum(p.value)}
           </span>
         </div>

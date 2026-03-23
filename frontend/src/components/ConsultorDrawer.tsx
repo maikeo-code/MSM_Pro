@@ -40,13 +40,13 @@ export function ConsultorDrawer({
       {/* Drawer */}
       <div
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out",
+          "fixed inset-y-0 right-0 z-50 flex flex-col bg-card shadow-2xl transition-transform duration-300 ease-in-out",
           "w-full sm:w-[480px]",
           aberto ? "translate-x-0" : "translate-x-full"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-white" />
             <h2 className="text-base font-semibold text-white">{titulo}</h2>
@@ -110,8 +110,8 @@ export function ConsultorDrawer({
 
         {/* Footer */}
         {resultado && !loading && (
-          <div className="border-t border-gray-200 px-6 py-3 bg-gray-50">
-            <p className="text-xs text-gray-500">
+          <div className="border-t border-border px-6 py-3 bg-muted/30">
+            <p className="text-xs text-muted-foreground">
               {labelRodape
                 ? labelRodape(resultado)
                 : `${resultado.anuncios_analisados} anuncios analisados \u2022 ${new Date(

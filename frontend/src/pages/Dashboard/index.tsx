@@ -8,29 +8,8 @@ import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { ConsultorDrawer } from "@/components/ConsultorDrawer";
 import { DiasBadge } from "@/components/DiasBadge";
 import { Variacao } from "@/components/Variacao";
+import { KpiCard } from "@/components/KpiCard";
 import { exportCSV } from "@/utils/exportCSV";
-
-// ─── KPI Card com variacao ────────────────────────────────────────────────────
-interface KpiCardProps {
-  label: string;
-  value: string;
-  variacao?: number | null;
-  icon: React.ReactNode;
-  varUnit?: string;
-}
-
-function KpiCard({ label, value, variacao, icon, varUnit = "%" }: KpiCardProps) {
-  return (
-    <div className="rounded-lg border bg-card p-5 flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground font-medium">{label}</p>
-        <span className="text-muted-foreground/40">{icon}</span>
-      </div>
-      <p className="text-2xl font-bold text-foreground">{value}</p>
-      <Variacao value={variacao} unit={varUnit} />
-    </div>
-  );
-}
 
 // ─── Funil de Conversao Visual ──────────────────────────────────────────────
 function ConversionFunnel({ data }: { data: FunnelData | undefined }) {

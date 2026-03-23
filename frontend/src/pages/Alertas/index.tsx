@@ -5,9 +5,11 @@ import alertasService, {
   AlertConfigCreate,
   AlertType,
   AlertChannel,
+  Severity,
 } from "@/services/alertasService";
 import listingsService from "@/services/listingsService";
 import { formatCurrency, formatDateTime, cn } from "@/lib/utils";
+import { EmptyState } from "@/components/EmptyState";
 
 // -------------------------------------------------------
 // Helpers de display
@@ -19,6 +21,9 @@ const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   competitor_price_change: "Concorrente Mudou Preco",
   no_sales_days: "Sem Vendas",
   competitor_price_below: "Concorrente Abaixo de R$",
+  visits_spike: "Pico de Visitas",
+  conversion_improved: "Conversao Melhorou",
+  stockout_forecast: "Previsao de Estoque",
 };
 
 const ALERT_TYPE_COLORS: Record<AlertType, string> = {
@@ -27,6 +32,15 @@ const ALERT_TYPE_COLORS: Record<AlertType, string> = {
   competitor_price_change: "bg-blue-100 text-blue-700",
   no_sales_days: "bg-orange-100 text-orange-700",
   competitor_price_below: "bg-purple-100 text-purple-700",
+  visits_spike: "bg-green-100 text-green-700",
+  conversion_improved: "bg-emerald-100 text-emerald-700",
+  stockout_forecast: "bg-amber-100 text-amber-700",
+};
+
+const SEVERITY_COLORS: Record<Severity, string> = {
+  critical: "bg-red-100 text-red-700 border-red-200",
+  warning: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  info: "bg-blue-100 text-blue-700 border-blue-200",
 };
 
 const THRESHOLD_LABELS: Record<AlertType, string | null> = {
@@ -35,6 +49,9 @@ const THRESHOLD_LABELS: Record<AlertType, string | null> = {
   competitor_price_change: null,
   no_sales_days: "Dias sem venda",
   competitor_price_below: "Preco maximo (R$)",
+  visits_spike: null,
+  conversion_improved: null,
+  stockout_forecast: "Dias ate stockout",
 };
 
 function formatThreshold(type: AlertType, value: number | null): string {
@@ -55,6 +72,24 @@ function AlertTypeBadge({ type }: { type: AlertType }) {
       )}
     >
       {ALERT_TYPE_LABELS[type] ?? type}
+    </span>
+  );
+}
+
+function SeverityBadge({ severity }: { severity: Severity }) {
+  const labels: Record<Severity, string> = {
+    critical: "Crítico",
+    warning: "Aviso",
+    info: "Info",
+  };
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border",
+        SEVERITY_COLORS[severity]
+      )}
+    >
+      {labels[severity]}
     </span>
   );
 }
@@ -358,21 +393,21 @@ export default function Alertas() {
             Carregando alertas...
           </div>
         ) : alertas.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            <Bell className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="font-medium text-foreground">Nenhum alerta configurado</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Configure alertas para conversao baixa, estoque critico e mudancas de preco.
-            </p>
-            {!showCreate && (
-              <button
-                onClick={() => setShowCreate(true)}
-                className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                Criar Primeiro Alerta
-              </button>
-            )}
+          <div className="px-6 py-8">
+            <EmptyState
+              icon={<Bell className="h-6 w-6" />}
+              title="Nenhum alerta configurado"
+              description="Configure alertas para conversão baixa, estoque crítico e mudanças de preço."
+              action={!showCreate && (
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  Criar Primeiro Alerta
+                </button>
+              )}
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -382,6 +417,7 @@ export default function Alertas() {
                   <th className="px-6 py-3 text-left font-medium text-muted-foreground">Tipo</th>
                   <th className="px-6 py-3 text-left font-medium text-muted-foreground">Anuncio</th>
                   <th className="px-6 py-3 text-right font-medium text-muted-foreground">Limite</th>
+                  <th className="px-6 py-3 text-center font-medium text-muted-foreground">Severidade</th>
                   <th className="px-6 py-3 text-center font-medium text-muted-foreground">Canal</th>
                   <th className="px-6 py-3 text-center font-medium text-muted-foreground">Status</th>
                   <th className="px-6 py-3 text-center font-medium text-muted-foreground">Acoes</th>
@@ -408,6 +444,9 @@ export default function Alertas() {
                     </td>
                     <td className="px-6 py-4 text-right font-medium">
                       {formatThreshold(alerta.alert_type as AlertType, alerta.threshold)}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <SeverityBadge severity={alerta.severity as Severity} />
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium capitalize">

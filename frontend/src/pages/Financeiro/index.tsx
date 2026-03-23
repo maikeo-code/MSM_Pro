@@ -6,8 +6,6 @@ import {
   Package,
   Truck,
   PiggyBank,
-  ArrowUp,
-  ArrowDown,
   CalendarClock,
 } from "lucide-react";
 import {
@@ -24,6 +22,7 @@ import {
 } from "recharts";
 import financeiroService, { type FinanceiroDetalhado, type FinanceiroResumo, type CashFlow } from "@/services/financeiroService";
 import { cn } from "@/lib/utils";
+import { KpiCard } from "@/components/KpiCard";
 
 // ─── Formatadores ─────────────────────────────────────────────────────────────
 const fmtBRL = (v: number) =>
@@ -41,59 +40,17 @@ const PERIOD_OPTIONS = [
 
 type Period = (typeof PERIOD_OPTIONS)[number]["value"];
 
-// ─── Variacao ─────────────────────────────────────────────────────────────────
-function Variacao({ value }: { value?: number | null }) {
-  if (value == null) return null;
-  const isPos = value >= 0;
-  const Icon = isPos ? ArrowUp : ArrowDown;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-0.5 text-xs font-medium",
-        isPos ? "text-green-600" : "text-red-600"
-      )}
-    >
-      <Icon className="h-3 w-3" />
-      {Math.abs(value).toFixed(1)}%
-    </span>
-  );
-}
-
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-interface KpiCardProps {
-  label: string;
-  value: string;
-  sub?: string;
-  variacao?: number | null;
-  icon: React.ReactNode;
-  iconBg?: string;
-}
-
-function KpiCard({ label, value, sub, variacao, icon, iconBg = "bg-blue-50 text-blue-600" }: KpiCardProps) {
-  return (
-    <div className="bg-white rounded-lg shadow-sm p-6 flex flex-col gap-2 border border-gray-100">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500 font-medium">{label}</p>
-        <span className={cn("p-2 rounded-lg", iconBg)}>{icon}</span>
-      </div>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
-      {sub && <p className="text-xs text-gray-400">{sub}</p>}
-      <Variacao value={variacao} />
-    </div>
-  );
-}
-
 // ─── Tooltip customizado ──────────────────────────────────────────────────────
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-xs">
-      <p className="font-semibold text-gray-700 mb-2">{label}</p>
+    <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-xs text-popover-foreground">
+      <p className="font-semibold mb-2">{label}</p>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2 mb-1">
           <span className="h-2 w-2 rounded-full inline-block" style={{ background: p.color }} />
-          <span className="text-gray-600">{p.name}:</span>
-          <span className="font-medium text-gray-900">{fmtBRL(p.value)}</span>
+          <span>{p.name}:</span>
+          <span className="font-medium">{fmtBRL(p.value)}</span>
         </div>
       ))}
     </div>
