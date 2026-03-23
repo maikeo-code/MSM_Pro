@@ -281,9 +281,13 @@ export interface SimulatePriceResult {
 }
 
 const listingsService = {
-  async list(period: string = "today"): Promise<ListingOut[]> {
+  async list(period: string = "today", mlAccountId?: string | null): Promise<ListingOut[]> {
+    const params: any = period !== "today" ? { period } : {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
     const { data } = await api.get<ListingOut[]>("/listings/", {
-      params: period !== "today" ? { period } : undefined,
+      params: Object.keys(params).length > 0 ? params : undefined,
     });
     return data;
   },
@@ -293,99 +297,172 @@ const listingsService = {
     return data;
   },
 
-  async getSnapshots(mlbId: string, dias = 30): Promise<SnapshotOut[]> {
+  async getSnapshots(mlbId: string, dias = 30, mlAccountId?: string | null): Promise<SnapshotOut[]> {
+    const params: any = { dias };
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
     const { data } = await api.get<SnapshotOut[]>(`/listings/${mlbId}/snapshots`, {
-      params: { dias },
+      params,
     });
     return data;
   },
 
-  async getAnalysis(mlbId: string, days = 30): Promise<ListingAnalysis> {
+  async getAnalysis(mlbId: string, days = 30, mlAccountId?: string | null): Promise<ListingAnalysis> {
+    const params: any = { days };
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
     const { data } = await api.get<ListingAnalysis>(`/listings/${mlbId}/analysis`, {
-      params: { days },
+      params,
     });
     return data;
   },
 
-  async getMargem(mlbId: string, preco: number): Promise<MargemResult> {
+  async getMargem(mlbId: string, preco: number, mlAccountId?: string | null): Promise<MargemResult> {
+    const params: any = { preco };
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
     const { data } = await api.get<MargemResult>(`/listings/${mlbId}/margem`, {
-      params: { preco },
+      params,
     });
     return data;
   },
 
   async updatePrice(
     mlbId: string,
-    payload: UpdatePricePayload
+    payload: UpdatePricePayload,
+    mlAccountId?: string | null
   ): Promise<{ mlb_id: string; new_price: number; updated_at: string }> {
-    const { data } = await api.patch(`/listings/${mlbId}/price`, payload);
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.patch(`/listings/${mlbId}/price`, payload, {
+      params: Object.keys(params).length > 0 ? params : undefined,
+    });
     return data;
   },
 
   async createPromotion(
     mlbId: string,
-    payload: CreatePromotionPayload
+    payload: CreatePromotionPayload,
+    mlAccountId?: string | null
   ): Promise<Promotion> {
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
     const { data } = await api.post<Promotion>(
       `/listings/${mlbId}/promotions`,
-      payload
+      payload,
+      {
+        params: Object.keys(params).length > 0 ? params : undefined,
+      }
     );
     return data;
   },
 
-  async getListingHealth(mlbId: string): Promise<ListingHealth> {
-    const { data } = await api.get<ListingHealth>(`/listings/${mlbId}/health`);
-    return data;
-  },
-
-  async sync(): Promise<{ message: string; created: number; updated: number; total: number }> {
-    const { data } = await api.post("/listings/sync");
-    return data;
-  },
-
-  async getKpiSummary(): Promise<KpiSummary> {
-    const { data } = await api.get<KpiSummary>("/listings/kpi/summary");
-    return data;
-  },
-
-  async getFunnel(period: string = "7d"): Promise<FunnelData> {
-    const { data } = await api.get<FunnelData>("/listings/analytics/funnel", {
-      params: { period },
+  async getListingHealth(mlbId: string, mlAccountId?: string | null): Promise<ListingHealth> {
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.get<ListingHealth>(`/listings/${mlbId}/health`, {
+      params: Object.keys(params).length > 0 ? params : undefined,
     });
     return data;
   },
 
-  async linkSku(mlbId: string, productId: string | null): Promise<ListingOut> {
+  async sync(mlAccountId?: string | null): Promise<{ message: string; created: number; updated: number; total: number }> {
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.post("/listings/sync", {}, {
+      params: Object.keys(params).length > 0 ? params : undefined,
+    });
+    return data;
+  },
+
+  async getKpiSummary(mlAccountId?: string | null): Promise<KpiSummary> {
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.get<KpiSummary>("/listings/kpi/summary", {
+      params: Object.keys(params).length > 0 ? params : undefined,
+    });
+    return data;
+  },
+
+  async getFunnel(period: string = "7d", mlAccountId?: string | null): Promise<FunnelData> {
+    const params: any = { period };
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.get<FunnelData>("/listings/analytics/funnel", {
+      params,
+    });
+    return data;
+  },
+
+  async linkSku(mlbId: string, productId: string | null, mlAccountId?: string | null): Promise<ListingOut> {
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
     const { data } = await api.patch<ListingOut>(`/listings/${mlbId}/sku`, {
       product_id: productId,
+    }, {
+      params: Object.keys(params).length > 0 ? params : undefined,
     });
     return data;
   },
 
-  async getHeatmap(period = "30d"): Promise<HeatmapData> {
+  async getHeatmap(period = "30d", mlAccountId?: string | null): Promise<HeatmapData> {
+    const params: any = { period };
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
     const { data } = await api.get<HeatmapData>("/listings/analytics/heatmap", {
-      params: { period },
+      params,
     });
     return data;
   },
 
-  async getSearchPosition(mlbId: string, keyword: string): Promise<SearchPositionResult> {
+  async getSearchPosition(mlbId: string, keyword: string, mlAccountId?: string | null): Promise<SearchPositionResult> {
+    const params: any = { keyword };
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
     const { data } = await api.get<SearchPositionResult>(`/listings/${mlbId}/search-position`, {
-      params: { keyword },
+      params,
     });
     return data;
   },
 
-  async getPriceHistory(mlbId: string, limit = 50): Promise<PriceHistoryItem[]> {
+  async getPriceHistory(mlbId: string, limit = 50, mlAccountId?: string | null): Promise<PriceHistoryItem[]> {
+    const params: any = { limit };
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
     const { data } = await api.get<PriceHistoryItem[]>(`/listings/${mlbId}/price-history`, {
-      params: { limit },
+      params,
     });
     return data;
   },
 
-  async simulatePrice(mlbId: string, targetPrice: number): Promise<SimulatePriceResult> {
+  async simulatePrice(mlbId: string, targetPrice: number, mlAccountId?: string | null): Promise<SimulatePriceResult> {
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
     const { data } = await api.post<SimulatePriceResult>(`/listings/${mlbId}/simulate-price`, {
       target_price: targetPrice,
+    }, {
+      params: Object.keys(params).length > 0 ? params : undefined,
     });
     return data;
   },

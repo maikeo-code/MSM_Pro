@@ -19,7 +19,7 @@ export interface OrderOut {
   delivery_date: string | null;
 }
 
-export async function listOrders(period: string = "7d"): Promise<OrderOut[]> {
+export async function listOrders(period: string = "7d", mlAccountId?: string | null): Promise<OrderOut[]> {
   // Mapa de periodos para dias (backend usa period string)
   const periodMap: Record<string, string> = {
     "1d": "1d",
@@ -31,8 +31,13 @@ export async function listOrders(period: string = "7d"): Promise<OrderOut[]> {
   };
   const finalPeriod = periodMap[period] ?? "7d";
 
+  const params: any = { period: finalPeriod };
+  if (mlAccountId) {
+    params.ml_account_id = mlAccountId;
+  }
+
   const { data } = await api.get<OrderOut[]>('/listings/orders/', {
-    params: { period: finalPeriod },
+    params,
   });
 
   // Converter Decimal strings para números

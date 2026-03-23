@@ -21,19 +21,26 @@ async def list_listings(
     period: str = "today",
     page: int = 1,
     per_page: int = 200,
+    ml_account_id: UUID | None = None,
 ) -> list[dict]:
     """Lista anúncios com o último snapshot ou dados agregados por período.
 
     period: "today" (padrão) | "7d" | "15d" | "30d" | "60d"
+    ml_account_id: opcional — filtra por conta ML específica
+
     Quando period != "today", agrega snapshots do período (soma de vendas,
     receita, visitas; média de conversão; último estoque) e compara com o
     período anterior equivalente para calcular variação.
     """
-    result = await db.execute(
-        select(Listing)
-        .where(Listing.user_id == user_id)
-        .order_by(Listing.created_at.desc())
-    )
+    query = select(Listing).where(Listing.user_id == user_id)
+
+    # Filtro opcional por ml_account_id
+    if ml_account_id is not None:
+        query = query.where(Listing.ml_account_id == ml_account_id)
+
+    query = query.order_by(Listing.created_at.desc())
+
+    result = await db.execute(query)
     listings = result.scalars().all()
 
     if not listings:
@@ -597,19 +604,23 @@ async def get_kpi_compare(
     user_id: UUID,
     period_a: str = "7d",
     period_b: str = "prev",
+    ml_account_id: UUID | None = None,
 ) -> dict:
     """
     Compara KPIs entre dois períodos e retorna variação percentual.
 
     period_a: "7d" | "15d" | "30d"
     period_b: "prev" (período anterior equivalente a period_a) | "7d" | "15d" | "30d"
+    ml_account_id: opcional — filtra por conta ML específica
     """
     today = datetime.now(BRT).date()
 
-    # Busca listing_ids do usuário
-    listings_result = await db.execute(
-        select(Listing.id).where(Listing.user_id == user_id)
-    )
+    # Busca listing_ids do usuário (opcional: filtra por conta ML)
+    query = select(Listing.id).where(Listing.user_id == user_id)
+    if ml_account_id is not None:
+        query = query.where(Listing.ml_account_id == ml_account_id)
+
+    listings_result = await db.execute(query)
     listing_ids = [row[0] for row in listings_result.fetchall()]
 
     empty_kpi = {
@@ -677,16 +688,21 @@ async def get_kpi_compare(
     }
 
 
-async def get_kpi_by_period(db: AsyncSession, user_id: UUID) -> dict:
-    """Retorna KPIs agregados para hoje, ontem, anteontem, 7 dias e 30 dias."""
+async def get_kpi_by_period(db: AsyncSession, user_id: UUID, ml_account_id: UUID | None = None) -> dict:
+    """Retorna KPIs agregados para hoje, ontem, anteontem, 7 dias e 30 dias.
+
+    Se ml_account_id é fornecido, filtra por conta ML específica.
+    """
     today = datetime.now(BRT).date()
     yesterday = today - timedelta(days=1)
     anteontem = today - timedelta(days=2)
 
-    # Busca todos os listings do usuário
-    listings_result = await db.execute(
-        select(Listing.id).where(Listing.user_id == user_id)
-    )
+    # Busca listings do usuário (opcional: filtra por conta ML)
+    query = select(Listing.id).where(Listing.user_id == user_id)
+    if ml_account_id is not None:
+        query = query.where(Listing.ml_account_id == ml_account_id)
+
+    listings_result = await db.execute(query)
     listing_ids = [row[0] for row in listings_result.fetchall()]
 
     empty = {

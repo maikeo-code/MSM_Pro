@@ -86,33 +86,51 @@ interface FinanceiroDetalhadoOut {
 }
 
 const financeiroService = {
-  async getResumo(period: string = "30d"): Promise<FinanceiroResumo> {
+  async getResumo(period: string = "30d", mlAccountId?: string | null): Promise<FinanceiroResumo> {
+    const params: any = { period };
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
     const { data } = await api.get<FinanceiroResumo>("/financeiro/resumo", {
-      params: { period },
+      params,
     });
     return data;
   },
 
   // Backend retorna { periodo, data_inicio, data_fim, points: [...] }
   // Extraímos o array .points para o consumidor
-  async getTimeline(period: string = "30d"): Promise<FinanceiroTimelinePoint[]> {
+  async getTimeline(period: string = "30d", mlAccountId?: string | null): Promise<FinanceiroTimelinePoint[]> {
+    const params: any = { period };
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
     const { data } = await api.get<FinanceiroTimeSeriesOut>("/financeiro/timeline", {
-      params: { period },
+      params,
     });
     return data.points ?? [];
   },
 
   // Backend retorna { periodo, data_inicio, data_fim, items: [...] }
   // Extraímos o array .items para o consumidor
-  async getDetalhado(period: string = "30d"): Promise<FinanceiroDetalhado[]> {
+  async getDetalhado(period: string = "30d", mlAccountId?: string | null): Promise<FinanceiroDetalhado[]> {
+    const params: any = { period };
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
     const { data } = await api.get<FinanceiroDetalhadoOut>("/financeiro/detalhado", {
-      params: { period },
+      params,
     });
     return data.items ?? [];
   },
 
-  async getCashflow(): Promise<CashFlow> {
-    const { data } = await api.get<CashFlow>("/financeiro/cashflow");
+  async getCashflow(mlAccountId?: string | null): Promise<CashFlow> {
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.get<CashFlow>("/financeiro/cashflow", {
+      params: Object.keys(params).length > 0 ? params : undefined,
+    });
     return data;
   },
 };

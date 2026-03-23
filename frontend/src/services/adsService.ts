@@ -200,8 +200,14 @@ function mapDetailToDetalhe(raw: AdsCampaignDetailOut): AdsCampanhaDetalhe {
 const adsService = {
   // Backend: GET /ads/ → AdsDashboardOut
   // Retorna { resumo, campanhas } para o componente
-  async list(): Promise<{ resumo: AdsResumo; campanhas: AdsCampanha[] }> {
-    const { data } = await api.get<AdsDashboardOut>("/ads/");
+  async list(mlAccountId?: string | null): Promise<{ resumo: AdsResumo; campanhas: AdsCampanha[] }> {
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.get<AdsDashboardOut>("/ads/", {
+      params: Object.keys(params).length > 0 ? params : undefined,
+    });
     return {
       resumo: mapDashboardToResumo(data),
       campanhas: data.campaigns.map(mapCampaignToAdsCampanha),
@@ -210,7 +216,7 @@ const adsService = {
 
   // Backend: GET /ads/{campaignId}?days=30 → AdsCampaignDetailOut
   // Retorna AdsCampanhaDetalhe com timeline normalizada
-  async getCampanha(campaignId: string, period: string = "30d"): Promise<AdsCampanhaDetalhe> {
+  async getCampanha(campaignId: string, period: string = "30d", mlAccountId?: string | null): Promise<AdsCampanhaDetalhe> {
     // Converter período em formato string (ex: "30d") para dias (int)
     const daysMap: Record<string, number> = {
       "7d": 7,
@@ -221,15 +227,26 @@ const adsService = {
     };
     const days = daysMap[period] ?? 30;
 
+    const params: any = { days };
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+
     const { data } = await api.get<AdsCampaignDetailOut>(`/ads/${campaignId}`, {
-      params: { days },
+      params,
     });
     return mapDetailToDetalhe(data);
   },
 
   // Backend: POST /ads/sync → { results: [...], accounts_synced: number }
-  async sync(): Promise<{ message: string; synced: number }> {
-    const { data } = await api.post<{ results: unknown[]; accounts_synced: number }>("/ads/sync");
+  async sync(mlAccountId?: string | null): Promise<{ message: string; synced: number }> {
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.post<{ results: unknown[]; accounts_synced: number }>("/ads/sync", {}, {
+      params: Object.keys(params).length > 0 ? params : undefined,
+    });
     return {
       message: `Sincronizacao concluida`,
       synced: data.accounts_synced ?? 0,

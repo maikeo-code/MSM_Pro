@@ -37,8 +37,14 @@ export interface AnalysisResponse {
 }
 
 const analysisService = {
-  async getListingsAnalysis(): Promise<AnalysisResponse> {
-    const { data } = await api.get<AnalysisResponse>("/analysis/listings");
+  async getListingsAnalysis(mlAccountId?: string | null): Promise<AnalysisResponse> {
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.get<AnalysisResponse>("/analysis/listings", {
+      params: Object.keys(params).length > 0 ? params : undefined,
+    });
     return data;
   },
 };

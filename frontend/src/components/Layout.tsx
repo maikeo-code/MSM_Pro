@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
+import { AccountSelector } from "@/components/AccountSelector";
 
 // ─── Secao principal do menu com agrupamento semantico ──────────────────────
 const menuSections = [
@@ -148,8 +149,11 @@ function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
         </nav>
       </div>
 
-      {/* Right: Sync indicator + Notifications + User menu */}
+      {/* Right: Account selector + Sync indicator + Notifications + User menu */}
       <div className="flex items-center gap-4">
+        {/* Account selector */}
+        <AccountSelector className="hidden md:block" />
+
         {/* Última sync */}
         <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
           <div className="h-2 w-2 rounded-full bg-green-500" />

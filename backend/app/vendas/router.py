@@ -70,9 +70,15 @@ async def list_listings(
         le=500,
         description="Itens por pagina (padrao 200 — retorna tudo; reduza para 50 quando paginacao real for necessaria)",
     ),
+    ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
 ):
-    """Lista todos os anuncios do usuario com o ultimo snapshot ou dados agregados por periodo."""
-    return await service.list_listings(db, current_user.id, period=period, page=page, per_page=per_page)
+    """Lista todos os anuncios do usuario com o ultimo snapshot ou dados agregados por periodo.
+
+    Se ml_account_id for fornecido, filtra apenas os anuncios dessa conta ML.
+    """
+    return await service.list_listings(
+        db, current_user.id, period=period, page=page, per_page=per_page, ml_account_id=ml_account_id
+    )
 
 
 @router.post("/", response_model=ListingOut, status_code=status.HTTP_201_CREATED)
@@ -173,9 +179,13 @@ async def export_listings(
 async def get_kpi_summary(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
 ):
-    """Retorna KPIs agregados para hoje, ontem e anteontem."""
-    return await service.get_kpi_by_period(db, current_user.id)
+    """Retorna KPIs agregados para hoje, ontem e anteontem.
+
+    Se ml_account_id for fornecido, filtra apenas os KPIs dessa conta ML.
+    """
+    return await service.get_kpi_by_period(db, current_user.id, ml_account_id=ml_account_id)
 
 
 @router.get("/kpi/compare", response_model=KpiCompareOut)
@@ -192,16 +202,19 @@ async def get_kpi_compare(
         pattern=r"^(prev|7d|15d|30d)$",
         description="Periodo B: prev (anterior equivalente), 7d, 15d ou 30d",
     ),
+    ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
 ):
     """
     Compara KPIs entre dois periodos e retorna variacao percentual para cada metrica.
+
+    Se ml_account_id for fornecido, filtra apenas os KPIs dessa conta ML.
 
     Exemplos:
     - period_a=7d&period_b=prev  → ultimos 7 dias vs 7 dias anteriores
     - period_a=30d&period_b=7d   → ultimos 30 dias vs ultimos 7 dias
     - period_a=15d&period_b=prev → ultimos 15 dias vs 15 dias anteriores
     """
-    return await service.get_kpi_compare(db, current_user.id, period_a, period_b)
+    return await service.get_kpi_compare(db, current_user.id, period_a, period_b, ml_account_id=ml_account_id)
 
 
 @router.get("/analytics/funnel", response_model=FunnelOut)
@@ -225,15 +238,18 @@ async def get_heatmap(
         pattern=r"^(7d|15d|30d|60d|90d)$",
         description="Periodo: 7d, 15d, 30d (padrao), 60d, 90d",
     ),
+    ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
 ):
     """
     Retorna heatmap de vendas por dia da semana nos ultimos N dias.
     Util para identificar quais dias geram mais vendas.
     Resposta: distribuicao 7 dias com total, media semanal e pico.
+
+    Se ml_account_id for fornecido, filtra apenas os dados dessa conta ML.
     """
     period_map = {"7d": 7, "15d": 15, "30d": 30, "60d": 60, "90d": 90}
     days = period_map.get(period, 30)
-    return await service.get_sales_heatmap(db, current_user.id, days)
+    return await service.get_sales_heatmap(db, current_user.id, days, ml_account_id=ml_account_id)
 
 
 # ─── Orders ──────────────────────────────────────────────────────────────────
