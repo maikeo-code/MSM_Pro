@@ -46,7 +46,7 @@ _is_prod = settings.environment == "production"
 app = FastAPI(
     title="MSM_Pro API",
     description="Dashboard de inteligência de vendas para o Mercado Livre",
-    version="1.0.0",
+    version="1.0.1",  # Versão bumped para forçar rebuild
     docs_url=None if _is_prod else "/docs",
     redoc_url=None if _is_prod else "/redoc",
 )
