@@ -27,41 +27,54 @@ function shouldRefreshJwt(): boolean {
   return Date.now() - parseInt(lastRefresh, 10) > REFRESH_INTERVAL_MS;
 }
 
-let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
 
 async function tryRefreshJwt(): Promise<boolean> {
-  if (isRefreshing) return false;
+  // Se já há um refresh em andamento, aguardar o resultado dele
+  if (refreshPromise) return refreshPromise;
+
   const token = getStoredToken();
   if (!token) return false;
 
-  isRefreshing = true;
-  try {
-    const response = await axios.post(
-      `${BASE_URL}/auth/refresh`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+  // Criar promise de refresh e armazená-la para evitar race conditions
+  refreshPromise = (async () => {
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/auth/refresh`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 15000,
         },
-        timeout: 15000,
-      },
-    );
-    const newToken = response.data.access_token;
-    if (newToken) {
-      setStoredToken(newToken);
-      const store = useAuthStore.getState();
-      if (store.user) {
-        store.setAuth(store.user, newToken);
+      );
+      const newToken = response.data.access_token;
+      if (newToken) {
+        // setAuth já chama setStoredToken internamente, não chamar 2x
+        const store = useAuthStore.getState();
+        if (store.user) {
+          store.setAuth(store.user, newToken);
+        } else {
+          // Fallback: apenas user não está setado (caso raro)
+          setStoredToken(newToken);
+        }
+        return true;
       }
-      return true;
+      return false;
+    } catch {
+      // Token inválido — não fazer nada, o interceptor de 401 cuida
+      return false;
     }
-  } catch {
-    // Token inválido — não fazer nada, o interceptor de 401 cuida
+  })();
+
+  try {
+    return await refreshPromise;
   } finally {
-    isRefreshing = false;
+    // Limpar promise para próximas tentativas
+    refreshPromise = null;
   }
-  return false;
 }
 
 const api: AxiosInstance = axios.create({
@@ -75,11 +88,13 @@ const api: AxiosInstance = axios.create({
 // Interceptor de request: adiciona JWT + auto-refresh se necessário
 api.interceptors.request.use(
   async (config) => {
-    const token = getStoredToken();
+    let token = getStoredToken();
     if (token) {
       // Auto-refresh a cada 12h (silencioso, sem interromper)
       if (shouldRefreshJwt() && !config.url?.includes("/auth/refresh")) {
-        tryRefreshJwt(); // fire-and-forget, não bloqueia a request
+        // Aguardar refresh para pegar token atualizado
+        await tryRefreshJwt();
+        token = getStoredToken(); // Pegar token atualizado após refresh
       }
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -98,10 +113,10 @@ api.interceptors.response.use(
       if (originalRequest && !originalRequest.url?.includes("/auth/refresh")) {
         const refreshed = await tryRefreshJwt();
         if (refreshed && originalRequest) {
-          // Retry com novo token
+          // Retry com novo token usando api (com interceptors)
           const newToken = getStoredToken();
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          return axios(originalRequest);
+          return api.request(originalRequest);
         }
       }
       // Refresh falhou — logout
