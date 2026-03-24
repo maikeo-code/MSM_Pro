@@ -116,29 +116,16 @@ async def exchange_code_for_token(code: str) -> dict:
     return response.json()
 
 
-async def refresh_ml_token(account: MLAccount) -> dict:
-    """Renova o access_token de uma conta ML usando o refresh_token."""
-    from fastapi import HTTPException, status
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            settings.ml_token_url,
-            data={
-                "grant_type": "refresh_token",
-                "client_id": settings.ml_client_id,
-                "client_secret": settings.ml_client_secret,
-                "refresh_token": account.refresh_token,
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=30,
-        )
-
-    if response.status_code != 200:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Erro ao renovar token ML: {response.text}",
-        )
-    return response.json()
+async def refresh_ml_token(account: MLAccount) -> dict | None:
+    """
+    Renova o access_token de uma conta ML usando o refresh_token.
+    Retorna dict com token data se sucesso, None se falha.
+    Seguro para uso tanto em FastAPI endpoints quanto em Celery tasks.
+    """
+    token_data = await _exchange_refresh_token(account.refresh_token)
+    if token_data is None:
+        logger.error("Refresh falhou para conta %s (%s)", account.id, account.nickname)
+    return token_data
 
 
 async def refresh_ml_token_by_id(account_id: UUID) -> str | None:
@@ -166,6 +153,10 @@ async def refresh_ml_token_by_id(account_id: UUID) -> str | None:
 
         try:
             token_data = await _exchange_refresh_token(account.refresh_token)
+            if token_data is None:
+                logger.error(f"Falha ao renovar token para {account_id}: API retornou erro")
+                return None
+
             access_token = token_data.get("access_token")
             refresh_token = token_data.get("refresh_token", account.refresh_token)
             expires_in = token_data.get("expires_in", 21600)  # 6h padrão
@@ -188,32 +179,36 @@ async def refresh_ml_token_by_id(account_id: UUID) -> str | None:
             return None
 
 
-async def _exchange_refresh_token(refresh_token: str) -> dict:
+async def _exchange_refresh_token(refresh_token: str) -> dict | None:
     """
     Helper interno para trocar refresh_token por novo access_token.
-    Usado tanto por refresh_ml_token quanto refresh_ml_token_by_id.
+    Retorna dict com token data se sucesso, None se falha.
+    Seguro para uso tanto em FastAPI endpoints quanto em Celery tasks.
     """
-    from fastapi import HTTPException, status
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            settings.ml_token_url,
-            data={
-                "grant_type": "refresh_token",
-                "client_id": settings.ml_client_id,
-                "client_secret": settings.ml_client_secret,
-                "refresh_token": refresh_token,
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=30,
-        )
-
-    if response.status_code != 200:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Erro ao renovar token ML: {response.text}",
-        )
-    return response.json()
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                settings.ml_token_url,
+                data={
+                    "grant_type": "refresh_token",
+                    "client_id": settings.ml_client_id,
+                    "client_secret": settings.ml_client_secret,
+                    "refresh_token": refresh_token,
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=30,
+            )
+        if response.status_code != 200:
+            logger.error(
+                "Falha ao renovar token ML: status=%d body=%s",
+                response.status_code,
+                response.text[:200],
+            )
+            return None
+        return response.json()
+    except Exception as e:
+        logger.error("Exceção ao renovar token ML: %s", e)
+        return None
 
 
 async def get_ml_user_info(access_token: str) -> dict:
