@@ -91,9 +91,12 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                             if sp_amount is not None:
                                 sale_price_val = Decimal(str(sp_amount))
 
-                        # Se temos sale_price menor que price, então price é o preço original
-                        if sale_price_val is not None and original_price is None and price > sale_price_val:
-                            original_price = price
+                        # Se temos sale_price menor que price, o sale_price é o preço real
+                        # de venda (promoção marketplace). Usar sale_price como price efetivo.
+                        if sale_price_val is not None and price > sale_price_val:
+                            if original_price is None:
+                                original_price = price
+                            price = sale_price_val
 
                         # Se ainda não tem original_price, buscar via seller-promotions
                         if original_price is None:

@@ -21,7 +21,9 @@ async def _refresh_expired_tokens_async():
     Busca contas ML com token prestes a expirar (próximas 2h) e renova.
     Retorna sucesso apenas se TODOS os refreshes forem bem-sucedidos.
     """
-    threshold = datetime.now(timezone.utc) + timedelta(hours=2)
+    # Renova tokens que expiram nas próximas 3 horas OU já expiraram
+    # Isso cobre: tokens prestes a expirar + tokens já expirados por falha anterior
+    threshold = datetime.now(timezone.utc) + timedelta(hours=3)
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(

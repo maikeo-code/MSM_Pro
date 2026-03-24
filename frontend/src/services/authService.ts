@@ -41,6 +41,12 @@ const authService = {
     return data;
   },
 
+  async refreshToken(): Promise<Token> {
+    const { data } = await api.post<Token>("/auth/refresh");
+    setStoredToken(data.access_token);
+    return data;
+  },
+
   async getMe(): Promise<UserOut> {
     const { data } = await api.get<UserOut>("/auth/me");
     return data;

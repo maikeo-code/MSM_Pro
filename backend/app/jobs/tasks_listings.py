@@ -52,12 +52,13 @@ async def _sync_listing_snapshot_async(
             logger.warning(f"Conta ML não encontrada para listing {listing_id}")
             return {"error": f"Conta ML não encontrada para listing {listing_id}"}
 
-        # Verifica se o token está prestes a expirar (< 30min) e renova se necessário
+        # Verifica se o token está expirado OU prestes a expirar (< 1h) e renova
         if account.token_expires_at:
-            token_expiry_threshold = datetime.now(timezone.utc) + timedelta(minutes=30)
+            token_expiry_threshold = datetime.now(timezone.utc) + timedelta(hours=1)
             if account.token_expires_at < token_expiry_threshold:
+                is_expired = account.token_expires_at < datetime.now(timezone.utc)
                 logger.info(
-                    f"Token de {account.nickname} expira em < 30min, tentando renovar..."
+                    f"Token de {account.nickname} {'EXPIRADO' if is_expired else 'expira em < 1h'}, renovando..."
                 )
                 from app.auth.service import refresh_ml_token_by_id
 
@@ -104,9 +105,12 @@ async def _sync_listing_snapshot_async(
                 if sp_amount is not None:
                     sale_price_val = Decimal(str(sp_amount))
 
-            # Se sale_price existe e é menor que price, price é o preço original
-            if sale_price_val is not None and original_price is None and price > sale_price_val:
-                original_price = price
+            # Se sale_price existe e é menor que price, o sale_price é o preço real
+            # de venda (promoção marketplace). Usar sale_price como price efetivo.
+            if sale_price_val is not None and price > sale_price_val:
+                if original_price is None:
+                    original_price = price
+                price = sale_price_val
 
             # Se ainda não tem original_price, buscar via seller-promotions
             # Endpoint: GET /seller-promotions/items/{ITEM_ID}?app_version=v2

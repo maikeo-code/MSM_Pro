@@ -61,6 +61,19 @@ async def get_me(
     return current_user
 
 
+@router.post("/refresh", response_model=Token)
+async def refresh_jwt(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Renova o JWT do usuário se ainda válido. Retorna novo token com 30 dias."""
+    token, expires_in = service.create_access_token(current_user.id)
+    return Token(
+        access_token=token,
+        expires_in=expires_in,
+        user=UserOut.model_validate(current_user),
+    )
+
+
 @router.get("/ml/connect", response_model=MLConnectURL)
 async def ml_connect(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -158,6 +171,88 @@ async def list_ml_accounts(
         )
 
     return enriched_accounts
+
+
+@router.post("/ml/accounts/{account_id}/refresh")
+async def refresh_ml_account_token(
+    account_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Força renovação imediata do token de uma conta ML."""
+    result = await db.execute(
+        select(MLAccount).where(
+            MLAccount.id == account_id,
+            MLAccount.user_id == current_user.id,
+            MLAccount.is_active == True,  # noqa: E712
+        )
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conta não encontrada")
+
+    new_token = await service.refresh_ml_token_by_id(account.id)
+    if not new_token:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Falha ao renovar token. Tente reconectar a conta.",
+        )
+
+    # Reload account to get updated expiry
+    await db.refresh(account)
+    return {
+        "status": "ok",
+        "nickname": account.nickname,
+        "token_expires_at": account.token_expires_at.isoformat() if account.token_expires_at else None,
+    }
+
+
+@router.get("/ml/tokens-health")
+async def ml_tokens_health(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Retorna status de saúde dos tokens de todas as contas ML do usuário."""
+    from datetime import datetime, timezone
+
+    result = await db.execute(
+        select(MLAccount).where(
+            MLAccount.user_id == current_user.id,
+            MLAccount.is_active == True,  # noqa: E712
+        )
+    )
+    accounts = result.scalars().all()
+
+    now = datetime.now(timezone.utc)
+    items = []
+    for acc in accounts:
+        expires_at = acc.token_expires_at
+        if expires_at:
+            remaining = (expires_at - now).total_seconds()
+            if remaining < 0:
+                token_status = "expired"
+            elif remaining < 3600:
+                token_status = "expiring_soon"
+            else:
+                token_status = "healthy"
+        else:
+            remaining = None
+            token_status = "unknown"
+
+        items.append({
+            "account_id": str(acc.id),
+            "nickname": acc.nickname,
+            "token_status": token_status,
+            "token_expires_at": expires_at.isoformat() if expires_at else None,
+            "remaining_seconds": int(remaining) if remaining else None,
+            "has_refresh_token": bool(acc.refresh_token),
+        })
+
+    all_healthy = all(i["token_status"] == "healthy" for i in items)
+    return {
+        "overall": "healthy" if all_healthy else "degraded",
+        "accounts": items,
+    }
 
 
 @router.delete("/ml/accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
