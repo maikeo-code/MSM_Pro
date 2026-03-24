@@ -99,6 +99,17 @@ async def _refresh_expired_tokens_async():
         logger.info(
             f"Renovação concluída: {len(refreshed)} sucesso, {len(errors)} erros"
         )
+
+        # Dispara sync catch-up imediato para contas com token renovado
+        if refreshed:
+            from app.jobs.tasks import sync_all_snapshots
+            logger.info(
+                "Disparando sync catch-up para %d contas renovadas. Delay: 30s",
+                len(refreshed),
+            )
+            # Agenda sync com delay de 30s para permitir propagação do token
+            sync_all_snapshots.apply_async(countdown=30)
+
         return {
             "success": len(errors) == 0,  # Sucesso apenas se nenhum erro
             "refreshed": len(refreshed),

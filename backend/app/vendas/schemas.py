@@ -502,3 +502,24 @@ class RepricingRuleOut(BaseModel):
     listing_title: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+# ============== Schema para Cobertura de Dados ==============
+
+
+class DataCoverageItemOut(BaseModel):
+    """Item de cobertura para um anúncio específico."""
+
+    mlb_id: str
+    title: str
+    days_with_data: int
+    expected_days: int
+    coverage_pct: float
+
+
+class DataCoverageOut(BaseModel):
+    """Resposta de cobertura de dados dos últimos N dias."""
+
+    period_days: int
+    overall_coverage_pct: float
+    listings: list[DataCoverageItemOut]

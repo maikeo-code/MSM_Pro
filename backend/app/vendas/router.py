@@ -12,6 +12,7 @@ from app.core.deps import get_current_user
 from app.vendas import service
 from app.vendas.schemas import (
     CreatePromotionIn,
+    DataCoverageOut,
     DeleteRuleOut,
     FunnelOut,
     HealthCheckOut,
@@ -258,6 +259,110 @@ async def get_heatmap(
     period_map = {"7d": 7, "15d": 15, "30d": 30, "60d": 60, "90d": 90}
     days = period_map.get(period, 30)
     return await service.get_sales_heatmap(db, current_user.id, days, ml_account_id=ml_account_id)
+
+
+@router.get("/coverage", response_model=DataCoverageOut)
+async def get_data_coverage(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    days: int = Query(
+        default=30,
+        ge=1,
+        le=90,
+        description="Número de dias para verificar cobertura (padrão 30, máximo 90)",
+    ),
+    ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
+):
+    """
+    Retorna cobertura de dados dos últimos N dias.
+
+    Mostra quantos dias têm dados de snapshot para cada anúncio vs quantos deveriam ter.
+    Útil para identificar gaps de dados causados por problemas de sincronização ou renovação de token.
+
+    Se ml_account_id for fornecido, filtra apenas os anúncios dessa conta ML.
+
+    Resposta:
+    - period_days: número de dias consultados
+    - overall_coverage_pct: percentual médio de cobertura entre os anúncios
+    - listings: lista de anúncios ordenada por coverage_pct (menor primeiro)
+    """
+    from sqlalchemy import and_, cast, desc, func, select
+
+    from app.auth.models import MLAccount
+    from app.vendas.models import Listing, ListingSnapshot
+
+    today = datetime.now(timezone.utc).date()
+    start_date = today - timedelta(days=days)
+
+    # Subquery: ids das contas ML do usuário
+    acc_query = select(MLAccount.id).where(
+        and_(
+            MLAccount.user_id == current_user.id,
+            MLAccount.is_active == True,  # noqa: E712
+        )
+    )
+
+    # Filtro opcional por ml_account_id
+    if ml_account_id is not None:
+        acc_query = acc_query.where(MLAccount.id == ml_account_id)
+
+    acc_result = await db.execute(acc_query)
+    account_ids = [row[0] for row in acc_result.fetchall()]
+    if not account_ids:
+        return {
+            "period_days": days,
+            "overall_coverage_pct": 0.0,
+            "listings": [],
+        }
+
+    # Query principal: dias com dados por anúncio
+    from sqlalchemy import Date
+
+    result = await db.execute(
+        select(
+            Listing.mlb_id,
+            Listing.title,
+            func.count(func.distinct(cast(ListingSnapshot.captured_at, Date))).label(
+                "days_with_data"
+            ),
+        )
+        .select_from(Listing)
+        .join(
+            ListingSnapshot,
+            ListingSnapshot.listing_id == Listing.id,
+        )
+        .where(
+            and_(
+                Listing.ml_account_id.in_(account_ids),
+                Listing.status == "active",
+                ListingSnapshot.captured_at >= start_date,
+            )
+        )
+        .group_by(Listing.id, Listing.mlb_id, Listing.title)
+    )
+    rows = result.all()
+
+    items = []
+    for row in rows:
+        coverage_pct = round((row.days_with_data / days) * 100, 1)
+        items.append({
+            "mlb_id": row.mlb_id,
+            "title": row.title[:50],
+            "days_with_data": row.days_with_data,
+            "expected_days": days,
+            "coverage_pct": coverage_pct,
+        })
+
+    # Ordena por cobertura (menor primeiro) para destacar problemas
+    items_sorted = sorted(items, key=lambda x: x["coverage_pct"])
+
+    overall = round(sum(i["coverage_pct"] for i in items) / len(items), 1) if items else 0.0
+
+    return {
+        "period_days": days,
+        "overall_coverage_pct": overall,
+        "listings": items_sorted,
+    }
 
 
 # ─── Orders ──────────────────────────────────────────────────────────────────
