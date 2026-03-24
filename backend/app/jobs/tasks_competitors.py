@@ -130,6 +130,19 @@ async def _sync_competitor_snapshots_async():
                         await client.close()
 
                     current_price = Decimal(str(item_data.get("price", 0)))
+
+                    # Extrai sale_price se disponível (promoção marketplace)
+                    sale_price_data = item_data.get("sale_price")
+                    sale_price_val = None
+                    if sale_price_data and isinstance(sale_price_data, dict):
+                        sp_amount = sale_price_data.get("amount")
+                        if sp_amount is not None:
+                            sale_price_val = Decimal(str(sp_amount))
+
+                    # Se sale_price é menor que price, usar sale_price como preço efetivo
+                    if sale_price_val is not None and current_price > sale_price_val:
+                        current_price = sale_price_val
+
                     current_sold = item_data.get("sold_quantity", 0) or 0
 
                     # Calcula sales_delta: diferença de sold_quantity em relação ao snapshot anterior
