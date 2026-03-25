@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import logging
 
 from fastapi import FastAPI, Request
@@ -128,22 +130,84 @@ async def root():
     }
 
 
+def _verify_ml_signature(body: bytes, x_signature: str | None) -> tuple[bool, str]:
+    """Verifica a assinatura HMAC-SHA256 do webhook do Mercado Livre.
+
+    Args:
+        body: conteúdo bruto do corpo da requisição
+        x_signature: valor do header X-Signature enviado pelo ML
+
+    Returns:
+        (válido: bool, razão: str)
+        - (True, "ok") se a assinatura é válida
+        - (False, "sem_secret") se ML_CLIENT_SECRET não está configurado (fallback dev)
+        - (False, "sem_header") se X-Signature não está presente
+        - (False, "assinatura_invalida") se a assinatura não corresponde
+    """
+    # Sem secret configurado = fallback para desenvolvimento
+    if not settings.ml_client_secret:
+        logger.warning(
+            "Webhook: ML_CLIENT_SECRET não configurado — aceitando sem validação (dev mode)"
+        )
+        return True, "fallback_dev_mode"
+
+    # Header obrigatório em produção
+    if not x_signature:
+        logger.warning("Webhook rejeitado: header X-Signature ausente")
+        return False, "sem_header"
+
+    # Calcular HMAC-SHA256 do body com client_secret como chave
+    expected_signature = hmac.new(
+        settings.ml_client_secret.encode(),
+        body,
+        hashlib.sha256,
+    ).hexdigest()
+
+    # Comparação time-safe (evita timing attacks)
+    if hmac.compare_digest(x_signature, expected_signature):
+        return True, "ok"
+
+    logger.warning(
+        "Webhook rejeitado: assinatura inválida — esperava %s",
+        expected_signature[:16] + "...",
+    )
+    return False, "assinatura_invalida"
+
+
 @app.post("/api/v1/notifications", tags=["webhooks"])
 async def ml_notifications(request: Request):
     """Recebe notificações webhook do Mercado Livre.
 
     Validações aplicadas:
-    1. user_id e topic devem estar presentes nos query params.
-    2. user_id (ml_user_id) deve existir em ml_accounts (evita processar
+    1. Verifica assinatura X-Signature (HMAC-SHA256) — rejeita 401 se inválida
+    2. user_id e topic devem estar presentes nos query params.
+    3. user_id (ml_user_id) deve existir em ml_accounts (evita processar
        notificações de contas desconhecidas).
-    3. Rate limiting: ignora notificações duplicadas para o mesmo
+    4. Rate limiting: ignora notificações duplicadas para o mesmo
        user_id+topic nos últimos 30s (usa Redis; fallback in-memory).
-    4. Loga resource e user_id para auditoria.
+    5. Loga resource e user_id para auditoria.
     """
     from sqlalchemy import select as sa_select
 
     from app.auth.models import MLAccount
     from app.core.database import AsyncSessionLocal
+
+    # ── 0. Verificar assinatura HMAC antes de qualquer outra coisa ────────────
+    raw_body = await request.body()
+    x_signature = request.headers.get("X-Signature")
+
+    is_valid, reason = _verify_ml_signature(raw_body, x_signature)
+    if not is_valid:
+        if reason == "sem_header":
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Missing X-Signature header"},
+            )
+        else:  # assinatura_invalida
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid X-Signature"},
+            )
 
     # ── 1. Parâmetros obrigatórios ─────────────────────────────────────────
     user_id = request.query_params.get("user_id")
