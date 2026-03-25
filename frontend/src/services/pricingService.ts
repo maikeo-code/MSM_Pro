@@ -107,13 +107,22 @@ export interface ApplyResponse {
 }
 
 // API calls
-export const getRecommendations = async (params?: {
-  report_date?: string;
-  action?: string;
-  confidence?: string;
-  sort?: string;
-}): Promise<RecommendationListResponse> => {
-  const { data } = await api.get("/intel/pricing/recommendations", { params });
+export const getRecommendations = async (
+  params?: {
+    report_date?: string;
+    action?: string;
+    confidence?: string;
+    sort?: string;
+  },
+  mlAccountId?: string | null,
+): Promise<RecommendationListResponse> => {
+  const queryParams: any = { ...params };
+  if (mlAccountId) {
+    queryParams.ml_account_id = mlAccountId;
+  }
+  const { data } = await api.get("/intel/pricing/recommendations", {
+    params: Object.keys(queryParams).length > 0 ? queryParams : undefined,
+  });
   return data;
 };
 
@@ -145,12 +154,20 @@ export const getRecommendationHistory = async (
   return data;
 };
 
-export const generateRecommendations = async (): Promise<{
+export const generateRecommendations = async (mlAccountId?: string | null): Promise<{
   status: string;
   recommendations_count: number;
   processing_time_ms: number;
   message: string;
 }> => {
-  const { data } = await api.post("/intel/pricing/recommendations/generate");
+  const params: any = {};
+  if (mlAccountId) {
+    params.ml_account_id = mlAccountId;
+  }
+  const { data } = await api.post(
+    "/intel/pricing/recommendations/generate",
+    {},
+    { params: Object.keys(params).length > 0 ? params : undefined },
+  );
   return data;
 };

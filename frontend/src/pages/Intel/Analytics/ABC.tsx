@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 const classificationColors = {
   A: "bg-emerald-100 text-emerald-800 border-emerald-300",
@@ -16,13 +17,14 @@ const classificationColors = {
 };
 
 export default function ABC() {
+  const accountId = useActiveAccount();
   const [searchParams, setSearchParams] = useSearchParams();
   const period = (searchParams.get("period") || "30d") as "7d" | "15d" | "30d";
   const metric = (searchParams.get("metric") || "revenue") as "revenue" | "units" | "margin";
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["abc", period, metric],
-    queryFn: () => analyticsService.getABC(period, metric),
+    queryKey: ["abc", period, metric, accountId],
+    queryFn: () => analyticsService.getABC(period, metric, accountId),
   });
 
   const handlePeriodChange = (newPeriod: "7d" | "15d" | "30d") => {

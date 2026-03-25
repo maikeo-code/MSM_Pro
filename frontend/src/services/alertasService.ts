@@ -53,8 +53,14 @@ export interface AlertEventOut {
 }
 
 const alertasService = {
-  async list(params?: { listing_id?: string; is_active?: boolean }): Promise<AlertConfigOut[]> {
-    const { data } = await api.get<AlertConfigOut[]>("/alertas/", { params });
+  async list(params?: { listing_id?: string; is_active?: boolean }, mlAccountId?: string | null): Promise<AlertConfigOut[]> {
+    const queryParams: any = { ...params };
+    if (mlAccountId) {
+      queryParams.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.get<AlertConfigOut[]>("/alertas/", {
+      params: Object.keys(queryParams).length > 0 ? queryParams : undefined,
+    });
     return data;
   },
 
@@ -77,8 +83,12 @@ const alertasService = {
     await api.delete(`/alertas/${id}`);
   },
 
-  async listEvents(days = 30): Promise<AlertEventOut[]> {
-    const { data } = await api.get<AlertEventOut[]>("/alertas/events/", { params: { days } });
+  async listEvents(days = 30, mlAccountId?: string | null): Promise<AlertEventOut[]> {
+    const params: any = { days };
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.get<AlertEventOut[]>("/alertas/events/", { params });
     return data;
   },
 

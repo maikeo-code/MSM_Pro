@@ -6,9 +6,11 @@ import { cn } from "@/lib/utils";
 
 interface AccountSelectorProps {
   className?: string;
+  /** Quando true, o botão ocupa toda a largura e sempre mostra o label (uso no sidebar mobile) */
+  fullWidth?: boolean;
 }
 
-export function AccountSelector({ className }: AccountSelectorProps) {
+export function AccountSelector({ className, fullWidth = false }: AccountSelectorProps) {
   const [accounts, setAccounts] = useState<MLAccountOut[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,29 +91,37 @@ export function AccountSelector({ className }: AccountSelectorProps) {
     <div ref={containerRef} className={cn("relative", className)}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-md bg-accent text-accent-foreground hover:bg-accent/90 transition-colors text-sm"
+        className={cn(
+          "flex items-center gap-2 px-3 py-2 rounded-md bg-accent text-accent-foreground hover:bg-accent/90 transition-colors text-sm",
+          fullWidth && "w-full",
+        )}
       >
         {isLoading ? (
           <div className="h-4 w-4 bg-muted-foreground/50 rounded animate-pulse" />
         ) : activeAccount ? (
           <>
-            <div className={cn("h-6 w-6 rounded flex items-center justify-center text-xs font-bold", getAccountBadgeColor(accounts.indexOf(activeAccount)))}>
+            <div className={cn("h-6 w-6 rounded flex items-center justify-center text-xs font-bold shrink-0", getAccountBadgeColor(accounts.indexOf(activeAccount)))}>
               {activeAccount.nickname.charAt(0).toUpperCase()}
             </div>
-            <span className="hidden sm:inline truncate max-w-[120px]">{activeAccount.nickname}</span>
+            <span className={cn("truncate", fullWidth ? "flex-1 text-left" : "hidden sm:inline max-w-[120px]")}>
+              {activeAccount.nickname}
+            </span>
           </>
         ) : (
           <>
-            <Layers className="h-4 w-4" />
-            <span className="hidden sm:inline">Todas</span>
+            <Layers className="h-4 w-4 shrink-0" />
+            <span className={cn(fullWidth ? "flex-1 text-left" : "hidden sm:inline")}>Todas as contas</span>
           </>
         )}
-        <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen ? "rotate-180" : "")} />
+        <ChevronDown className={cn("h-4 w-4 transition-transform shrink-0", isOpen ? "rotate-180" : "")} />
       </button>
 
       {/* Dropdown menu */}
       {isOpen && !isLoading && (
-        <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-popover border border-border z-50">
+        <div className={cn(
+          "absolute mt-2 rounded-md shadow-lg bg-popover border border-border z-50",
+          fullWidth ? "left-0 right-0 w-auto" : "right-0 w-56",
+        )}>
           {/* Opção "Todas as contas" */}
           <button
             onClick={() => {

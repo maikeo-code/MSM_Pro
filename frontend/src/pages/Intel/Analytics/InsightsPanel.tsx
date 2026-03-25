@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { analyticsService, type InsightItem } from "@/services/intel/analyticsService";
 import { cn } from "@/lib/utils";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 // ─── Helpers de prioridade ────────────────────────────────────────────────────
 function priorityBadge(priority: InsightItem["priority"]) {
@@ -157,13 +158,14 @@ type SortOrder = "priority" | "date";
 
 // ─── Pagina InsightsPanel ─────────────────────────────────────────────────────
 export default function InsightsPanel() {
+  const accountId = useActiveAccount();
   const queryClient = useQueryClient();
   const [sortBy, setSortBy] = useState<SortOrder>("priority");
   const [refreshing, setRefreshing] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["intel-insights"],
-    queryFn: () => analyticsService.getInsights(),
+    queryKey: ["intel-insights", accountId],
+    queryFn: () => analyticsService.getInsights(accountId),
     staleTime: 10 * 60 * 1000,
     retry: 2,
   });

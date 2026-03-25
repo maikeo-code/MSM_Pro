@@ -310,7 +310,7 @@ export default function Dashboard() {
     setSyncing(true);
     setSyncMsg(null);
     try {
-      const result = await listingsService.sync();
+      const result = await listingsService.sync(accountId);
       setSyncMsg(result.message);
       queryClient.invalidateQueries({ queryKey: ["listings"] });
       queryClient.invalidateQueries({ queryKey: ["kpi-summary"] });

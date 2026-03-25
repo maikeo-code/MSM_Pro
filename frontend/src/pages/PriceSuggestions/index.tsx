@@ -29,6 +29,7 @@ import {
   type ConversionIndex,
 } from "@/services/pricingService";
 import { formatCurrency, cn } from "@/lib/utils";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 // ─── Confidence Badge ──────────────────────────────────────────────────────────
 function ConfidenceBadge({ confidence }: { confidence: "high" | "medium" | "low" }) {
@@ -598,6 +599,7 @@ function SummaryCard({
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function PriceSuggestions() {
+  const accountId = useActiveAccount();
   const queryClient = useQueryClient();
   const [actionFilter, setActionFilter] = useState<string>("all");
   const [confidenceFilter, setConfidenceFilter] = useState<string>("all");
@@ -611,13 +613,16 @@ export default function PriceSuggestions() {
     isError,
     error,
   } = useQuery({
-    queryKey: ["pricing-recommendations", actionFilter, confidenceFilter, sortBy],
+    queryKey: ["pricing-recommendations", actionFilter, confidenceFilter, sortBy, accountId],
     queryFn: () =>
-      getRecommendations({
-        action: actionFilter !== "all" ? actionFilter : undefined,
-        confidence: confidenceFilter !== "all" ? confidenceFilter : undefined,
-        sort: sortBy,
-      }),
+      getRecommendations(
+        {
+          action: actionFilter !== "all" ? actionFilter : undefined,
+          confidence: confidenceFilter !== "all" ? confidenceFilter : undefined,
+          sort: sortBy,
+        },
+        accountId,
+      ),
     retry: 2,
   });
 

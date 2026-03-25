@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 const healthColors = {
   healthy: { bg: "bg-emerald-50", border: "border-emerald-200", icon: CheckCircle, color: "text-emerald-600" },
@@ -16,12 +17,13 @@ const healthColors = {
 };
 
 export default function InventoryHealth() {
+  const accountId = useActiveAccount();
   const [searchParams, setSearchParams] = useSearchParams();
   const period = (searchParams.get("period") || "30d") as "7d" | "15d" | "30d";
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["inventory-health", period],
-    queryFn: () => analyticsService.getInventoryHealth(period),
+    queryKey: ["inventory-health", period, accountId],
+    queryFn: () => analyticsService.getInventoryHealth(period, accountId),
   });
 
   const handlePeriodChange = (newPeriod: "7d" | "15d" | "30d") => {

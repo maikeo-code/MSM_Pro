@@ -1,21 +1,28 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import authService from "@/services/authService";
 
 interface AccountState {
   activeAccountId: string | null; // null = todas as contas
-  setActiveAccount: (id: string | null) => void;
-  clearActiveAccount: () => void;
+  setActiveAccount: (id: string | null, sync?: boolean) => void;
+  clearActiveAccount: (sync?: boolean) => void;
 }
 
 export const useAccountStore = create<AccountState>()(
   persist(
     (set) => ({
       activeAccountId: null,
-      setActiveAccount: (id) => {
+      setActiveAccount: (id, sync = true) => {
         set({ activeAccountId: id });
+        if (sync) {
+          authService.updatePreferences(id).catch(() => {});
+        }
       },
-      clearActiveAccount: () => {
+      clearActiveAccount: (sync = true) => {
         set({ activeAccountId: null });
+        if (sync) {
+          authService.updatePreferences(null).catch(() => {});
+        }
       },
     }),
     {

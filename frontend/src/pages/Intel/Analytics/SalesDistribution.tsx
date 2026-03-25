@@ -8,6 +8,7 @@ import {
 import { PieChart, Info } from "lucide-react";
 import { analyticsService, type DistributionItem } from "@/services/intel/analyticsService";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 // ─── Period selector ──────────────────────────────────────────────────────────
 const PERIOD_OPTIONS = [
@@ -160,11 +161,12 @@ function GiniBadge({ gini }: { gini: number }) {
 
 // ─── Pagina SalesDistribution ─────────────────────────────────────────────────
 export default function SalesDistribution() {
+  const accountId = useActiveAccount();
   const [period, setPeriod] = useState<PeriodValue>(30);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["intel-distribution", period],
-    queryFn: () => analyticsService.getDistribution(period),
+    queryKey: ["intel-distribution", period, accountId],
+    queryFn: () => analyticsService.getDistribution(period, accountId),
     staleTime: 10 * 60 * 1000,
     retry: 2,
   });

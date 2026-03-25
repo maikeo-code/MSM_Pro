@@ -29,7 +29,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
+import { useAccountStore } from "@/store/accountStore";
 import { AccountSelector } from "@/components/AccountSelector";
+import authService from "@/services/authService";
 
 // ─── Secao principal do menu com agrupamento semantico ──────────────────────
 const menuSections = [
@@ -213,6 +215,8 @@ function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const { isAuthenticated } = useAuthStore();
+  const { activeAccountId, setActiveAccount } = useAccountStore();
 
   // Sincronizar dark mode com localStorage
   useEffect(() => {
@@ -222,6 +226,20 @@ export default function Layout() {
       document.documentElement.classList.add("dark");
     }
   }, []);
+
+  // Carregar preferência de conta ativa do backend (fire-and-forget, sem sync de volta)
+  useEffect(() => {
+    if (isAuthenticated && !activeAccountId) {
+      authService
+        .getPreferences()
+        .then((pref) => {
+          if (pref.active_ml_account_id) {
+            setActiveAccount(pref.active_ml_account_id, false);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleDarkMode = () => {
     const newDarkMode = !darkMode;
@@ -272,6 +290,11 @@ export default function Layout() {
 
         {/* Nav — scrollavel para acomodar todos os itens */}
         <nav className="flex-1 py-4 px-3 space-y-4 overflow-y-auto">
+          {/* AccountSelector no sidebar — visivel apenas em mobile */}
+          <div className="md:hidden pb-2 border-b border-border">
+            <AccountSelector fullWidth />
+          </div>
+
           {/* Menu principal com agrupamento */}
           {menuSections.map((section) => (
             <div key={section.section}>

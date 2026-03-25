@@ -17,6 +17,7 @@ import reputacaoService, {
   type ReputationRisk,
   type RiskItem,
 } from "@/services/reputacaoService";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 // --- Helpers ---
 
@@ -324,6 +325,7 @@ function RiskSimulatorSection({ risk, loading, error }: { risk: ReputationRisk |
 // --- Pagina principal ---
 
 export default function Reputacao() {
+  const accountId = useActiveAccount();
   const [reputation, setReputation] = useState<ReputationCurrent | null>(null);
   const [history, setHistory] = useState<ReputationSnapshot[]>([]);
   const [risk, setRisk] = useState<ReputationRisk | null>(null);
@@ -334,11 +336,11 @@ export default function Reputacao() {
   const [error, setError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  const fetchRisk = async () => {
+  const fetchRisk = async (mlAccountId?: string | null) => {
     setLoadingRisk(true);
     setErrorRisk(false);
     try {
-      const data = await reputacaoService.getRiskSimulator();
+      const data = await reputacaoService.getRiskSimulator(mlAccountId ?? undefined);
       setRisk(data);
     } catch {
       setErrorRisk(true);
@@ -347,13 +349,13 @@ export default function Reputacao() {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (mlAccountId?: string | null) => {
     setLoading(true);
     setError(null);
     try {
       const [current, hist] = await Promise.all([
-        reputacaoService.getCurrent(),
-        reputacaoService.getHistory(60),
+        reputacaoService.getCurrent(mlAccountId ?? undefined),
+        reputacaoService.getHistory(60, mlAccountId ?? undefined),
       ]);
       setReputation(current);
       setHistory(hist);
@@ -366,16 +368,16 @@ export default function Reputacao() {
   };
 
   useEffect(() => {
-    fetchData();
-    fetchRisk();
-  }, []);
+    fetchData(accountId);
+    fetchRisk(accountId);
+  }, [accountId]);
 
   const handleSync = async () => {
     setSyncing(true);
     setSyncError(null);
     try {
-      await reputacaoService.sync();
-      await fetchData();
+      await reputacaoService.sync(accountId ?? undefined);
+      await fetchData(accountId);
     } catch {
       setSyncError("Erro ao sincronizar reputacao. Tente novamente.");
     } finally {
@@ -398,7 +400,7 @@ export default function Reputacao() {
           <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
           <p className="text-red-700">{error}</p>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(accountId)}
             className="mt-3 text-sm text-red-600 underline hover:text-red-800"
           >
             Tentar novamente

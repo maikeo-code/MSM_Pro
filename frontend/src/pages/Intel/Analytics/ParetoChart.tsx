@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { analyticsService, type ParetoItem } from "@/services/intel/analyticsService";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 // ─── Period selector ──────────────────────────────────────────────────────────
 const PERIOD_OPTIONS = [
@@ -139,11 +140,12 @@ function ParetoTooltip({
 
 // ─── Pagina ParetoChart ───────────────────────────────────────────────────────
 export default function ParetoChart() {
+  const accountId = useActiveAccount();
   const [period, setPeriod] = useState<PeriodValue>(30);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["intel-pareto", period],
-    queryFn: () => analyticsService.getPareto(period),
+    queryKey: ["intel-pareto", period, accountId],
+    queryFn: () => analyticsService.getPareto(period, accountId),
     staleTime: 10 * 60 * 1000,
     retry: 2,
   });

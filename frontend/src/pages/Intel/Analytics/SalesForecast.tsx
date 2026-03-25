@@ -20,6 +20,7 @@ import {
 import { analyticsService, type ForecastPoint } from "@/services/intel/analyticsService";
 import listingsService from "@/services/listingsService";
 import { formatPercent, cn } from "@/lib/utils";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 // ─── Opcoes de historico ───────────────────────────────────────────────────────
 const HISTORY_OPTIONS = [
@@ -109,13 +110,14 @@ function buildChartData(
 
 // ─── Pagina SalesForecast ─────────────────────────────────────────────────────
 export default function SalesForecast() {
+  const accountId = useActiveAccount();
   const [selectedMlbId, setSelectedMlbId] = useState<string>("");
   const [history, setHistory] = useState<HistoryValue>(60);
 
   // Busca listagens para o dropdown
   const { data: listings } = useQuery({
-    queryKey: ["listings", "today"],
-    queryFn: () => listingsService.list("today"),
+    queryKey: ["listings", "today", accountId],
+    queryFn: () => listingsService.list("today", accountId),
     staleTime: 60 * 1000,
     retry: 2,
   });
@@ -124,8 +126,8 @@ export default function SalesForecast() {
 
   // Busca forecast quando um MLB esta selecionado
   const { data: forecast, isLoading, isError } = useQuery({
-    queryKey: ["intel-forecast", selectedMlbId, history],
-    queryFn: () => analyticsService.getForecast(selectedMlbId, history),
+    queryKey: ["intel-forecast", selectedMlbId, history, accountId],
+    queryFn: () => analyticsService.getForecast(selectedMlbId, history, accountId),
     staleTime: 10 * 60 * 1000,
     enabled: !!selectedMlbId,
     retry: 2,

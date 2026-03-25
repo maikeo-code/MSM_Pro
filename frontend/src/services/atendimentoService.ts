@@ -57,20 +57,37 @@ export interface AISuggestionResponse {
 }
 
 export const atendimentoService = {
-  getAll: (params?: {
-    type?: string;
-    status?: string;
-    offset?: number;
-    limit?: number;
-  }) =>
-    api
-      .get<AtendimentoListResponse>('/atendimento/', { params })
-      .then((r) => r.data),
+  getAll: (
+    params?: {
+      type?: string;
+      status?: string;
+      offset?: number;
+      limit?: number;
+    },
+    mlAccountId?: string | null,
+  ) => {
+    const queryParams: any = { ...params };
+    if (mlAccountId) {
+      queryParams.ml_account_id = mlAccountId;
+    }
+    return api
+      .get<AtendimentoListResponse>('/atendimento/', {
+        params: Object.keys(queryParams).length > 0 ? queryParams : undefined,
+      })
+      .then((r) => r.data);
+  },
 
-  getStats: () =>
-    api
-      .get<AtendimentoStatsRaw>('/atendimento/stats')
-      .then((r) => mapStats(r.data)),
+  getStats: (mlAccountId?: string | null) => {
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    return api
+      .get<AtendimentoStatsRaw>('/atendimento/stats', {
+        params: Object.keys(params).length > 0 ? params : undefined,
+      })
+      .then((r) => mapStats(r.data));
+  },
 
   respond: (
     itemType: string,

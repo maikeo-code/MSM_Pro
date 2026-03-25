@@ -83,3 +83,37 @@ class MLAccount(Base):
 
     def __repr__(self) -> str:
         return f"<MLAccount id={self.id} nickname={self.nickname}>"
+
+
+class UserPreference(Base):
+    __tablename__ = "user_preferences"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    active_ml_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("ml_accounts.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship("User", backref="preferences")
+    active_ml_account: Mapped["MLAccount | None"] = relationship("MLAccount")
+
+    def __repr__(self) -> str:
+        return f"<UserPreference user_id={self.user_id} active_ml_account_id={self.active_ml_account_id}>"

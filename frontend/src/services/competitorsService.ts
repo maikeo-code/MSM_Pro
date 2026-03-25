@@ -32,13 +32,25 @@ export interface CompetitorHistory {
 }
 
 const competitorsService = {
-  async list(): Promise<CompetitorOut[]> {
-    const { data } = await api.get<CompetitorOut[]>("/competitors/");
+  async list(mlAccountId?: string | null): Promise<CompetitorOut[]> {
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.get<CompetitorOut[]>("/competitors/", {
+      params: Object.keys(params).length > 0 ? params : undefined,
+    });
     return data;
   },
 
-  async listByListing(listingId: string): Promise<CompetitorOut[]> {
-    const { data } = await api.get<CompetitorOut[]>(`/competitors/listing/${listingId}`);
+  async listByListing(listingId: string, mlAccountId?: string | null): Promise<CompetitorOut[]> {
+    const params: any = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.get<CompetitorOut[]>(`/competitors/listing/${listingId}`, {
+      params: Object.keys(params).length > 0 ? params : undefined,
+    });
     return data;
   },
 

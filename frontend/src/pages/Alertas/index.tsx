@@ -10,6 +10,7 @@ import alertasService, {
 import listingsService from "@/services/listingsService";
 import { formatCurrency, formatDateTime, cn } from "@/lib/utils";
 import { EmptyState } from "@/components/EmptyState";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 // -------------------------------------------------------
 // Helpers de display
@@ -244,23 +245,24 @@ function AlertForm({
 
 export default function Alertas() {
   const queryClient = useQueryClient();
+  const accountId = useActiveAccount();
   const [showCreate, setShowCreate] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
   const [filterSeverity, setFilterSeverity] = React.useState<Severity | "all">("all");
 
   const { data: alertas = [], isLoading, error } = useQuery({
-    queryKey: ["alertas"],
-    queryFn: () => alertasService.list(),
+    queryKey: ["alertas", accountId],
+    queryFn: () => alertasService.list(undefined, accountId),
   });
 
   const { data: events = [], isLoading: eventsLoading } = useQuery({
-    queryKey: ["alerta-events"],
-    queryFn: () => alertasService.listEvents(30),
+    queryKey: ["alerta-events", accountId],
+    queryFn: () => alertasService.listEvents(30, accountId),
   });
 
   const { data: listings = [] } = useQuery({
-    queryKey: ["listings"],
-    queryFn: () => listingsService.list(),
+    queryKey: ["listings", accountId],
+    queryFn: () => listingsService.list("today", accountId),
   });
 
   const createMutation = useMutation({

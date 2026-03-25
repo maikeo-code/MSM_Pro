@@ -1,7 +1,7 @@
 /**
  * Service para gerenciar templates de resposta rápida no módulo de Atendimento.
  */
-import { api } from "./api";
+import api from "./api";
 
 export interface ResponseTemplate {
   id: string;

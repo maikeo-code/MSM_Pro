@@ -29,6 +29,10 @@ export interface MLConnectURL {
   message: string;
 }
 
+export interface UserPreferences {
+  active_ml_account_id: string | null;
+}
+
 const authService = {
   async register(email: string, password: string): Promise<UserOut> {
     const { data } = await api.post<UserOut>("/auth/register", { email, password });
@@ -68,6 +72,15 @@ const authService = {
 
   async deleteMLAccount(accountId: string): Promise<void> {
     await api.delete(`/auth/ml/accounts/${accountId}`);
+  },
+
+  async getPreferences(): Promise<UserPreferences> {
+    const { data } = await api.get<UserPreferences>("/auth/preferences");
+    return data;
+  },
+
+  async updatePreferences(activeMLAccountId: string | null): Promise<void> {
+    await api.put("/auth/preferences", { active_ml_account_id: activeMLAccountId });
   },
 };
 

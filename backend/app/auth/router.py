@@ -7,9 +7,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import service
-from app.auth.models import MLAccount, User
+from app.auth.models import MLAccount, User, UserPreference
 from app.auth.oauth_state import generate_oauth_state, verify_oauth_state
-from app.auth.schemas import MLAccountOut, MLConnectURL, Token, UserCreate, UserLogin, UserOut
+from app.auth.schemas import (
+    MLAccountOut,
+    MLConnectURL,
+    Token,
+    UserCreate,
+    UserLogin,
+    UserOut,
+    UserPreferenceOut,
+    UserPreferenceUpdate,
+)
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
@@ -274,3 +283,53 @@ async def delete_ml_account(
 
     account.is_active = False
     await db.commit()
+
+
+@router.get("/preferences", response_model=UserPreferenceOut)
+async def get_preferences(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Retorna as preferências do usuário autenticado."""
+    result = await db.execute(
+        select(UserPreference).where(UserPreference.user_id == current_user.id)
+    )
+    pref = result.scalar_one_or_none()
+    if not pref:
+        return UserPreferenceOut()
+    return pref
+
+
+@router.put("/preferences", response_model=UserPreferenceOut)
+async def update_preferences(
+    data: UserPreferenceUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Atualiza as preferências do usuário (ex: conta ML ativa)."""
+    # Se active_ml_account_id foi informado, verificar que pertence ao usuário
+    if data.active_ml_account_id is not None:
+        account_result = await db.execute(
+            select(MLAccount).where(
+                MLAccount.id == data.active_ml_account_id,
+                MLAccount.user_id == current_user.id,
+                MLAccount.is_active == True,  # noqa: E712
+            )
+        )
+        if not account_result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conta ML não encontrada ou inativa",
+            )
+
+    result = await db.execute(
+        select(UserPreference).where(UserPreference.user_id == current_user.id)
+    )
+    pref = result.scalar_one_or_none()
+    if not pref:
+        pref = UserPreference(user_id=current_user.id)
+        db.add(pref)
+    pref.active_ml_account_id = data.active_ml_account_id
+    await db.commit()
+    await db.refresh(pref)
+    return pref

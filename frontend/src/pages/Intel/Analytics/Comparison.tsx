@@ -7,14 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 export default function Comparison() {
+  const accountId = useActiveAccount();
   const [searchParams, setSearchParams] = useSearchParams();
   const period = (searchParams.get("period") || "30d") as "7d" | "15d" | "30d";
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["comparison", period],
-    queryFn: () => analyticsService.getComparison(period),
+    queryKey: ["comparison", period, accountId],
+    queryFn: () => analyticsService.getComparison(period, accountId),
   });
 
   const handlePeriodChange = (newPeriod: "7d" | "15d" | "30d") => {

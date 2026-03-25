@@ -19,6 +19,7 @@ import {
 } from "@/services/atendimentoService";
 import { SLABadge, calculateHoursRemaining } from "./components";
 import { TemplatesModal } from "./components/TemplatesModal";
+import { useActiveAccount } from "@/hooks/useActiveAccount";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -424,21 +425,22 @@ const PENDING_STATUSES = new Set([
 // ─── Pagina Principal ─────────────────────────────────────────────────────────
 
 export default function Atendimento() {
+  const accountId = useActiveAccount();
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("todos");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pendentes");
   const [modalItem, setModalItem] = useState<AtendimentoItem | null>(null);
 
   // Stats query
   const { data: stats } = useQuery<AtendimentoStats>({
-    queryKey: ["atendimento-stats"],
-    queryFn: () => atendimentoService.getStats(),
+    queryKey: ["atendimento-stats", accountId],
+    queryFn: () => atendimentoService.getStats(accountId),
     staleTime: 2 * 60 * 1000,
   });
 
   // Lista query — busca todos, filtramos client-side
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["atendimento"],
-    queryFn: () => atendimentoService.getAll({ limit: 100 }),
+    queryKey: ["atendimento", accountId],
+    queryFn: () => atendimentoService.getAll({ limit: 100 }, accountId),
     staleTime: 2 * 60 * 1000,
   });
 

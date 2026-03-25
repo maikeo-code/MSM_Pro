@@ -47,3 +47,13 @@ class MLAccountOut(BaseModel):
 class MLConnectURL(BaseModel):
     auth_url: str
     message: str = "Acesse a URL para autorizar a conta do Mercado Livre"
+
+
+class UserPreferenceOut(BaseModel):
+    active_ml_account_id: UUID | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class UserPreferenceUpdate(BaseModel):
+    active_ml_account_id: UUID | None = None
