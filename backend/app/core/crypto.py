@@ -63,15 +63,23 @@ class EncryptedString(TypeDecorator):
         self.impl = String(length)
 
     def process_bind_param(self, value, dialect):
-        """Encrypt before writing to DB."""
+        """Encrypt before writing to DB.
+
+        CRITICAL: Never store plaintext on write. Fail loudly to prevent security breach.
+        """
         if value is None:
             return None
         try:
             f = _get_fernet()
             return f.encrypt(value.encode("utf-8")).decode("utf-8")
-        except Exception:
-            logger.warning("Failed to encrypt token, storing as-is")
-            return value
+        except Exception as exc:
+            logger.error(
+                f"Failed to encrypt token - encryption key may be invalid or corrupted. "
+                f"Error: {exc}. Check ENCRYPTION_KEY setting."
+            )
+            raise ValueError(
+                "Failed to encrypt token - check ENCRYPTION_KEY configuration"
+            ) from exc
 
     def process_result_value(self, value, dialect):
         """Decrypt after reading from DB. Falls back to raw value for legacy plaintext."""
