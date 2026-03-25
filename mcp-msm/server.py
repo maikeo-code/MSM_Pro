@@ -108,18 +108,18 @@ async def _dispatch(conn, name: str, args: dict) -> Any:
         dias   = args.get("dias", 30)
         rows = await conn.fetch("""
             SELECT
-                ls.data,
-                ls.preco,
-                ls.visitas,
-                ls.vendas,
-                ls.perguntas,
-                ls.estoque,
-                ROUND((ls.vendas::numeric / NULLIF(ls.visitas, 0)) * 100, 2) AS conversao_pct
+                ls.captured_at,
+                ls.price,
+                ls.visits,
+                ls.sales_today,
+                ls.questions,
+                ls.stock,
+                ROUND((ls.sales_today::numeric / NULLIF(ls.visits, 0)) * 100, 2) AS conversao_pct
             FROM listing_snapshots ls
             JOIN listings l ON l.id = ls.listing_id
             WHERE l.mlb_id = $1
-              AND ls.data >= CURRENT_DATE - $2::int
-            ORDER BY ls.data DESC
+              AND ls.captured_at >= CURRENT_DATE - $2::int
+            ORDER BY ls.captured_at DESC
         """, mlb_id, dias)
         return [dict(r) for r in rows]
 
@@ -151,17 +151,17 @@ async def _dispatch(conn, name: str, args: dict) -> Any:
         mlb_id = args["mlb_id"]
         rows = await conn.fetch("""
             SELECT
-                c.mlb_id_concorrente,
-                cs.preco AS ultimo_preco,
-                cs.visitas AS ultimas_visitas,
-                cs.vendas_delta AS vendas_estimadas_dia,
-                cs.data AS data_snapshot
+                c.mlb_id AS mlb_id_concorrente,
+                cs.price AS ultimo_preco,
+                cs.visits AS ultimas_visitas,
+                cs.sales_delta AS vendas_estimadas_dia,
+                cs.captured_at AS data_snapshot
             FROM competitors c
             JOIN listings l ON l.id = c.listing_id
             LEFT JOIN competitor_snapshots cs ON cs.competitor_id = c.id
-                AND cs.data = (SELECT MAX(data) FROM competitor_snapshots WHERE competitor_id = c.id)
+                AND cs.captured_at = (SELECT MAX(captured_at) FROM competitor_snapshots WHERE competitor_id = c.id)
             WHERE l.mlb_id = $1
-            ORDER BY cs.preco ASC
+            ORDER BY cs.price ASC
         """, mlb_id)
         return [dict(r) for r in rows]
 
@@ -194,10 +194,10 @@ async def _dispatch(conn, name: str, args: dict) -> Any:
                 (SELECT COUNT(*) FROM ml_accounts WHERE ativo = true)   AS contas_ativas,
                 (SELECT COUNT(*) FROM products)                          AS total_skus,
                 (SELECT COUNT(*) FROM listings WHERE status = 'active') AS anuncios_ativos,
-                (SELECT COUNT(*) FROM listing_snapshots WHERE data = CURRENT_DATE) AS snapshots_hoje,
+                (SELECT COUNT(*) FROM listing_snapshots WHERE captured_at::date = CURRENT_DATE) AS snapshots_hoje,
                 (SELECT COUNT(*) FROM competitors)                       AS concorrentes_monitorados,
                 (SELECT COUNT(*) FROM alert_configs WHERE ativo = true) AS alertas_ativos,
-                (SELECT MAX(data) FROM listing_snapshots)               AS ultimo_snapshot
+                (SELECT MAX(captured_at) FROM listing_snapshots)        AS ultimo_snapshot
         """)
         return dict(row)
 

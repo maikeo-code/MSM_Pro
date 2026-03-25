@@ -349,7 +349,7 @@ export default function Dashboard() {
   const totalReceita = filteredListings.reduce((sum, l) => sum + (l.last_snapshot?.revenue ?? 0), 0);
   const totalEstoque = filteredListings.reduce((sum, l) => sum + (l.last_snapshot?.stock ?? 0), 0);
   const totalEstoqueValor = filteredListings.reduce((sum, l) => {
-    const preco = l.sale_price ?? l.price;
+    const preco = l.price;
     const estoque = l.last_snapshot?.stock ?? 0;
     return sum + preco * estoque;
   }, 0);
@@ -697,7 +697,7 @@ export default function Dashboard() {
               ) : (
                 <>
                   {filteredListings.map((listing) => {
-                    const effectivePrice = listing.sale_price ?? listing.price;
+                    const effectivePrice = listing.price;
                     const snap = listing.last_snapshot;
                     const pedidos = snap?.orders_count ?? snap?.sales_today ?? 0;
                     const unidades = snap?.sales_today ?? 0;

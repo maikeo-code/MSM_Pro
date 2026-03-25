@@ -46,7 +46,7 @@ def _calculate_health_score(
         checks.append({"item": "Imagens do anúncio", "ok": False, "points": 0, "max": 15, "action": "Adicione fotos de qualidade ao anúncio (ideal: >5 fotos)"})
 
     # 3. Preço competitivo (vs concorrente) = +10pts
-    current_price = float(getattr(listing, 'sale_price', None) or getattr(listing, 'price', 0) or 0)
+    current_price = float(getattr(listing, 'price', 0) or 0)
     if competitor_price and current_price > 0:
         if current_price <= competitor_price * 1.05:
             score += 10

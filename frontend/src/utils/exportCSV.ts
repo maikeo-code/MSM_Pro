@@ -14,7 +14,7 @@ export function exportCSV(listings: ListingOut[], includeType = false): void {
 
   const rows = listings.map((l) => {
     const snap = l.last_snapshot;
-    const effectivePrice = l.sale_price ?? l.price;
+    const effectivePrice = l.price;
     const unidades = snap?.sales_today ?? 0;
     const receita = snap?.revenue ?? unidades * effectivePrice;
 

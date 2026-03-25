@@ -120,6 +120,21 @@ async def _sync_competitor_snapshots_async():
                     client = MLClient(account.access_token, ml_account_id=str(account.id))
                     try:
                         item_data = await client.get_item(comp.mlb_id)
+
+                        # Tentar preço real via /sale_price (pode falhar para itens de terceiros)
+                        used_sale_price_endpoint = False
+                        try:
+                            sp_response = await client.get_item_sale_price(comp.mlb_id)
+                            if sp_response and sp_response.get("amount") is not None:
+                                current_price = Decimal(str(sp_response["amount"]))
+                                used_sale_price_endpoint = True
+                                logger.debug(
+                                    f"Concorrente {comp.mlb_id}: preço via /sale_price "
+                                    f"= {current_price}"
+                                )
+                        except Exception:
+                            pass
+
                     except MLClientError as e:
                         logger.warning(
                             f"Erro ML ao buscar concorrente {comp.mlb_id}: {e}"
@@ -129,19 +144,21 @@ async def _sync_competitor_snapshots_async():
                     finally:
                         await client.close()
 
-                    current_price = Decimal(str(item_data.get("price", 0)))
+                    # Fallback: lógica legada usando campos do /items
+                    if not used_sale_price_endpoint:
+                        current_price = Decimal(str(item_data.get("price", 0)))
 
-                    # Extrai sale_price se disponível (promoção marketplace)
-                    sale_price_data = item_data.get("sale_price")
-                    sale_price_val = None
-                    if sale_price_data and isinstance(sale_price_data, dict):
-                        sp_amount = sale_price_data.get("amount")
-                        if sp_amount is not None:
-                            sale_price_val = Decimal(str(sp_amount))
+                        # Extrai sale_price se disponível (promoção marketplace)
+                        sale_price_data = item_data.get("sale_price")
+                        sale_price_val = None
+                        if sale_price_data and isinstance(sale_price_data, dict):
+                            sp_amount = sale_price_data.get("amount")
+                            if sp_amount is not None:
+                                sale_price_val = Decimal(str(sp_amount))
 
-                    # Se sale_price é menor que price, usar sale_price como preço efetivo
-                    if sale_price_val is not None and current_price > sale_price_val:
-                        current_price = sale_price_val
+                        # Se sale_price é menor que price, usar sale_price como preço efetivo
+                        if sale_price_val is not None and current_price > sale_price_val:
+                            current_price = sale_price_val
 
                     current_sold = item_data.get("sold_quantity", 0) or 0
 

@@ -313,7 +313,7 @@ async def list_listings(
         # voce_recebe
         voce_recebe: float | None = None
         if listing.price and float(listing.price) > 0:
-            preco = float(listing.sale_price or listing.price)
+            preco = float(listing.price)
             if listing.sale_fee_pct and float(listing.sale_fee_pct) > 0:
                 taxa_pct = float(listing.sale_fee_pct)
             else:

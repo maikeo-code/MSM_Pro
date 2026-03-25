@@ -78,7 +78,7 @@ export default function Anuncios() {
   const totalUnidades = filteredListings.reduce((sum, l) => sum + (l.last_snapshot?.sales_today ?? 0), 0);
   const totalReceita = filteredListings.reduce((sum, l) => {
     const snap = l.last_snapshot;
-    const effectivePrice = l.sale_price ?? l.price;
+    const effectivePrice = l.price;
     return sum + (snap?.revenue ?? ((snap?.sales_today ?? 0) * effectivePrice));
   }, 0);
   const totalEstoque = filteredListings.reduce((sum, l) => sum + (l.last_snapshot?.stock ?? 0), 0);
@@ -87,7 +87,7 @@ export default function Anuncios() {
   const avgPrecoMedio = totalUnidades > 0 ? totalReceita / totalUnidades : 0;
   const avgPrecoMedioPorVenda = totalPedidos > 0 ? totalReceita / totalPedidos : 0;
   const totalEstoqueValor = filteredListings.reduce((sum, l) => {
-    const preco = l.sale_price ?? l.price;
+    const preco = l.price;
     const estoque = l.last_snapshot?.stock ?? 0;
     return sum + preco * estoque;
   }, 0);
@@ -256,8 +256,8 @@ export default function Anuncios() {
               ) : (
                 <>
                   {filteredListings.map((listing) => {
-                    const effectivePrice = listing.sale_price ?? listing.price;
-                    const origPrice = listing.original_price ?? (listing.sale_price != null && listing.sale_price < listing.price ? listing.price : null);
+                    const effectivePrice = listing.price;
+                    const origPrice = listing.original_price;
                     const hasDiscount = origPrice != null && Number(origPrice) > Number(effectivePrice);
                     const snap = listing.last_snapshot;
                     const pedidos = snap?.orders_count ?? snap?.sales_today ?? 0;
