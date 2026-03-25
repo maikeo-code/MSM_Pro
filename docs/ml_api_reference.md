@@ -19,52 +19,157 @@ Retorna todos os dados de um anuncio.
 
 **Parametros:** nenhum obrigatorio (pode adicionar `?attributes=all` para mais campos)
 
-**Resposta real (campos que usamos):**
+**Resposta real (MLB6205732214 — validado 2026-03-25):**
 ```json
 {
-  "id": "MLB1234567890",
-  "title": "Produto Exemplo",
-  "price": 129.90,
-  "original_price": 159.90,
+  "id": "MLB6205732214",
+  "title": "Cesto De Roupa Suja Separador Organizador Dobravel Multiuso",
+  "price": 50.7,
+  "base_price": 50.7,
+  "original_price": 84.5,
   "sale_price": null,
-  "available_quantity": 42,
-  "sold_quantity": 318,
+  "sale_conditions": null,
+  "promotions": null,
+  "deal_ids": [],
+  "available_quantity": 15,
+  "sold_quantity": 263,
   "status": "active",
-  "listing_type_id": "gold_pro",
-  "permalink": "https://www.mercadolivre.com.br/...",
-  "thumbnail": "http://http2.mlstatic.com/D_...",
+  "listing_type_id": "gold_special",
+  "tags": ["standard_price_by_quantity", "catalog_boost", "immediate_payment", "cart_eligible"],
+  "catalog_listing": true,
+  "catalog_product_id": "MLB62743947",
   "seller_id": 2050442871,
-  "category_id": "MLB12345",
+  "category_id": "MLB269766",
   "condition": "new",
-  "date_created": "2024-01-15T10:30:00.000Z",
-  "last_updated": "2026-03-12T14:00:00.000Z",
   "shipping": {
-    "free_shipping": true,
     "mode": "me2",
-    "logistic_type": "fulfillment"
-  }
+    "logistic_type": "fulfillment",
+    "free_shipping": false,
+    "local_pick_up": false
+  },
+  "item_relations": [{"id": "MLB4071282513", "variation_id": 188076460991}]
 }
 ```
 
-**Campos importantes:**
+---
+
+### HIERARQUIA DE PRECOS — EXPLICACAO COMPLETA (validado 2026-03-25)
+
+#### Campos de preco no /items/{id}
+
+| Campo | Tipo | Nullable | Descricao | Quando presente |
+|-------|------|----------|-----------|-----------------|
+| `price` | float | Nunca | Preco ATUAL que o comprador paga na tela | SEMPRE |
+| `base_price` | float | Nunca | Preco base do anuncio ANTES de qualquer desconto | SEMPRE |
+| `original_price` | float | Sim | Preco cheio (riscado) quando vendedor aplica desconto proprio | Quando vendedor cria desconto |
+| `sale_price` | object/null | Sim | Objeto com `amount`, `currency_id`. Promoco do MARKETPLACE (ML cria, nao o vendedor) | RARAMENTE — so campanhas do ML |
+| `sale_conditions` | null | Sim | Campo legado — nunca visto populado em 2026 | Quase nunca |
+| `promotions` | null | Sim | Campo legado — nunca visto populado em 2026 | Quase nunca |
+| `deal_ids` | list | Sim | IDs de deals do marketplace. Lista vazia `[]` quando nao tem deal ativo | SEMPRE (lista vazia ou preenchida) |
+| `tags` | list | Sim | Tags do anuncio (catalog_boost, immediate_payment, etc.) | SEMPRE |
+
+#### Regra de interpretacao de precos
+
+```
+CASO 1 — Sem promocao (o mais comum):
+  price = 50.70   (preco de venda)
+  base_price = 50.70
+  original_price = null
+  => O comprador paga: price
+
+CASO 2 — Desconto proprio do vendedor (ex: SELLER_CAMPAIGN):
+  price = 50.70   (preco com desconto)
+  base_price = 84.50 (pode variar)
+  original_price = 84.50   (preco cheio, aparece RISCADO na tela)
+  sale_price = null   (NAO eh usado para desconto do vendedor!)
+  => O comprador paga: price
+  => Preco cheio (riscado) = original_price
+
+CASO 3 — Campanha do MARKETPLACE (ML cria a promocao):
+  price = 50.70   (preco base do vendedor)
+  original_price = null (ou preco anterior)
+  sale_price = {"amount": 45.00, "currency_id": "BRL", ...}
+  => O comprador paga: sale_price.amount
+  => Para calcular preco efetivo: usar sale_price.amount quando sale_price != null E sale_price.amount < price
+
+CASO 4 — Anuncio do MLB6205732214 (situacao REAL em 2026-03-25):
+  price = 50.70          (preco de venda ATUAL — com desconto do vendedor ATIVO)
+  base_price = 50.70     (igual ao price quando promocao ja esta aplicada)
+  original_price = 84.50 (preco cheio riscado)
+  sale_price = null
+  => O comprador paga: 50.70
+  => Preco cheio = 84.50
+  => Desconto = 40.1%
+```
+
+#### O que e o preco R$57,18 / R$57,38?
+
+Esses valores aparecem no endpoint `/seller-promotions/items/{id}` (nao em /items):
+- `P-MLB17129028` (SMART, status=started): preco sugerido para campanha "Aumente suas vendas" = R$57,38
+- `P-MLB17313012` (SMART, status=candidate): campanha futura = R$57,38
+- `C-MLB3450113` (SELLER_CAMPAIGN, status=started): campanha "ate 09 abril" = R$63,38
+
+O preco R$57,38 e o preco que ficaria ativo SE o vendedor aderisse a campanha SMART do ML.
+O preco atual (que o comprador paga de fato) e R$50,70 — conforme `price` no /items/{id}.
+
+IMPORTANTE: O nosso sistema salva `price = 50.70` corretamente.
+O `original_price = 84.50` esta correto (preco cheio riscado).
+NAO ha discrepancia no banco — o preco correto esta salvo.
+
+#### O que usar para "preco que o comprador paga"?
+
+```python
+# LOGICA CORRETA (ja implementada em service_sync.py):
+price = item["price"]  # preco base de venda
+
+# Se ML criou uma campanah marketplace (raro):
+sale_price_data = item.get("sale_price")
+if sale_price_data and isinstance(sale_price_data, dict):
+    sp_amount = sale_price_data.get("amount")
+    if sp_amount and float(sp_amount) < float(price):
+        price = sp_amount  # comprador paga sale_price.amount
+
+# Preco cheio (riscado):
+original_price = item.get("original_price")  # None se sem desconto
+```
+
+---
+
+### Campos importantes
+
 | Campo | Tipo | Nullable | Descricao |
 |-------|------|----------|-----------|
-| `price` | float | Nao | Preco ATUAL de venda (ja com desconto se houver) |
-| `original_price` | float | **Sim** | Preco antes do desconto do VENDEDOR. Null se sem desconto. |
-| `sale_price` | object/null | **Sim** | Objeto com `amount`, `currency_id` etc. So para promocoes do MARKETPLACE. Raramente presente para promocoes do vendedor. |
+| `price` | float | Nao | Preco ATUAL de venda — o que o comprador paga |
+| `base_price` | float | Nao | Preco base antes de qualquer desconto (igual a price quando promocao ja aplicada) |
+| `original_price` | float | **Sim** | Preco antes do desconto do VENDEDOR. Null se sem desconto. Aparece riscado na tela. |
+| `sale_price` | object/null | **Sim** | Objeto com `amount`. So para promocoes do MARKETPLACE (ML cria). sale_price.amount e o preco final quando presente. |
+| `sale_conditions` | null | **Sim** | Campo legado, raramente preenchido |
+| `promotions` | null | **Sim** | Campo legado, raramente preenchido |
+| `deal_ids` | list | Nao | IDs de deals ativos. Lista vazia quando nao tem deal. |
 | `available_quantity` | int | Nao | Estoque disponivel |
-| `sold_quantity` | int | Nao | Total vendido (historico, cresce monotonicamente) |
-| `listing_type_id` | string | Nao | `"gold_special"` (classico), `"gold_pro"` (premium), `"gold_pro"` + fulfillment (full) |
+| `sold_quantity` | int | Nao | Total vendido historico (cresce monotonicamente, NAO e vendas do dia) |
+| `listing_type_id` | string | Nao | `"gold_special"` (classico), `"gold_pro"` (premium) |
 | `status` | string | Nao | `"active"`, `"paused"`, `"closed"`, `"under_review"` |
+| `catalog_listing` | bool | Nao | Se o anuncio e de catalogo ML |
+| `item_relations` | list | Sim | Anuncios relacionados (variantes de catalogo) |
+
+**ATENCAO — Bug de listing_type confirmado (2026-03-25):**
+- MLB6205732214 retorna `listing_type_id: "gold_special"` E `shipping.logistic_type: "fulfillment"`
+- O banco salva como `listing_type: "full"` (correto pela logica do service_sync.py)
+- A logica atual e: `"gold_pro" + fulfillment = full`. Mas este anuncio e `"gold_special" + fulfillment`
+- CONCLUSAO: Um anuncio `"gold_special"` pode ter fulfillment (frete Full) mas a taxa seria de Classico (~11.5%), nao Premium
+- A classificacao como "full" esta incorreta para este caso especifico
 
 **Gotchas:**
-- `sale_price` e um OBJETO, nao float. Acessar via `sale_price.amount` se presente.
-- Para saber se e Full: checar `shipping.logistic_type == "fulfillment"`
-- `listing_type_id`: "gold_special" = classico, "gold_pro" = premium. Full e "gold_pro" + fulfillment.
+- `sale_price` e um OBJETO, nao float. Acessar via `sale_price["amount"]` se presente.
+- `sale_price` e null para descontos do VENDEDOR — usar `original_price` como preco cheio
+- Para saber se e Full: checar `shipping.logistic_type == "fulfillment"` (independente de listing_type_id)
 - `sold_quantity` e total historico, NAO vendas do dia.
+- `base_price` e diferente de `price` quando ha desconto ativo no ML (antes da aplicacao do desconto)
+- `catalog_listing: true` significa que o preco pode ser controlado pelo catalogo ML
 
 **Validado com curl:** Sim
-**Ultima validacao:** 2026-03-12
+**Ultima validacao:** 2026-03-25 (MLB6205732214)
 
 ---
 
@@ -322,31 +427,95 @@ Busca pedidos do vendedor com filtros.
 |-------|------|-------------|-----------|
 | `app_version` | string | Recomendado | `"v2"` |
 
-**Resposta real:**
+**Resposta real (MLB6205732214 — validado 2026-03-25):**
 ```json
 [
   {
-    "id": "PROMO-123",
-    "type": "PRICE_DISCOUNT",
+    "id": "P-MLB17129028",
+    "type": "SMART",
+    "ref_id": "OFFER-MLB6205732214-12674803799",
     "status": "started",
-    "start_date": "2026-03-01T00:00:00Z",
-    "finish_date": "2026-03-31T23:59:59Z",
-    "original_price": 159.90,
-    "price": 129.90,
-    "name": "Oferta do dia"
+    "price": 57.38,
+    "meli_percentage": 3.2,
+    "seller_percentage": 28.9,
+    "original_price": 84.5,
+    "name": "Aumente suas vendas"
+  },
+  {
+    "id": "C-MLB3450113",
+    "type": "SELLER_CAMPAIGN",
+    "sub_type": "FLEXIBLE_PERCENTAGE",
+    "status": "started",
+    "price": 63.38,
+    "original_price": 84.5,
+    "start_date": "2026-03-10T00:00:00",
+    "finish_date": "2026-04-09T23:59:59",
+    "name": "ate 09 abril"
+  },
+  {
+    "id": "P-MLB17313012",
+    "type": "SMART",
+    "ref_id": "CANDIDATE-MLB6205732214-75529536833",
+    "status": "candidate",
+    "price": 57.38,
+    "meli_percentage": 3.2,
+    "seller_percentage": 28.9,
+    "original_price": 84.5,
+    "name": "Abril Casa Super Ofertas"
+  },
+  {
+    "type": "PRICE_DISCOUNT",
+    "status": "candidate",
+    "price": 0,
+    "original_price": 84.5,
+    "min_discounted_price": 24,
+    "max_discounted_price": 80.27,
+    "suggested_discounted_price": 57.38
   }
 ]
 ```
 
+**Tipos de promocao (type):**
+| type | Descricao | Quem cria |
+|------|-----------|-----------|
+| `SMART` | Campanhas inteligentes do ML (Aumente suas vendas, Black Friday, etc.) | ML propoe, vendedor adere |
+| `SELLER_CAMPAIGN` | Campanha criada pelo proprio vendedor no Gerenciador de Promocoes | Vendedor |
+| `PRICE_DISCOUNT` | Desconto de preco simples (riscado) | Vendedor |
+| `DEAL` | Campanhas de eventos sazonais (Liquida, Outlet) | ML propoe, vendedor adere |
+
+**Campos de cada promocao:**
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| `id` | string | ID da promocao (prefixo P- para campanhas ML, C- para do vendedor) |
+| `type` | string | SMART / SELLER_CAMPAIGN / PRICE_DISCOUNT / DEAL |
+| `status` | string | `started` = ativa agora, `candidate` = ML propoe, nao ativa, `finished` = encerrada |
+| `price` | float | Preco QUE FICARIA ativo se a promocao estiver `started` (nao e o preco atual do item!) |
+| `original_price` | float | Preco cheio (riscado). Sempre o `base_price` do anuncio. |
+| `meli_percentage` | float | Percentual que o ML subsidia do desconto (campanhas SMART) |
+| `seller_percentage` | float | Percentual de desconto que o vendedor da |
+| `suggested_discounted_price` | float | Preco sugerido pelo ML para desconto (candidates) |
+
+**ATENCAO — Relacao entre seller-promotions e /items/{id}:**
+
+O endpoint /items/{id} retorna `price: 50.70` para o MLB6205732214.
+O seller-promotions mostra campanhas com `price: 57.38` e `price: 63.38`.
+
+ISSO NAO E CONTRADICAO. Sao precos diferentes:
+- `price` em /items = preco ATUAL que o comprador paga (50.70 = preco do vendedor com desconto proprio ativo)
+- `price` em seller-promotions = preco que FICARIA ativo SE a campanha entrar em vigor
+- Uma campanha SMART com `status=started` pode ter price=57.38 mas o vendedor pode ter seu proprio desconto ainda mais agressivo (50.70)
+- O comprador sempre paga o menor preco disponivel: `min(price_item, sale_price_amount_if_present)`
+
 **Gotchas:**
-- Resposta pode ser lista direta OU dict com `results` dependendo da versao.
-- `status`: `"started"` = ativa, `"pending"` = agendada, `"finished"` = encerrada.
-- Para desconto do vendedor: `original_price` aqui e o preco cheio, `price` e o com desconto.
+- Resposta e uma lista direta (nao dict com results).
+- `status=candidate`: ML propoe a campanha mas o vendedor ainda NAO aderiu. NAO afeta o preco atual.
+- `status=started`: a campanha esta ativa. Se o price da campanha for MENOR que o price atual do item, o comprador paga o price da campanha.
 - Pode retornar 404 se item nao tem promocoes — tratar como lista vazia.
-- Requer token do vendedor dono do anuncio.
+- Requer token do vendedor dono do anuncio (nao e endpoint publico).
+- `price=0` em candidates sem sub_type = slot vazio para o vendedor configurar.
 
 **Validado com curl:** Sim
-**Ultima validacao:** 2026-03-12
+**Ultima validacao:** 2026-03-25 (MLB6205732214)
 
 ---
 

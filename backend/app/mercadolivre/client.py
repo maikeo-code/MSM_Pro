@@ -957,6 +957,80 @@ class MLClient:
         except MLClientError:
             return {"data": [], "paging": {"total": 0}}
 
+    async def get_item_sale_price(self, mlb_id: str, context: str = "channel_marketplace") -> dict:
+        """
+        Busca o preço real de venda de um anúncio (novo endpoint da API ML).
+        GET /items/{id}/sale_price?context={context}
+
+        Este endpoint retorna o preço REAL que o comprador vê, considerando
+        todas as camadas de desconto (vendedor, campanha ML, etc).
+
+        Retorna:
+            {
+                "price_id": str,
+                "amount": float,          # Preço que o comprador PAGA
+                "regular_amount": float|None,  # Preço cheio (riscado) se em promoção
+                "currency_id": "BRL",
+                "metadata": {...}         # Detalhes da promoção (só para dono do item)
+            }
+
+        Se falhar (404 = item sem promoção especial), retorna dict vazio.
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+
+        try:
+            return await self._request(
+                "GET",
+                f"/items/{item_id}/sale_price",
+                params={"context": context},
+            )
+        except MLClientError as e:
+            if e.status_code in (404, 400):
+                return {}
+            raise
+
+    async def get_item_prices(self, mlb_id: str) -> list[dict]:
+        """
+        Busca TODAS as camadas de preço de um anúncio.
+        GET /items/{id}/prices
+
+        Retorna lista com todos os tipos de preço vigentes:
+        - type: "standard" (preço padrão)
+        - type: "promotion" (preço promocional)
+
+        Cada entrada tem:
+            {
+                "id": str,
+                "type": "standard"|"promotion",
+                "amount": float,
+                "regular_amount": float|None,
+                "currency_id": "BRL",
+                "conditions": {...},
+                "context_restrictions": {...},
+                "metadata": {...}
+            }
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+
+        try:
+            response = await self._request(
+                "GET",
+                f"/items/{item_id}/prices",
+            )
+            if isinstance(response, list):
+                return response
+            if isinstance(response, dict):
+                return response.get("prices", response.get("results", []))
+            return []
+        except MLClientError as e:
+            if e.status_code in (404, 400):
+                return []
+            raise
+
     async def close(self):
         """Fecha o cliente HTTP."""
         await self._client.aclose()

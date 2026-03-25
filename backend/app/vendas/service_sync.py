@@ -80,37 +80,54 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         price = Decimal(str(item.get("price", 0)))
                         stock = item.get("available_quantity", 0)
 
-                        # Extrai original_price e sale_price
-                        original_price_raw = item.get("original_price")
-                        original_price = Decimal(str(original_price_raw)) if original_price_raw else None
-
-                        sale_price_data = item.get("sale_price")
+                        # ── Preço real: usar /items/{id}/sale_price como fonte primária ──
+                        # O campo "price" do /items está sendo depreciado pelo ML (março 2026).
+                        # O endpoint /sale_price retorna o preço REAL que o comprador vê,
+                        # considerando todas as camadas de desconto.
+                        original_price = None
                         sale_price_val = None
-                        if sale_price_data and isinstance(sale_price_data, dict):
-                            sp_amount = sale_price_data.get("amount")
-                            if sp_amount is not None:
-                                sale_price_val = Decimal(str(sp_amount))
+                        used_sale_price_endpoint = False
 
-                        # Se temos sale_price menor que price, o sale_price é o preço real
-                        # de venda (promoção marketplace). Usar sale_price como price efetivo.
-                        if sale_price_val is not None and price > sale_price_val:
+                        try:
+                            sp_response = await client.get_item_sale_price(mlb_id)
+                            if sp_response and sp_response.get("amount") is not None:
+                                price = Decimal(str(sp_response["amount"]))
+                                reg_amount = sp_response.get("regular_amount")
+                                if reg_amount is not None:
+                                    original_price = Decimal(str(reg_amount))
+                                used_sale_price_endpoint = True
+                        except Exception:
+                            pass
+
+                        # Fallback: lógica legada usando campos do /items
+                        if not used_sale_price_endpoint:
+                            original_price_raw = item.get("original_price")
+                            original_price = Decimal(str(original_price_raw)) if original_price_raw else None
+
+                            sale_price_data = item.get("sale_price")
+                            if sale_price_data and isinstance(sale_price_data, dict):
+                                sp_amount = sale_price_data.get("amount")
+                                if sp_amount is not None:
+                                    sale_price_val = Decimal(str(sp_amount))
+
+                            if sale_price_val is not None and price > sale_price_val:
+                                if original_price is None:
+                                    original_price = price
+                                price = sale_price_val
+
+                            # Último fallback: seller-promotions
                             if original_price is None:
-                                original_price = price
-                            price = sale_price_val
-
-                        # Se ainda não tem original_price, buscar via seller-promotions
-                        if original_price is None:
-                            try:
-                                promotions = await client.get_item_promotions(mlb_id)
-                                for promo in promotions:
-                                    if promo.get("status") == "started" and promo.get("original_price"):
-                                        original_price = Decimal(str(promo["original_price"]))
-                                        promo_price = promo.get("price")
-                                        if promo_price is not None:
-                                            price = Decimal(str(promo_price))
-                                        break
-                            except Exception:
-                                pass
+                                try:
+                                    promotions = await client.get_item_promotions(mlb_id)
+                                    for promo in promotions:
+                                        if promo.get("status") == "started" and promo.get("original_price"):
+                                            original_price = Decimal(str(promo["original_price"]))
+                                            promo_price = promo.get("price")
+                                            if promo_price is not None:
+                                                price = Decimal(str(promo_price))
+                                            break
+                                except Exception:
+                                    pass
 
                         # Verifica se listing já existe
                         existing = await db.execute(
