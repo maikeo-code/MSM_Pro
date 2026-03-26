@@ -1,12 +1,4 @@
-[pytest]
-asyncio_mode = auto
-testpaths = tests
-python_files = test_*.py
-filterwarnings =
-    ignore::DeprecationWarning
-    ignore::PendingDeprecationWarning
-
-[coverage:run]
+[run]
 branch = True
 source = app
 omit =
@@ -14,7 +6,7 @@ omit =
     app/*/__pycache__/*
     app/*/tests/*
 
-[coverage:report]
+[report]
 exclude_lines =
     pragma: no cover
     def __repr__
@@ -25,8 +17,16 @@ exclude_lines =
     @abstractmethod
     @abstractproperty
     except ImportError:
+    nocov
+    if sys.version_info
 skip_covered = False
+sort = Cover
 precision = 2
 
-[coverage:html]
+[html]
 directory = htmlcov
+
+[paths]
+source =
+    app
+    */site-packages/app
