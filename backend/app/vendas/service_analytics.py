@@ -9,7 +9,7 @@ from uuid import UUID
 BRT = timezone(timedelta(hours=-3))
 
 from fastapi import HTTPException, status
-from sqlalchemy import cast, Date, desc, func, select
+from sqlalchemy import cast, Date, desc, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.vendas.models import Listing, ListingSnapshot
@@ -400,10 +400,12 @@ async def get_sales_heatmap(
     # ── 1. Tentar estrategia Orders (dia+hora) ───────────────────────────────
     # Agrupa por (dow_postgres, hour) usando extract. PostgreSQL DOW: 0=domingo, 6=sabado
     # Convertemos para Python weekday (0=segunda) logo apos.
+    # BUG 1 FIX: converter para BRT antes de extrair hora e dia da semana
+    order_date_brt = func.timezone(text("'America/Sao_Paulo'"), Order.order_date)
     query = (
         select(
-            func.extract("dow", Order.order_date).label("pg_dow"),
-            func.extract("hour", Order.order_date).label("hour"),
+            func.extract("dow", order_date_brt).label("pg_dow"),
+            func.extract("hour", order_date_brt).label("hour"),
             func.count(Order.id).label("cnt"),
         )
         .join(MLAccount, Order.ml_account_id == MLAccount.id)
@@ -423,7 +425,8 @@ async def get_sales_heatmap(
     order_agg_result = await db.execute(query)
     order_rows = order_agg_result.fetchall()
 
-    has_hourly_data = len(order_rows) >= 3
+    # BUG 3 FIX: aumentar threshold de 3 para 10 para garantir dados estatisticamente relevantes
+    has_hourly_data = len(order_rows) >= 10
 
     if has_hourly_data:
         # ── Estrategia Orders (7×24 grid) ───────────────────────────────────
@@ -496,11 +499,32 @@ async def get_sales_heatmap(
     snaps_result = await db.execute(snap_query)
     snapshots = snaps_result.scalars().all()
 
-    counts_by_day: dict[int, int] = {i: 0 for i in range(7)}
+    # BUG 2 FIX: remover duplicatas de snapshots do mesmo dia (pegar apenas o último)
+    # Se há múltiplos snapshots no mesmo dia, pegar apenas o mais recente para não inflar números
+    from collections import defaultdict
+    last_snap_per_day: dict[tuple, any] = {}  # key=(listing_id, date_only) -> snapshot
 
     for snap in snapshots:
         dt = snap.captured_at
-        day_idx = dt.weekday()  # 0=segunda, 6=domingo
+        if hasattr(dt, 'astimezone'):
+            # Converter para BRT se não está já
+            try:
+                brt_tz = timezone(timedelta(hours=-3))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc).astimezone(brt_tz)
+                else:
+                    dt = dt.astimezone(brt_tz)
+            except Exception:
+                pass  # Se falhar a conversão, manter dt original
+
+        key = (snap.listing_id, dt.date())
+        if key not in last_snap_per_day or snap.captured_at > last_snap_per_day[key].captured_at:
+            last_snap_per_day[key] = snap
+
+    counts_by_day: dict[int, int] = {i: 0 for i in range(7)}
+
+    for (listing_id, snap_date), snap in last_snap_per_day.items():
+        day_idx = snap_date.weekday()  # 0=segunda, 6=domingo (já em BRT)
         sales = (
             (snap.orders_count or 0)
             if (snap.orders_count is not None and snap.orders_count > 0)
