@@ -471,7 +471,7 @@ async def list_listings(
                     receita_var = round(((today_rev - yest_rev) / yest_rev) * 100, 1)
 
         # Monta o snapshot que será serializado
-        snap_for_output = eff_snap if (is_period_mode and effective_snap_dict) else last_snap
+        snap_for_output = eff_snap if ((is_period_mode or is_single_day) and effective_snap_dict) else last_snap
 
         listing_dict = {
             "id": listing.id,

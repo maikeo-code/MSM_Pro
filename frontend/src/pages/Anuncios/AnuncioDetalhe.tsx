@@ -10,7 +10,6 @@ import {
   RefreshCw,
   ArrowLeft,
 } from "lucide-react";
-import { consultorService, type ConsultorResponse } from "@/services/consultorService";
 import listingsService from "@/services/listingsService";
 import productsService from "@/services/productsService";
 import competitorsService from "@/services/competitorsService";
@@ -55,24 +54,7 @@ export default function AnuncioDetalhe() {
 
   // ─── Consultor IA ──────────────────────────────────────────────────────────
   const [consultorAberto, setConsultorAberto] = React.useState(false);
-  const [consultorLoading, setConsultorLoading] = React.useState(false);
-  const [consultorResultado, setConsultorResultado] = React.useState<ConsultorResponse | null>(null);
-  const [consultorErro, setConsultorErro] = React.useState<string | null>(null);
-
-  const handleConsultor = async () => {
-    setConsultorAberto(true);
-    setConsultorLoading(true);
-    setConsultorErro(null);
-    setConsultorResultado(null);
-    try {
-      const res = await consultorService.analisar({ mlb_id: mlbId });
-      setConsultorResultado(res);
-    } catch {
-      setConsultorErro("Nao foi possivel gerar a analise. Verifique se o backend esta online.");
-    } finally {
-      setConsultorLoading(false);
-    }
-  };
+  // States antigos removidos — chatbot agora é auto-gerenciado
 
   const { data: analysis, isLoading, error, refetch } = useQuery({
     queryKey: ["listing-analysis", mlbId, days],
@@ -260,11 +242,6 @@ export default function AnuncioDetalhe() {
       <ConsultorDrawer
         aberto={consultorAberto}
         onFechar={() => setConsultorAberto(false)}
-        loading={consultorLoading}
-        resultado={consultorResultado}
-        erro={consultorErro}
-        titulo="Consultor IA — Analise do Anuncio"
-        subtituloAnalise="Analise do anuncio"
       />
 
       {/* ─── Header ──────────────────────────────────────────────────────────── */}
@@ -272,7 +249,7 @@ export default function AnuncioDetalhe() {
         analysis={analysis}
         days={days}
         setDays={setDays}
-        onConsultor={handleConsultor}
+        onConsultor={() => setConsultorAberto(true)}
       />
 
       {/* ─── KPI Cards ──────────────────────────────────────────────────────── */}

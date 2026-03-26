@@ -200,7 +200,11 @@ class MLClient:
         if not item_id.startswith("MLB"):
             item_id = f"MLB{item_id}"
 
-        return await self._request("GET", f"/items/{item_id}")
+        return await self._request(
+            "GET",
+            f"/items/{item_id}",
+            params={"include_attributes": "all"},
+        )
 
     async def update_item_price(self, mlb_id: str, price: float) -> dict:
         """

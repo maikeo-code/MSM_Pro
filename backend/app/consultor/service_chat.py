@@ -279,19 +279,28 @@ async def _execute_tool(
             result = await get_all_competitors(db, user_id)
             simplified = []
             for c in result[:15]:
+                # ORM objects: acessar atributos diretamente
                 simplified.append({
-                    "titulo": c.get("title", ""),
-                    "mlb_id": c.get("competitor_mlb_id", ""),
-                    "preco": c.get("last_price"),
-                    "meu_mlb": c.get("listing_mlb_id", ""),
+                    "titulo": getattr(c, "title", ""),
+                    "mlb_id": getattr(c, "mlb_id", ""),
+                    "preco_atual": float(getattr(c, "current_price", 0) or 0),
                 })
             return json.dumps({"total": len(result), "concorrentes": simplified}, cls=DecimalEncoder, ensure_ascii=False)
 
         elif tool_name == "buscar_alertas_recentes":
             from app.alertas.service import list_alert_events
             limite = tool_input.get("limite", 10)
-            events = await list_alert_events(db, user_id, limit=limite)
-            return json.dumps({"total": len(events), "alertas": events[:limite]}, cls=DecimalEncoder, ensure_ascii=False)
+            events = await list_alert_events(db, user_id, days=limite)
+            # ORM objects: converter para dicts
+            simplified_events = []
+            for e in events[:limite]:
+                simplified_events.append({
+                    "message": getattr(e, "message", ""),
+                    "alert_type": getattr(e, "alert_type", ""),
+                    "triggered_at": str(getattr(e, "triggered_at", "")),
+                    "mlb_id": getattr(e, "mlb_id", ""),
+                })
+            return json.dumps({"total": len(events), "alertas": simplified_events}, cls=DecimalEncoder, ensure_ascii=False)
 
         else:
             return json.dumps({"erro": f"Tool '{tool_name}' não reconhecida"}, ensure_ascii=False)
@@ -318,7 +327,7 @@ async def chat_with_tools(
     if not api_key:
         return "Chave da API Anthropic não configurada. Configure ANTHROPIC_API_KEY nas variáveis de ambiente.", 0
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = anthropic.AsyncAnthropic(api_key=api_key)
 
     # Montar mensagens: histórico + mensagem atual
     messages = []
@@ -330,7 +339,7 @@ async def chat_with_tools(
     max_iterations = 5
 
     for _ in range(max_iterations):
-        response = client.messages.create(
+        response = await client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=2000,
             system=SYSTEM_PROMPT,
