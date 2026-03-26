@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Settings, User, Lock, AlertCircle, Loader2 } from "lucide-react";
+import { Plus, Trash2, Settings, User, Lock, AlertCircle, Loader2, RefreshCw, CheckCircle2, Clock } from "lucide-react";
 import authService from "@/services/authService";
-import { formatDateTime } from "@/lib/utils";
+// formatDateTime removido — UX agora mostra status em texto, não data de expiração
 
 export default function Configuracoes() {
   const queryClient = useQueryClient();
@@ -45,9 +45,12 @@ export default function Configuracoes() {
     }
   };
 
-  const isTokenExpired = (expiresAt: string | null) => {
-    if (!expiresAt) return true;
-    return new Date(expiresAt) < new Date();
+  const getTokenStatus = (expiresAt: string | null) => {
+    if (!expiresAt) return "unknown";
+    const diff = new Date(expiresAt).getTime() - Date.now();
+    if (diff > 3600000) return "healthy";      // > 1h
+    if (diff > 0) return "expiring_soon";       // < 1h mas válido
+    return "auto_renewing";                     // expirado — Celery renova automaticamente
   };
 
   return (
@@ -144,52 +147,63 @@ export default function Configuracoes() {
           ) : (
             <div className="space-y-3">
               {mlAccounts.map((account) => {
-                const tokenExpired = isTokenExpired(account.token_expires_at);
+                const tokenStatus = getTokenStatus(account.token_expires_at);
+                const isInactive = !account.is_active;
                 return (
                   <div
                     key={account.id}
                     className={`flex items-center justify-between rounded-lg border p-4 ${
-                      tokenExpired ? "bg-red-50" : ""
+                      isInactive ? "bg-red-50 dark:bg-red-950" : ""
                     }`}
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <p className="font-medium">{account.nickname}</p>
-                        {tokenExpired && (
-                          <AlertCircle className="h-4 w-4 text-destructive" />
+                        {tokenStatus === "healthy" && (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        )}
+                        {tokenStatus === "expiring_soon" && (
+                          <Clock className="h-4 w-4 text-yellow-500" />
+                        )}
+                        {tokenStatus === "auto_renewing" && (
+                          <RefreshCw className="h-4 w-4 text-blue-500" />
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {account.email ?? account.ml_user_id}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Token expira:{" "}
-                        {account.token_expires_at
-                          ? formatDateTime(account.token_expires_at)
-                          : "N/A"}
-                        {tokenExpired && (
-                          <span className="ml-2 text-destructive font-medium">
-                            (expirado)
-                          </span>
+                        {tokenStatus === "healthy" && (
+                          <>Conexao ativa — renova automaticamente</>
+                        )}
+                        {tokenStatus === "expiring_soon" && (
+                          <>Renovando em breve (automatico)</>
+                        )}
+                        {tokenStatus === "auto_renewing" && (
+                          <span className="text-blue-600">Renovacao automatica em andamento</span>
+                        )}
+                        {tokenStatus === "unknown" && (
+                          <>Token nao disponivel</>
                         )}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                          account.is_active && !tokenExpired
-                            ? "bg-green-100 text-green-700"
-                            : account.is_active
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-red-100 text-red-700"
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          isInactive
+                            ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                            : tokenStatus === "healthy"
+                              ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                              : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
                         }`}
                       >
-                        {account.is_active
-                          ? tokenExpired
-                            ? "Token expirado"
-                            : "Ativa"
-                          : "Inativa"}
+                        {isInactive ? "Inativa" : "Ativa"}
                       </span>
+                      {(account as any).active_listings_count > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {(account as any).active_listings_count} anuncios
+                        </span>
+                      )}
                       <button
                         onClick={() => {
                           if (window.confirm(`Desconectar conta "${account.nickname}"? Esta ação é irreversível.`)) {
