@@ -338,6 +338,7 @@ async def list_listings(
             "cancelled_revenue": total_cancelled_rev,
             "returns_count": total_returns,
             "returns_revenue": total_returns_rev,
+            "avg_visits_per_day": round(total_visits / len(snaps), 1) if snaps else 0,
             "captured_at": latest.captured_at,
             "id": latest.id,
             "listing_id": latest.listing_id,
@@ -380,9 +381,22 @@ async def list_listings(
         # Calcula dias_para_zerar (sempre baseado em últimos 7 dias reais)
         dias_para_zerar: int | None = None
         if recent_snaps and last_snap and last_snap.stock and last_snap.stock > 0:
-            avg_sales = sum(s.sales_today or 0 for s in recent_snaps) / len(recent_snaps)
-            if avg_sales > 0:
-                dias_para_zerar = int(last_snap.stock / avg_sales)
+            # Ordenar snapshots por data (mais antigo primeiro)
+            sorted_snaps = sorted(recent_snaps, key=lambda s: s.captured_at)
+            # Filtrar dias com vendas (descartar zeros)
+            sales_values = [(s.sales_today or 0) for s in sorted_snaps]
+            nonzero_sales = [v for v in sales_values if v > 0]
+
+            if nonzero_sales:
+                # Média ponderada: dias mais recentes pesam mais
+                n = len(sales_values)
+                weights = [1 + (i * 0.3) for i in range(n)]  # ex: [1.0, 1.3, 1.6, 1.9, 2.2, 2.5, 2.8]
+                weighted_sum = sum(v * w for v, w in zip(sales_values, weights))
+                total_weight = sum(weights)
+                avg_sales_weighted = weighted_sum / total_weight
+
+                if avg_sales_weighted > 0:
+                    dias_para_zerar = round(last_snap.stock / avg_sales_weighted)
 
         # rpv
         rpv: float | None = None
@@ -491,8 +505,29 @@ async def list_listings(
             "voce_recebe": voce_recebe,
             "vendas_variacao": vendas_var,
             "receita_variacao": receita_var,
+            "avg_visits_per_day": None,  # será preenchido abaixo
         }
         output.append(listing_dict)
+
+    # Calcular média de visitas por dia
+    for item in output:
+        listing_id = item["id"]
+        if is_period_mode and listing_id in {l.id for l in listings}:
+            # Buscar effective_snap_dict da agregação do período
+            p_snaps = period_snaps_by_listing.get(listing_id, [])
+            if p_snaps:
+                effective_snap_dict = _aggregate_snaps(p_snaps)
+                item["avg_visits_per_day"] = effective_snap_dict.get("avg_visits_per_day")
+        elif is_single_day and listing_id in {l.id for l in listings}:
+            # Para dia único, média = visitas do dia
+            eff_snap = item["last_snapshot"]
+            if eff_snap:
+                item["avg_visits_per_day"] = float(getattr(eff_snap, "visits", 0) or 0)
+        else:
+            # Modo "today" — usar último snapshot
+            eff_snap = item["last_snapshot"]
+            if eff_snap:
+                item["avg_visits_per_day"] = float(getattr(eff_snap, "visits", 0) or 0)
 
     # participacao_pct — calculado após montar output completo
     def _get_revenue(item: dict) -> float:

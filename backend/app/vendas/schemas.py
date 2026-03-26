@@ -143,6 +143,8 @@ class ListingOut(BaseModel):
     # Variação por anúncio (hoje vs ontem)
     vendas_variacao: float | None = None
     receita_variacao: float | None = None
+    # Média de visitas por dia do período
+    avg_visits_per_day: float | None = None
 
     model_config = {"from_attributes": True}
 
