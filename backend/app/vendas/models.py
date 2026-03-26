@@ -44,7 +44,7 @@ class Listing(Base):
     sale_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     category_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    seller_sku: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    seller_sku: Mapped[str | None] = mapped_column(String(500), nullable=True)
     sale_fee_amount: Mapped[Decimal | None] = mapped_column(
         Numeric(12, 2), nullable=True, comment="Taxa real ML em R$ (via API listing_prices)"
     )

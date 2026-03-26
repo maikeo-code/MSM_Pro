@@ -138,6 +138,7 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                         # Extrai category_id e seller_sku
                         category_id = item.get("category_id")
                         seller_sku = item.get("seller_custom_field")
+                        # Fallback 1: buscar em attributes[] do item
                         if not seller_sku and item.get("attributes"):
                             for attr in item["attributes"]:
                                 if attr.get("id") == "SELLER_SKU":
@@ -147,6 +148,21 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                                         or (attr.get("values", [{}])[0].get("name") if attr.get("values") else None)
                                     )
                                     break
+                        # Fallback 2: buscar em variations[] (anuncios com variacao)
+                        # Concatena TODOS os SKUs únicos com " | "
+                        if not seller_sku and item.get("variations"):
+                            variation_skus: list[str] = []
+                            for variation in item["variations"]:
+                                sku = variation.get("seller_custom_field")
+                                if not sku:
+                                    for attr in variation.get("attributes", []):
+                                        if attr.get("id") == "SELLER_SKU":
+                                            sku = attr.get("value_name") or attr.get("value_id")
+                                            break
+                                if sku and sku not in variation_skus:
+                                    variation_skus.append(sku)
+                            if variation_skus:
+                                seller_sku = " | ".join(variation_skus)
                         # Usar secure_thumbnail (HTTPS) quando disponível
                         thumbnail = item.get("secure_thumbnail") or item.get("thumbnail")
 
