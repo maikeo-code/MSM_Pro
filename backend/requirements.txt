@@ -33,3 +33,5 @@ anthropic>=0.40.0
 python-dotenv==1.0.1
 
 
+# Rate Limiting
+slowapi==0.1.9

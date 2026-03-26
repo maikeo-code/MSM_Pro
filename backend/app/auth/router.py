@@ -22,18 +22,30 @@ from app.auth.schemas import (
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.rate_limit import (
+    limiter,
+    rate_limit_auth_login,
+    rate_limit_auth_register,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+)
+@limiter.limit(rate_limit_auth_register())
 async def register(
+    request: Request,
     payload: UserCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Cria um novo usuário.
 
     Proteção:
+    - Rate limiting: 3 requests/hour per IP
     - Se REGISTRATION_OPEN=false, requer invite_code válido
     - Se REGISTRATION_OPEN=true (default), registros abertos para todos
     """
@@ -53,11 +65,17 @@ async def register(
 
 
 @router.post("/login", response_model=Token)
+@limiter.limit(rate_limit_auth_login())
 async def login(
+    request: Request,
     payload: UserLogin,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Autentica e retorna JWT."""
+    """Autentica e retorna JWT.
+
+    Proteção:
+    - Rate limiting: 5 requests/minute per IP
+    """
     user = await service.authenticate_user(db, payload.email, payload.password)
     if not user:
         raise HTTPException(
