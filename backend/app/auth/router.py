@@ -31,7 +31,23 @@ async def register(
     payload: UserCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Cria um novo usuário."""
+    """Cria um novo usuário.
+
+    Proteção:
+    - Se REGISTRATION_OPEN=false, requer invite_code válido
+    - Se REGISTRATION_OPEN=true (default), registros abertos para todos
+    """
+    # Verificar se registros estão abertos
+    if not settings.registration_open:
+        # Se fechado, requer invite_code
+        if not payload.invite_code:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Registros estão fechados. Contate o administrador.",
+            )
+        # TODO: Validar invite_code contra tabela de invite_codes (implementar futuramente)
+        # Por enquanto, aceitar qualquer invite_code não vazio quando REGISTRATION_OPEN=false
+
     user = await service.create_user(db, payload.email, payload.password)
     return user
 

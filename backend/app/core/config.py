@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     # --- Registration Control ---
     registration_open: bool = True  # Allow registration by default (backward compat)
 
+    # --- Rate Limiting ---
+    rate_limit_enabled: bool = True  # Can disable for testing via RATE_LIMIT_ENABLED=false
+
     def model_post_init(self, __context):
         """Valida configurações críticas de segurança após inicialização."""
         if self.environment == "production":
