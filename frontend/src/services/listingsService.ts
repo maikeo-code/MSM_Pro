@@ -88,6 +88,8 @@ export interface ListingOut {
   // Variacao por anuncio (hoje vs ontem)
   vendas_variacao?: number | null;
   receita_variacao?: number | null;
+  // Media de visitas por dia (para periodos > 1 dia)
+  avg_visits_per_day?: number | null;
 }
 
 export interface FunnelData {

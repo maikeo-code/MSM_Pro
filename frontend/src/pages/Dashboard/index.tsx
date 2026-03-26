@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, RefreshCw, WifiOff, ShoppingCart, Package, DollarSign, Target, BarChart2, Sparkles, Download, Eye, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 import listingsService, { type FunnelData, type HeatmapData } from "@/services/listingsService";
-import { consultorService, type ConsultorResponse } from "@/services/consultorService";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { ConsultorDrawer } from "@/components/ConsultorDrawer";
 import { DiasBadge } from "@/components/DiasBadge";
@@ -244,6 +243,8 @@ function SalesHeatmap({ data }: { data: HeatmapData | undefined }) {
 
 const PERIOD_OPTIONS = [
   { value: "today", label: "Hoje" },
+  { value: "yesterday", label: "Ontem" },
+  { value: "before_yesterday", label: "Anteontem" },
   { value: "7d", label: "7 dias" },
   { value: "15d", label: "15 dias" },
   { value: "30d", label: "30 dias" },
@@ -261,24 +262,6 @@ export default function Dashboard() {
 
   // ─── Consultor IA ────────────────────────────────────────────────────────────
   const [consultorAberto, setConsultorAberto] = useState(false);
-  const [consultorLoading, setConsultorLoading] = useState(false);
-  const [consultorResultado, setConsultorResultado] = useState<ConsultorResponse | null>(null);
-  const [consultorErro, setConsultorErro] = useState<string | null>(null);
-
-  const handleConsultor = async () => {
-    setConsultorAberto(true);
-    if (consultorResultado) return; // ja tem resultado, so abre
-    setConsultorLoading(true);
-    setConsultorErro(null);
-    try {
-      const res = await consultorService.analisar();
-      setConsultorResultado(res);
-    } catch {
-      setConsultorErro("Nao foi possivel gerar a analise. Verifique se o backend esta online.");
-    } finally {
-      setConsultorLoading(false);
-    }
-  };
 
   const { data: listings, isLoading, isError, error } = useQuery({
     queryKey: ["listings", tablePeriod, accountId],
@@ -359,6 +342,8 @@ export default function Dashboard() {
   const avgPrecoMedio = totalUnidades > 0 ? totalReceita / totalUnidades : 0;
   // Preco medio por venda (receita / pedidos)
   const avgPrecoMedioPorVenda = totalPedidos > 0 ? totalReceita / totalPedidos : 0;
+  // Media de visitas por dia (para periodos > 1 dia)
+  const avgVisitasPerDay = filteredListings.reduce((sum, l) => sum + (l.avg_visits_per_day ?? 0), 0);
 
   // Dados KPI para cards (usa periodo "hoje" ou soma dos listings)
   const kpiHoje = kpi?.hoje;
@@ -372,9 +357,6 @@ export default function Dashboard() {
       <ConsultorDrawer
         aberto={consultorAberto}
         onFechar={() => setConsultorAberto(false)}
-        loading={consultorLoading}
-        resultado={consultorResultado}
-        erro={consultorErro}
       />
 
       {/* Header */}
@@ -394,7 +376,7 @@ export default function Dashboard() {
           </button>
 
           <button
-            onClick={handleConsultor}
+            onClick={() => setConsultorAberto(true)}
             className="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-blue-600 to-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-blue-700 hover:to-violet-700 transition-all"
           >
             <Sparkles className="h-4 w-4" />
@@ -408,15 +390,6 @@ export default function Dashboard() {
             >
               <Download className="h-4 w-4" />
               Baixar Relatorio
-            </button>
-          )}
-
-          {consultorResultado && (
-            <button
-              onClick={() => { setConsultorResultado(null); setConsultorErro(null); handleConsultor(); }}
-              className="text-xs text-muted-foreground hover:text-foreground underline transition-colors"
-            >
-              Atualizar analise
             </button>
           )}
 
@@ -722,10 +695,10 @@ export default function Dashboard() {
                               <img
                                 src={listing.thumbnail}
                                 alt={listing.title}
-                                className="h-10 w-10 rounded object-cover shrink-0 border"
+                                className="h-8 w-8 rounded object-cover shrink-0 border"
                               />
                             ) : (
-                              <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
+                              <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
                                 <Package className="h-4 w-4 text-muted-foreground/50" />
                               </div>
                             )}
@@ -796,9 +769,16 @@ export default function Dashboard() {
                         </td>
                         {/* Visitas */}
                         <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Eye className="h-3 w-3 text-muted-foreground/50" />
-                            <span>{visitas > 0 ? visitas.toLocaleString("pt-BR") : "-"}</span>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <div className="flex items-center gap-1">
+                              <Eye className="h-3 w-3 text-muted-foreground/50" />
+                              <span>{visitas > 0 ? visitas.toLocaleString("pt-BR") : "-"}</span>
+                            </div>
+                            {listing.avg_visits_per_day != null && listing.avg_visits_per_day > 0 && tablePeriod !== "today" && tablePeriod !== "yesterday" && tablePeriod !== "before_yesterday" && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {listing.avg_visits_per_day.toFixed(1)}/dia
+                              </span>
+                            )}
                           </div>
                         </td>
                         {/* Conversao */}
@@ -849,7 +829,16 @@ export default function Dashboard() {
                     <td className="px-4 py-3 text-right">{formatCurrency(avgPrecoMedio > 0 ? avgPrecoMedio : 0)}</td>
                     <td className="px-4 py-3 text-right text-blue-700">{avgPrecoMedioPorVenda > 0 ? formatCurrency(avgPrecoMedioPorVenda) : "-"}</td>
                     <td className="px-4 py-3 text-right text-muted-foreground">100%</td>
-                    <td className="px-4 py-3 text-right">{totalVisitas > 0 ? totalVisitas.toLocaleString("pt-BR") : "-"}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span>{totalVisitas > 0 ? totalVisitas.toLocaleString("pt-BR") : "-"}</span>
+                        {avgVisitasPerDay > 0 && tablePeriod !== "today" && tablePeriod !== "yesterday" && tablePeriod !== "before_yesterday" && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {avgVisitasPerDay.toFixed(1)}/dia
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-right">{formatPercent(avgConversao)}</td>
                     <td className="px-4 py-3 text-right">{totalEstoque > 0 ? totalEstoque : "-"}</td>
                     <td className="px-4 py-3 text-right text-muted-foreground">--</td>
