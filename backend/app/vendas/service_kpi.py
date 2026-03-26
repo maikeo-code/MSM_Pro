@@ -12,7 +12,7 @@ from sqlalchemy import cast, Date, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import ML_FEES_FLOAT
-from app.vendas.models import Listing, ListingSnapshot
+from app.vendas.models import Listing, ListingSnapshot, Order
 
 
 async def list_listings(
@@ -25,12 +25,15 @@ async def list_listings(
 ) -> list[dict]:
     """Lista anúncios com o último snapshot ou dados agregados por período.
 
-    period: "today" (padrão) | "7d" | "15d" | "30d" | "60d"
+    period: "today" (padrão) | "yesterday" | "before_yesterday" | "7d" | "15d" | "30d" | "60d"
     ml_account_id: opcional — filtra por conta ML específica
 
-    Quando period != "today", agrega snapshots do período (soma de vendas,
-    receita, visitas; média de conversão; último estoque) e compara com o
+    Quando period é um período agregado (7d, 15d, 30d, 60d), agrega snapshots do período
+    (soma de vendas, receita, visitas; média de conversão; último estoque) e compara com o
     período anterior equivalente para calcular variação.
+
+    Quando period é um dia específico (today, yesterday, before_yesterday), usa o último
+    snapshot daquele dia.
     """
     query = select(Listing).where(Listing.user_id == user_id)
 
@@ -53,6 +56,14 @@ async def list_listings(
     period_days_map = {"7d": 7, "15d": 15, "30d": 30, "60d": 60}
     is_period_mode = period in period_days_map
     period_days = period_days_map.get(period, 0)
+
+    # ── Modo dia específico (yesterday, before_yesterday) ──────────────────
+    is_single_day = period in ("yesterday", "before_yesterday")
+    if is_single_day:
+        if period == "yesterday":
+            target_date = today_date - timedelta(days=1)
+        else:
+            target_date = today_date - timedelta(days=2)
 
     if is_period_mode:
         # Período atual: [today - N+1 .. today]
@@ -122,6 +133,69 @@ async def list_listings(
             .order_by(ListingSnapshot.listing_id)
         )
         prev_snaps_all = prev_snaps_result.scalars().all()
+        prev_snaps_by_listing: dict = {}
+        for snap in prev_snaps_all:
+            lid = snap.listing_id
+            if lid not in prev_snaps_by_listing:
+                prev_snaps_by_listing[lid] = []
+            prev_snaps_by_listing[lid].append(snap)
+    elif is_single_day:
+        # "yesterday" ou "before_yesterday" — usa último snapshot daquele dia específico
+        single_day_snap_subq = (
+            select(
+                ListingSnapshot.listing_id,
+                func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+            )
+            .where(
+                ListingSnapshot.listing_id.in_(listing_ids),
+                cast(ListingSnapshot.captured_at, Date) == target_date,
+            )
+            .group_by(ListingSnapshot.listing_id)
+            .subquery()
+        )
+        single_day_result = await db.execute(
+            select(ListingSnapshot)
+            .join(
+                single_day_snap_subq,
+                (ListingSnapshot.listing_id == single_day_snap_subq.c.listing_id)
+                & (ListingSnapshot.captured_at == single_day_snap_subq.c.max_captured_at),
+            )
+            .where(ListingSnapshot.listing_id.in_(listing_ids))
+        )
+        single_day_snaps_all = single_day_result.scalars().all()
+
+        # Agrupa snapshots do dia específico por listing_id
+        period_snaps_by_listing: dict = {}
+        for snap in single_day_snaps_all:
+            lid = snap.listing_id
+            if lid not in period_snaps_by_listing:
+                period_snaps_by_listing[lid] = []
+            period_snaps_by_listing[lid].append(snap)
+
+        # Dia anterior ao target_date para variação
+        prev_target_date = target_date - timedelta(days=1)
+        prev_day_snap_subq = (
+            select(
+                ListingSnapshot.listing_id,
+                func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+            )
+            .where(
+                ListingSnapshot.listing_id.in_(listing_ids),
+                cast(ListingSnapshot.captured_at, Date) == prev_target_date,
+            )
+            .group_by(ListingSnapshot.listing_id)
+            .subquery()
+        )
+        prev_day_result = await db.execute(
+            select(ListingSnapshot)
+            .join(
+                prev_day_snap_subq,
+                (ListingSnapshot.listing_id == prev_day_snap_subq.c.listing_id)
+                & (ListingSnapshot.captured_at == prev_day_snap_subq.c.max_captured_at),
+            )
+            .where(ListingSnapshot.listing_id.in_(listing_ids))
+        )
+        prev_snaps_all = prev_day_result.scalars().all()
         prev_snaps_by_listing: dict = {}
         for snap in prev_snaps_all:
             lid = snap.listing_id
@@ -200,6 +274,38 @@ async def list_listings(
         snap.listing_id: snap for snap in yesterday_result.scalars().all()
     }
 
+    # ── Buscar dados reais de Orders para voce_recebe ─────────────────────────
+    # Determinar intervalo de datas para busca de Orders
+    if is_period_mode:
+        orders_date_from = today_date - timedelta(days=period_days - 1)
+        orders_date_to = today_date
+    elif is_single_day:
+        orders_date_from = target_date
+        orders_date_to = target_date
+    else:  # "today"
+        orders_date_from = today_date
+        orders_date_to = today_date
+
+    # Query: agregação de net_amount por listing (apenas pedidos aprovados)
+    orders_agg_result = await db.execute(
+        select(
+            Order.listing_id,
+            func.avg(Order.net_amount / Order.quantity).label("avg_net_per_unit"),
+            func.sum(Order.sale_fee).label("total_sale_fee"),
+            func.sum(Order.shipping_cost).label("total_shipping_cost"),
+            func.sum(Order.net_amount).label("total_net"),
+            func.count().label("order_count"),
+        )
+        .where(
+            Order.listing_id.in_(listing_ids),
+            Order.payment_status == "approved",
+            cast(Order.order_date, Date) >= orders_date_from,
+            cast(Order.order_date, Date) <= orders_date_to,
+        )
+        .group_by(Order.listing_id)
+    )
+    orders_agg_by_listing = {row.listing_id: row for row in orders_agg_result.all()}
+
     # ── Função auxiliar para agregar uma lista de snapshots ─────────────────
     def _aggregate_snaps(snaps: list) -> dict:
         """Retorna dict com campos agregados de uma lista de snapshots."""
@@ -249,7 +355,7 @@ async def list_listings(
         recent_snaps = snaps_7d_by_listing.get(listing.id, [])
 
         # Determina snapshot efetivo baseado no modo
-        if is_period_mode:
+        if is_period_mode or is_single_day:
             p_snaps = period_snaps_by_listing.get(listing.id, [])
             if p_snaps:
                 effective_snap_dict = _aggregate_snaps(p_snaps)
@@ -266,7 +372,7 @@ async def list_listings(
             prev_agg = None
 
         # O snapshot a usar para cálculos da tabela
-        if is_period_mode and effective_snap_dict:
+        if (is_period_mode or is_single_day) and effective_snap_dict:
             eff_snap = _SnapProxy(effective_snap_dict)
         else:
             eff_snap = last_snap
@@ -310,9 +416,13 @@ async def list_listings(
             returns_rev = float(getattr(eff_snap, "returns_revenue", 0) or 0)
             vendas_concluidas = round(float(getattr(eff_snap, "revenue", 0)) - cancelled_rev - returns_rev, 2)
 
-        # voce_recebe
+        # voce_recebe — usar dados reais de Orders quando disponível
         voce_recebe: float | None = None
-        if listing.price and float(listing.price) > 0:
+        order_agg = orders_agg_by_listing.get(listing.id)
+        if order_agg and order_agg.avg_net_per_unit:
+            voce_recebe = round(float(order_agg.avg_net_per_unit), 2)
+        elif listing.price and float(listing.price) > 0:
+            # Fallback: cálculo estimado
             preco = float(listing.price)
             if listing.sale_fee_pct and float(listing.sale_fee_pct) > 0:
                 taxa_pct = float(listing.sale_fee_pct)
@@ -325,7 +435,7 @@ async def list_listings(
         # Variação
         vendas_var: float | None = None
         receita_var: float | None = None
-        if is_period_mode and effective_snap_dict and prev_agg:
+        if (is_period_mode or is_single_day) and effective_snap_dict and prev_agg:
             curr_sales = effective_snap_dict["sales_today"]
             prev_sales = prev_agg["sales_today"]
             if prev_sales > 0:
@@ -334,7 +444,7 @@ async def list_listings(
             prev_rev = prev_agg["revenue"]
             if prev_rev > 0:
                 receita_var = round(((curr_rev - prev_rev) / prev_rev) * 100, 1)
-        elif not is_period_mode and last_snap:
+        elif not (is_period_mode or is_single_day) and last_snap:
             yesterday_snap = yesterday_snaps_by_listing.get(listing.id)
             if yesterday_snap:
                 today_sales = last_snap.sales_today or 0

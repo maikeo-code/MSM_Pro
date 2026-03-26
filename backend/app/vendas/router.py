@@ -61,8 +61,8 @@ async def list_listings(
     db: Annotated[AsyncSession, Depends(get_db)],
     period: str = Query(
         default="today",
-        pattern=r"^(today|7d|15d|30d|60d)$",
-        description="Periodo: today (padrao), 7d, 15d, 30d, 60d",
+        pattern=r"^(today|yesterday|before_yesterday|7d|15d|30d|60d)$",
+        description="Periodo: today (padrao), yesterday, before_yesterday, 7d, 15d, 30d, 60d",
     ),
     page: int = Query(default=1, ge=1, description="Pagina atual (inicio em 1)"),
     per_page: int = Query(
@@ -116,8 +116,8 @@ async def export_listings(
     db: Annotated[AsyncSession, Depends(get_db)],
     period: str = Query(
         default="today",
-        pattern=r"^(today|7d|15d|30d|60d)$",
-        description="Periodo: today (padrao), 7d, 15d, 30d, 60d",
+        pattern=r"^(today|yesterday|before_yesterday|7d|15d|30d|60d)$",
+        description="Periodo: today (padrao), yesterday, before_yesterday, 7d, 15d, 30d, 60d",
     ),
     ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
 ):
