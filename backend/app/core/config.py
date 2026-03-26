@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # --- JWT ---
     secret_key: str = "insecure-default-secret-change-in-production"
-    access_token_expire_minutes: int = 1440  # 24h (em vez de 30 dias)
+    access_token_expire_minutes: int = 43200  # 30 dias
     algorithm: str = "HS256"
 
     # --- Email ---
