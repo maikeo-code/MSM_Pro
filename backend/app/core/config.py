@@ -1,5 +1,8 @@
+import logging
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -24,7 +27,7 @@ class Settings(BaseSettings):
 
     # --- JWT ---
     secret_key: str = "insecure-default-secret-change-in-production"
-    access_token_expire_minutes: int = 43200  # 30 dias
+    access_token_expire_minutes: int = 1440  # 24h (em vez de 30 dias)
     algorithm: str = "HS256"
 
     # --- Email ---
@@ -50,6 +53,20 @@ class Settings(BaseSettings):
 
     # --- Anthropic (Consultor IA) ---
     anthropic_api_key: str = ""
+
+    # --- Registration Control ---
+    registration_open: bool = True  # Allow registration by default (backward compat)
+
+    def model_post_init(self, __context):
+        """Valida configurações críticas de segurança após inicialização."""
+        if self.environment == "production":
+            if self.secret_key == "insecure-default-secret-change-in-production":
+                logger.critical(
+                    "SECURITY ALERT: Usando secret_key padrão em PRODUÇÃO! "
+                    "Defina SECRET_KEY em variáveis de ambiente imediatamente."
+                )
+            if not self.ml_client_id or not self.ml_client_secret:
+                logger.warning("SECURITY ALERT: ML OAuth credentials não configuradas")
 
 
 settings = Settings()

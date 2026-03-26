@@ -70,7 +70,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # --- CORS ---
-# Monta lista de origens permitidas — sem wildcards em methods/headers
+# HARDENING: Whitelist explícito de origens — sem regex wildcards (removido r"https://.*\.up\.railway\.app")
 _cors_origins: list[str] = [
     settings.frontend_url,
     "http://localhost:5173",
@@ -78,15 +78,18 @@ _cors_origins: list[str] = [
     "https://msmprofrontend-production.up.railway.app",
 ]
 # Permite origens extras via env var CORS_ORIGINS (comma-separated)
+# Ex: CORS_ORIGINS="https://custom.com,https://another.com"
 if settings.cors_origins:
     _cors_origins.extend(
         o.strip() for o in settings.cors_origins.split(",") if o.strip()
     )
+logger.info(f"CORS origins allowed: {_cors_origins}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_origin_regex=r"https://.*\.up\.railway\.app",
+    # HARDENING: Removed allow_origin_regex (was r"https://.*\.up\.railway\.app")
+    # Now using explicit whitelist only — see HARDENING_CORS.md
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
