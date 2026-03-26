@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
-from app.consultor.schemas import ConsultorRequest, ConsultorResponse
+from app.consultor.schemas import ChatRequest, ChatResponse, ConsultorRequest, ConsultorResponse
 from app.consultor.service import analisar_listings
+from app.consultor.service_chat import chat_with_tools
 from app.core.database import get_db
 from app.core.deps import get_current_user
 
@@ -36,3 +37,15 @@ async def analisar(
         anuncios_analisados=anuncios_analisados,
         gerado_em=datetime.now(timezone.utc),
     )
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat_consultor(
+    request: ChatRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Chat interativo com o Consultor IA. Consulta dados do sistema via tools read-only."""
+    history = [{"role": msg.role, "content": msg.content} for msg in request.history]
+    reply, tokens = await chat_with_tools(db, current_user.id, request.message, history)
+    return ChatResponse(reply=reply, tokens_used=tokens)
