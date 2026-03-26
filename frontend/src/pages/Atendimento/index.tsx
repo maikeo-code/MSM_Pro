@@ -172,8 +172,9 @@ function RespostaModal({
     <>
       {templatesOpen && (
         <TemplatesModal
-          onSelect={(templateText) => {
-            setTexto(templateText);
+          isOpen={templatesOpen}
+          onSelectTemplate={(template) => {
+            setTexto(template.text);
             setTemplatesOpen(false);
           }}
           onClose={() => setTemplatesOpen(false)}

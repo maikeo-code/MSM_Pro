@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, RefreshCw, WifiOff, ShoppingCart, Package, DollarSign, Target, BarChart2, Sparkles, Download, Eye, Search } from "lucide-react";
 import { Link } from "react-router-dom";
-import listingsService, { type ListingOut, type FunnelData, type HeatmapData } from "@/services/listingsService";
+import listingsService, { type FunnelData, type HeatmapData } from "@/services/listingsService";
 import { consultorService, type ConsultorResponse } from "@/services/consultorService";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { ConsultorDrawer } from "@/components/ConsultorDrawer";

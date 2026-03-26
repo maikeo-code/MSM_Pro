@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ExternalLink, TrendingUp, Package, Download, Eye, Search } from "lucide-react";
-import listingsService, { type ListingOut } from "@/services/listingsService";
+import listingsService from "@/services/listingsService";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { DiasBadge } from "@/components/DiasBadge";
 import { Variacao } from "@/components/Variacao";

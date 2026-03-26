@@ -1,7 +1,6 @@
-import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { History, TrendingUp, TrendingDown } from "lucide-react";
-import listingsService, { PriceHistoryItem } from "@/services/listingsService";
+import listingsService from "@/services/listingsService";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 
 interface PriceHistoryProps {

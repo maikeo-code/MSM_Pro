@@ -68,8 +68,8 @@ export default function Concorrencia() {
     queryKey: ["competitorHistory", expandedCompetitor, selectedChartDays, accountId],
     queryFn: () =>
       expandedCompetitor
-        ? competitorsService.getHistory(expandedCompetitor, selectedChartDays, accountId)
-        : Promise.resolve(null),
+        ? competitorsService.getHistory(expandedCompetitor, selectedChartDays)
+        : null,
     enabled: !!expandedCompetitor,
   });
 
@@ -86,8 +86,8 @@ export default function Concorrencia() {
     queryKey: ["listingAnalysis", expandedMlbId, selectedChartDays, accountId],
     queryFn: () =>
       expandedMlbId
-        ? listingsService.getAnalysis(expandedMlbId, selectedChartDays, accountId)
-        : Promise.resolve(null),
+        ? listingsService.getAnalysis(expandedMlbId, selectedChartDays)
+        : null,
     enabled: !!expandedMlbId,
   });
 
@@ -105,10 +105,10 @@ export default function Concorrencia() {
   });
 
   const removeMutation = useMutation({
-    mutationFn: (id: string) => competitorsService.remove(id),
+    mutationFn: (competitorId: string) => competitorsService.remove(competitorId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["competitors"] });
-      if (expandedCompetitor === id) {
+      if (expandedCompetitor === removeMutation.variables) {
         setExpandedCompetitor(null);
       }
     },
@@ -424,7 +424,7 @@ export default function Concorrencia() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <span className="text-foreground">
-                            {competitor.competitorSalesPerDay.toFixed(1)}
+                            {(competitor.competitorSalesPerDay ?? 0).toFixed(1)}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center">

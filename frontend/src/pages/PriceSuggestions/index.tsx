@@ -628,7 +628,7 @@ export default function PriceSuggestions() {
 
   // ─── Mutations ─────────────────────────────────────────────────────────────
   const generateMutation = useMutation({
-    mutationFn: generateRecommendations,
+    mutationFn: () => generateRecommendations(accountId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pricing-recommendations"] });
     },

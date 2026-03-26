@@ -1,16 +1,15 @@
-import React from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, AlertCircle, CheckCircle, TrendingDown } from "lucide-react";
 import listingsService from "@/services/listingsService";
-import { cn } from "@/lib/utils";
 
 interface SearchPositionProps {
   mlbId: string;
 }
 
 export function SearchPosition({ mlbId }: SearchPositionProps) {
-  const [keyword, setKeyword] = React.useState("");
-  const [searchTriggered, setSearchTriggered] = React.useState(false);
+  const [keyword, setKeyword] = useState("");
+  const [searchTriggered, setSearchTriggered] = useState(false);
 
   const { data: result, isLoading, error } = useQuery({
     queryKey: ["search-position", mlbId, keyword],
@@ -25,7 +24,7 @@ export function SearchPosition({ mlbId }: SearchPositionProps) {
     }
   }
 
-  function handleKeyPress(e: React.KeyboardEvent) {
+  function handleKeyPress(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
       handleSearch();
     }

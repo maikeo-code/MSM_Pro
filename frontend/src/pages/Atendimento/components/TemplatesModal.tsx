@@ -12,9 +12,7 @@ import {
   X,
   AlertCircle,
   Save,
-  ChevronDown,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import * as templateService from "@/services/atendimentoTemplatesService";
 import type { ResponseTemplate } from "@/services/atendimentoTemplatesService";
 

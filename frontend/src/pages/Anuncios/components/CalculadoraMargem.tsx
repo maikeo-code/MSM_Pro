@@ -1,4 +1,3 @@
-import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Calculator, TrendingUp } from "lucide-react";
 import listingsService from "@/services/listingsService";

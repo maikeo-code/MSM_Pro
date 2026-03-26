@@ -1,6 +1,6 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Check, X, Package, Link, Unlink, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X, Package, Link, Unlink } from "lucide-react";
 import productsService, {
   ProductOut,
   ProductCreate,

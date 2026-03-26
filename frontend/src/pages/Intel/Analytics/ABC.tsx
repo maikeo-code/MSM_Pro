@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { AlertCircle, Package } from "lucide-react";
@@ -185,7 +184,9 @@ export default function ABC() {
                         <div className="flex items-center justify-end gap-2">
                           <span>{item.turnover_rate.toFixed(2)}</span>
                           {item.current_stock > 0 && item.turnover_rate < 0.1 && (
-                            <Package className="h-4 w-4 text-amber-600" title="Estoque parado" />
+                            <div title="Estoque parado">
+                              <Package className="h-4 w-4 text-amber-600" />
+                            </div>
                           )}
                         </div>
                       </td>

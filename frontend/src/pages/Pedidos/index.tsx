@@ -37,11 +37,11 @@ function exportOrdersCSV(orders: OrderOut[]): void {
     o.ml_order_id,
     `"${o.buyer_nickname.replace(/"/g, '""')}"`,
     o.quantity,
-    o.unit_price.toFixed(2),
-    o.total_amount.toFixed(2),
-    o.sale_fee.toFixed(2),
-    o.shipping_cost.toFixed(2),
-    o.net_amount.toFixed(2),
+    Number(o.unit_price).toFixed(2),
+    Number(o.total_amount).toFixed(2),
+    Number(o.sale_fee).toFixed(2),
+    Number(o.shipping_cost).toFixed(2),
+    Number(o.net_amount).toFixed(2),
     o.payment_status,
     o.shipping_status,
   ].join(","));
@@ -158,9 +158,9 @@ export default function Pedidos() {
     return filtered.reduce(
       (acc, o) => ({
         pedidos: acc.pedidos + 1,
-        receita: acc.receita + o.total_amount,
-        taxaMl: acc.taxaMl + o.sale_fee,
-        liquido: acc.liquido + o.net_amount,
+        receita: acc.receita + Number(o.total_amount),
+        taxaMl: acc.taxaMl + Number(o.sale_fee),
+        liquido: acc.liquido + Number(o.net_amount),
       }),
       { pedidos: 0, receita: 0, taxaMl: 0, liquido: 0 },
     );
@@ -337,21 +337,21 @@ export default function Pedidos() {
                       {order.quantity}
                     </td>
                     <td className="px-4 py-3 text-right text-gray-700">
-                      {formatCurrency(order.unit_price)}
+                      {formatCurrency(Number(order.unit_price))}
                     </td>
                     <td className="px-4 py-3 text-right text-gray-900 font-semibold">
-                      {formatCurrency(order.total_amount)}
+                      {formatCurrency(Number(order.total_amount))}
                     </td>
                     <td className="px-4 py-3 text-right text-orange-600">
-                      -{formatCurrency(order.sale_fee)}
+                      -{formatCurrency(Number(order.sale_fee))}
                     </td>
                     <td className="px-4 py-3 text-right text-gray-600">
-                      {order.shipping_cost > 0
-                        ? `-${formatCurrency(order.shipping_cost)}`
+                      {Number(order.shipping_cost) > 0
+                        ? `-${formatCurrency(Number(order.shipping_cost))}`
                         : <span className="text-green-600">Gratis</span>}
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-green-700">
-                      {formatCurrency(order.net_amount)}
+                      {formatCurrency(Number(order.net_amount))}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <StatusBadge

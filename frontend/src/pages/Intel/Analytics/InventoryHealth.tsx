@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { AlertCircle, AlertTriangle, CheckCircle } from "lucide-react";
@@ -13,7 +12,7 @@ import { useActiveAccount } from "@/hooks/useActiveAccount";
 const healthColors = {
   healthy: { bg: "bg-emerald-50", border: "border-emerald-200", icon: CheckCircle, color: "text-emerald-600" },
   overstocked: { bg: "bg-yellow-50", border: "border-yellow-200", icon: AlertTriangle, color: "text-yellow-600" },
-  critical_low: { bg: "bg-red-50", border: "border-red-200", icon: AlertCircle, color: "text-red-600" },
+  critical_low: { bg: "bg-red-50", border: "border-red-200", icon: AlertCircle as React.FC<{className?: string}>, color: "text-red-600" },
 };
 
 export default function InventoryHealth() {
@@ -175,7 +174,6 @@ export default function InventoryHealth() {
                     })
                     .map((item) => {
                       const config = healthColors[item.health_status];
-                      const Icon = config.icon;
 
                       return (
                         <tr key={item.mlb_id} className={cn("hover:bg-muted/30 transition-colors", config.bg)}>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Shield, RefreshCw, Award, TrendingUp, TrendingDown, AlertTriangle, ShieldAlert } from "lucide-react";
+import { Shield, RefreshCw, Award, TrendingUp, AlertTriangle, AlertCircle } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -271,7 +271,7 @@ function RiskSimulatorSection({ risk, loading, error }: { risk: ReputationRisk |
     return (
       <div className="rounded-lg border bg-card p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-4">
-          <ShieldAlert className="h-5 w-5 text-orange-500" />
+          <AlertCircle className="h-5 w-5 text-orange-500" />
           <h2 className="text-lg font-semibold text-foreground">Simulador de Risco</h2>
         </div>
         <div className="h-24 flex items-center justify-center text-muted-foreground text-sm">
@@ -285,7 +285,7 @@ function RiskSimulatorSection({ risk, loading, error }: { risk: ReputationRisk |
     return (
       <div className="rounded-lg border bg-card p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-2">
-          <ShieldAlert className="h-5 w-5 text-orange-500" />
+          <AlertCircle className="h-5 w-5 text-orange-500" />
           <h2 className="text-lg font-semibold text-foreground">Simulador de Risco</h2>
         </div>
         <p className="text-sm text-muted-foreground">
@@ -305,7 +305,7 @@ function RiskSimulatorSection({ risk, loading, error }: { risk: ReputationRisk |
     <div className="rounded-lg border bg-card p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <ShieldAlert className={`h-5 w-5 ${overallLevel === "critical" ? "text-red-500" : overallLevel === "warning" ? "text-yellow-500" : "text-green-500"}`} />
+          <AlertCircle className={`h-5 w-5 ${overallLevel === "critical" ? "text-red-500" : overallLevel === "warning" ? "text-yellow-500" : "text-green-500"}`} />
           <h2 className="text-lg font-semibold text-foreground">Simulador de Risco</h2>
         </div>
         <span className="text-xs text-muted-foreground">

@@ -25,6 +25,7 @@ const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   visits_spike: "Pico de Visitas",
   conversion_improved: "Conversao Melhorou",
   stockout_forecast: "Previsao de Estoque",
+  competitor_stockout: "Concorrente Sem Estoque",
 };
 
 const ALERT_TYPE_COLORS: Record<AlertType, string> = {
@@ -36,6 +37,7 @@ const ALERT_TYPE_COLORS: Record<AlertType, string> = {
   visits_spike: "bg-green-100 text-green-700",
   conversion_improved: "bg-emerald-100 text-emerald-700",
   stockout_forecast: "bg-amber-100 text-amber-700",
+  competitor_stockout: "bg-red-100 text-red-700",
 };
 
 const SEVERITY_COLORS: Record<Severity, string> = {
@@ -53,6 +55,7 @@ const THRESHOLD_LABELS: Record<AlertType, string | null> = {
   visits_spike: null,
   conversion_improved: null,
   stockout_forecast: "Dias ate stockout",
+  competitor_stockout: null,
 };
 
 function formatThreshold(type: AlertType, value: number | null): string {

@@ -17,7 +17,6 @@ import {
   BarChart2,
   PieChart,
   Lightbulb,
-  Brain,
   Sparkles,
   Menu,
   X,
