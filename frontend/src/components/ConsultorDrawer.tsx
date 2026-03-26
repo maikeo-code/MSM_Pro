@@ -1,131 +1,200 @@
-import { Sparkles, X, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useState, useRef, useEffect } from "react";
+import { X, Send, Sparkles, Loader2 } from "lucide-react";
+import { consultorService, type ChatMessage } from "@/services/consultorService";
 import { RenderAnalise } from "@/components/RenderAnalise";
-import type { ConsultorResponse } from "@/services/consultorService";
+import { cn } from "@/lib/utils";
 
-export interface ConsultorDrawerProps {
+interface ConsultorDrawerProps {
   aberto: boolean;
   onFechar: () => void;
-  loading: boolean;
-  resultado: ConsultorResponse | null;
-  erro: string | null;
-  titulo?: string;
-  subtituloAnalise?: string;
-  labelRodape?: (r: ConsultorResponse) => string;
 }
 
-export function ConsultorDrawer({
-  aberto,
-  onFechar,
-  loading,
-  resultado,
-  erro,
-  titulo = "Consultor IA",
-  subtituloAnalise = "Analise gerada",
-  labelRodape,
-}: ConsultorDrawerProps) {
+const SUGESTOES = [
+  "Como estão minhas vendas hoje?",
+  "Quais anúncios estão com estoque crítico?",
+  "Qual meu produto mais rentável nos últimos 30 dias?",
+  "Resumo financeiro do mês",
+];
+
+interface DisplayMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+export function ConsultorDrawer({ aberto, onFechar }: ConsultorDrawerProps) {
+  const [messages, setMessages] = useState<DisplayMessage[]>([
+    {
+      role: 'assistant',
+      content: 'Olá! Sou o **Consultor IA** do MSM Pro. Posso analisar seus dados de vendas, estoque, financeiro e concorrência. O que gostaria de saber?',
+      timestamp: new Date(),
+    }
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Scroll automático
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Focus no input quando abre
+  useEffect(() => {
+    if (aberto) {
+      setTimeout(() => inputRef.current?.focus(), 300);
+    }
+  }, [aberto]);
+
+  const handleSend = async (text?: string) => {
+    const messageText = (text || input).trim();
+    if (!messageText || isLoading) return;
+
+    const userMsg: DisplayMessage = { role: 'user', content: messageText, timestamp: new Date() };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      // Montar histórico (excluindo a mensagem de boas-vindas)
+      const history: ChatMessage[] = messages
+        .slice(1) // pula boas-vindas
+        .map(m => ({ role: m.role, content: m.content }));
+
+      const response = await consultorService.chat(messageText, history);
+
+      const assistantMsg: DisplayMessage = {
+        role: 'assistant',
+        content: response.reply,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, assistantMsg]);
+    } catch (err: any) {
+      const errorMsg: DisplayMessage = {
+        role: 'assistant',
+        content: 'Desculpe, ocorreu um erro ao processar sua pergunta. Tente novamente.',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  if (!aberto) return null;
+
   return (
     <>
       {/* Overlay */}
       <div
-        className={cn(
-          "fixed inset-0 z-40 bg-black/30 backdrop-blur-sm transition-opacity duration-300",
-          aberto
-            ? "opacity-100 pointer-events-auto"
-            : "opacity-0 pointer-events-none"
-        )}
+        className="fixed inset-0 bg-black/40 z-50 transition-opacity"
         onClick={onFechar}
       />
 
       {/* Drawer */}
-      <div
-        className={cn(
-          "fixed inset-y-0 right-0 z-50 flex flex-col bg-card shadow-2xl transition-transform duration-300 ease-in-out",
-          "w-full sm:w-[480px]",
-          aberto ? "translate-x-0" : "translate-x-full"
-        )}
-      >
+      <div className="fixed right-0 top-0 h-full w-full max-w-lg bg-card border-l shadow-xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-white" />
-            <h2 className="text-base font-semibold text-white">{titulo}</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-blue-600 to-violet-600">
+          <div className="flex items-center gap-2 text-white">
+            <Sparkles className="h-5 w-5" />
+            <h2 className="text-lg font-bold">Consultor IA</h2>
           </div>
           <button
             onClick={onFechar}
-            className="rounded-md p-1.5 text-white/70 hover:text-white hover:bg-white/20 transition-colors"
+            className="p-1 rounded-md text-white/80 hover:text-white hover:bg-white/20 transition-colors"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Corpo */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {loading && (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <div className="relative">
-                <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
-                <div
-                  className="absolute inset-0 rounded-full bg-blue-50"
-                  style={{ zIndex: -1 }}
-                />
+        {/* Mensagens */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          {messages.map((msg, i) => (
+            <div
+              key={i}
+              className={cn(
+                "flex",
+                msg.role === 'user' ? "justify-end" : "justify-start"
+              )}
+            >
+              <div
+                className={cn(
+                  "max-w-[85%] rounded-lg px-4 py-3 text-sm",
+                  msg.role === 'user'
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground"
+                )}
+              >
+                {msg.role === 'assistant' ? (
+                  <RenderAnalise texto={msg.content} />
+                ) : (
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                )}
               </div>
-              <p className="text-sm text-gray-500 font-medium">
-                Analisando seus anuncios...
-              </p>
-              <p className="text-xs text-gray-400 text-center max-w-xs">
-                A IA esta processando seus dados de vendas, estoque e conversao
-                para gerar insights personalizados.
-              </p>
             </div>
-          )}
+          ))}
 
-          {erro && !loading && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              <p className="font-semibold mb-1">Erro ao gerar analise</p>
-              <p>{erro}</p>
-            </div>
-          )}
-
-          {resultado && !loading && (
-            <div className="space-y-4">
-              <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-3">
-                <p className="text-xs text-blue-600 font-medium uppercase tracking-wide">
-                  {subtituloAnalise}
-                </p>
+          {/* Loading indicator */}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-muted rounded-lg px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analisando seus dados...
               </div>
-              <RenderAnalise texto={resultado.analise} />
             </div>
           )}
 
-          {!loading && !erro && !resultado && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-              <Sparkles className="h-10 w-10 text-blue-200" />
-              <p className="text-sm text-gray-500">
-                Clique em "Analisar" para gerar insights com IA
-              </p>
+          {/* Sugestões (só quando não há conversa além da boas-vindas) */}
+          {messages.length <= 1 && !isLoading && (
+            <div className="space-y-2 pt-2">
+              <p className="text-xs text-muted-foreground font-medium">Sugestões:</p>
+              <div className="flex flex-wrap gap-2">
+                {SUGESTOES.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSend(s)}
+                    className="text-xs px-3 py-1.5 rounded-full border hover:bg-accent hover:text-accent-foreground transition-colors text-muted-foreground"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
+
+          <div ref={messagesEndRef} />
         </div>
 
-        {/* Footer */}
-        {resultado && !loading && (
-          <div className="border-t border-border px-6 py-3 bg-muted/30">
-            <p className="text-xs text-muted-foreground">
-              {labelRodape
-                ? labelRodape(resultado)
-                : `${resultado.anuncios_analisados} anuncios analisados \u2022 ${new Date(
-                    resultado.gerado_em
-                  ).toLocaleString("pt-BR", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}`}
-            </p>
+        {/* Input area */}
+        <div className="border-t px-4 py-3">
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Pergunte sobre seus dados..."
+              rows={1}
+              className="flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring max-h-24"
+              disabled={isLoading}
+            />
+            <button
+              onClick={() => handleSend()}
+              disabled={!input.trim() || isLoading}
+              className="shrink-0 rounded-lg bg-primary p-2 text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              <Send className="h-4 w-4" />
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </>
   );
