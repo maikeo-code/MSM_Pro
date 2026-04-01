@@ -43,7 +43,7 @@ from .tasks_listings import (
     _sync_listing_snapshot_async,
     _sync_recent_snapshots_async,
 )
-from .tasks_orders import _sync_orders_async
+from .tasks_orders import _sync_orders_async, _backfill_orders_after_reconnect_async
 from .tasks_reputation import _sync_reputation_async
 from .tasks_tokens import _refresh_expired_tokens_async
 
@@ -270,3 +270,35 @@ def send_daily_intel_report(self):
     except Exception as exc:
         logger.error("Erro em send_daily_intel_report: %s", exc)
         raise
+
+
+# --- Task: Backfill de pedidos após reconexão ---
+
+@celery_app.task(
+    name="app.jobs.tasks.backfill_orders_after_reconnect",
+    bind=True,
+    max_retries=2,
+    default_retry_delay=120,
+)
+def backfill_orders_after_reconnect(self, ml_account_id: str, days_to_backfill: int = 7):
+    """
+    Backfill de pedidos após reconexão de uma conta ML.
+
+    Quando uma conta fica desconectada por dias, dados de pedidos são perdidos.
+    Esta task busca pedidos históricos do ML para preencher os gaps.
+
+    Máximo 30 dias de backfill por segurança de API.
+
+    Args:
+        ml_account_id: UUID da conta ML em string
+        days_to_backfill: Número de dias a fazer backfill (máximo 30)
+    """
+    try:
+        return run_async(
+            _backfill_orders_after_reconnect_async(ml_account_id, days_to_backfill)
+        )
+    except Exception as exc:
+        logger.error(
+            f"Erro em backfill_orders_after_reconnect para {ml_account_id}: {exc}"
+        )
+        raise self.retry(exc=exc, countdown=2 ** self.request.retries)

@@ -579,11 +579,56 @@ ISSO NAO E CONTRADICAO. Sao precos diferentes:
 
 **Gotchas:**
 - `expires_in` e em SEGUNDOS (21600 = 6 horas).
-- Refresh token tambem pode mudar — sempre salvar o novo.
-- Se refresh falhar com 400, o usuario precisa re-autorizar via OAuth.
+- Refresh token tambem pode mudar — SEMPRE salvar o novo imediatamente.
+- Se refresh falhar com 400/invalid_grant, o usuario precisa re-autorizar via OAuth.
 
 **Validado com curl:** Sim
 **Ultima validacao:** 2026-03-12
+
+---
+
+### Ciclo de vida dos tokens ML — COMPORTAMENTO DOCUMENTADO (2026-03-26)
+
+#### access_token
+- Validade: **6 horas** (21600 segundos, campo `expires_in`)
+- Nao ha forma de aumentar esse prazo — e fixo pelo ML
+- O projeto renova proativamente via Celery (task a cada hora, minuto 30)
+- Renovacao on-demand quando a API retorna 401 (implementado em `client.py`)
+
+#### refresh_token
+- Validade: **6 meses** a partir da ultima utilizacao
+- **ROTACIONADO a cada uso** — o ML emite um NOVO refresh_token a cada chamada de refresh
+- Somente o ULTIMO refresh_token emitido e valido (o anterior e invalidado imediatamente)
+- **CRITICO**: se o codigo nao salvar o novo refresh_token apos cada uso, o token anterior fica invalido e o usuario precisa reconectar
+- Invalidado antecipadamente por: troca de senha do usuario, revogacao de permissoes, nao-uso da aplicacao por **4 meses** (mesmo antes dos 6 meses)
+
+#### offline_access scope
+- O scope `offline_access` e obrigatorio para receber o refresh_token no OAuth inicial
+- A resposta do /oauth/token confirma que o MSM_Pro ja usa esse scope (`"scope": "offline_access read write"`)
+
+#### Como integradores como Nubimetrics/UpSeller NUNCA pedem reconexao
+O mecanismo e identico ao que o MSM_Pro ja tem implementado:
+1. Armazenam o refresh_token no banco
+2. Renovam o access_token proativamente antes de expirar
+3. Sempre salvam o NOVO refresh_token retornado a cada renovacao
+4. Monitoram o banco: se refresh_token esta proximo de expirar (5+ meses sem uso), alertam o usuario
+
+**O MSM_Pro JA implementa o mecanismo correto.** Se o usuario ve "Token expirado" na tela,
+o problema e que `token_expires_at` no banco ainda reflete o prazo ANTIGO e o Celery beat
+nao rodou (ou falhou) para atualizar. A tela mostra o campo `token_expires_at` bruto do banco
+sem considerar que o Celery ja pode ter renovado em background.
+
+#### Diagnostico: por que a tela mostra "Token expirado"
+O frontend le `account.token_expires_at` diretamente via `GET /api/v1/auth/ml/accounts`.
+Se `token_expires_at < now()`, exibe "Token expirado" (badge vermelho).
+Isso pode ocorrer se:
+1. O Celery beat nao esta rodando (worker parado no Railway)
+2. A renovacao falhou silenciosamente (erro nao capturado em tasks_tokens.py)
+3. O Railway hibernou o worker e a task de renovacao nao disparou
+4. O refresh_token foi invalidado por nao-uso por mais de 4 meses
+
+**Solucao**: verificar se o Celery worker esta ativo no Railway. Se estiver ativo e ainda aparecer
+expirado, verificar logs da task `refresh_expired_tokens`.
 
 ---
 
@@ -1201,6 +1246,133 @@ Substituido por `get_product_ads_items()` com `advertiser_id`.
 
 ---
 
+## 26. Preco Real de Venda (endpoint novo — fonte primaria de preco)
+
+### GET /items/{ITEM_ID}/sale_price
+
+Retorna o preco que o comprador REALMENTE paga, considerando TODAS as camadas de desconto
+(desconto do vendedor, campanha do marketplace, etc).
+
+Introducao em 2025/2026. O campo `price` do `GET /items/{id}` foi considerado depreciado
+pelo ML a partir de marco 2026 para fins de preco de vitrine.
+
+**Parametros:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `context` | string | Recomendado | `"channel_marketplace"` (padrao), `"channel_mshops"`, `"channel_mp"` |
+
+**Resposta real (quando item tem preco especial):**
+```json
+{
+  "price_id": "P-MLB17129028-MLB6205732214-1234",
+  "amount": 50.70,
+  "regular_amount": 84.50,
+  "currency_id": "BRL",
+  "metadata": {
+    "promotion_id": "P-MLB17129028",
+    "promotion_type": "SMART",
+    "campaign_id": "...",
+    "campaign_discount_percentage": 28.9
+  }
+}
+```
+
+**Resposta quando item nao tem preco especial (sem desconto ativo):**
+- Retorna HTTP 404 ou dict vazio `{}`
+
+**Campos:**
+| Campo | Tipo | Nullable | Descricao |
+|-------|------|----------|-----------|
+| `amount` | float | Nao | Preco que o comprador paga |
+| `regular_amount` | float | **Sim** | Preco cheio sem desconto. Null quando nao ha desconto ativo. |
+| `currency_id` | string | Nao | `"BRL"` para Brasil |
+| `metadata` | object | Sim | Detalhes da promocao ativa (nao disponivel para itens de terceiros) |
+| `price_id` | string | Nao | ID unico do preco |
+
+**Logica de uso no MSM_Pro (service_sync.py):**
+```python
+# 1a tentativa: endpoint novo (fonte primaria)
+sp_response = await client.get_item_sale_price(mlb_id)
+if sp_response and sp_response.get("amount") is not None:
+    price = Decimal(str(sp_response["amount"]))
+    reg_amount = sp_response.get("regular_amount")
+    if reg_amount is not None:
+        original_price = Decimal(str(reg_amount))
+else:
+    # Fallback: campo price do /items/{id}
+    price = Decimal(str(item.get("price", 0)))
+    # + logica legada com original_price e sale_price
+```
+
+**Gotchas:**
+- Retorna 404 quando item nao tem preco especial — tratar como dict vazio, NAO como erro.
+- `regular_amount` pode ser null mesmo quando ha desconto (depende do tipo de promocao).
+- Para itens de terceiros (concorrentes), `metadata` pode nao vir. `amount` continua correto.
+- Se o endpoint falhar por qualquer razao, o fallback com `item["price"]` do GET /items/{id} ainda e valido e correto para a maioria dos casos.
+- O `amount` aqui SEMPRE representa o preco de vitrine (o que o comprador ve).
+
+**Quando usar vs nao usar:**
+- USA-SE para anuncios proprios (token do vendedor) — obtem preco mais preciso com metadados.
+- PODE-SE usar para anuncios de terceiros (endpoint e publico para leitura de preco).
+- FALLBACK NECESSARIO: se retornar vazio/404, usar `item["price"]` do /items/{id}.
+
+**Implementado em:** `client.py` — metodo `get_item_sale_price()`
+**Validado com curl:** Pendente validacao com curl real
+**Ultima validacao:** 2026-03-25 (via code review do service_sync.py)
+
+---
+
+## 27. Camadas de Preco de um Item
+
+### GET /items/{ITEM_ID}/prices
+
+Retorna TODAS as camadas de preco vigentes para o item (standard + promotion).
+
+**Parametros:** Nenhum obrigatorio.
+
+**Resposta esperada:**
+```json
+[
+  {
+    "id": "standard_price_id",
+    "type": "standard",
+    "amount": 84.50,
+    "regular_amount": null,
+    "currency_id": "BRL",
+    "conditions": {},
+    "context_restrictions": {},
+    "metadata": {}
+  },
+  {
+    "id": "promotion_price_id",
+    "type": "promotion",
+    "amount": 50.70,
+    "regular_amount": 84.50,
+    "currency_id": "BRL",
+    "conditions": {"context_restrictions": {"channel": "channel_marketplace"}},
+    "metadata": {"promotion_id": "P-MLB17129028"}
+  }
+]
+```
+
+**Campos por entrada:**
+| Campo | Tipo | Nullable | Descricao |
+|-------|------|----------|-----------|
+| `type` | string | Nao | `"standard"` (preco base) ou `"promotion"` (preco com desconto) |
+| `amount` | float | Nao | Valor desse preco |
+| `regular_amount` | float | Sim | Preco cheio para exibir riscado (so em promotion) |
+
+**Gotchas:**
+- Pode retornar lista vazia ou 404 se item nao tem precos especiais configurados.
+- Para saber o preco final do comprador: usar `/sale_price` (endpoint 26) que ja resolve qual camada aplicar.
+- Este endpoint e util para debugar quais precos estao configurados, nao para uso em sync.
+
+**Implementado em:** `client.py` — metodo `get_item_prices()`
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
 ## Resumo de Bugs Criticos Identificados
 
 | # | Endpoint | Bug | Impacto | Arquivo |
@@ -1210,6 +1382,8 @@ Substituido por `get_product_ads_items()` com `advertiser_id`.
 | 3 | `GET /advertising/.../campaigns` | Campo de impressoes e `"prints"` nao `"impressions"` | `impressions` sempre 0 no banco | ads/service.py:231 |
 | 4 | `GET /visits/items` | Resposta e dict `{item_id: visits}` mas codigo trata os dois formatos (ok) | Nenhum — codigo ja trata | client.py:601-610 |
 | 5 | `GET /advertising/campaigns?user_id=` | Endpoint legado nao documentado oficialmente | Retorna 404 em contas sem PADS legado | client.py:625 |
+| 6 | `GET /items/{id}/sale_price` | Endpoint novo documentado na secao 26. Fallback para /items/{id}.price quando 404. | Sem bug atual — logica de fallback esta correta no service_sync.py | service_sync.py:91-130 |
+| 7 | `GET /items/{id}/visits/time_window` | `last=1` retorna o dia corrente (pode estar parcial). Para ontem: usar `last=2` e filtrar por data. | Visitas de "hoje" podem ser parciais (sincronizadas cedo) | service_sync.py:230-243 |
 
 ---
 

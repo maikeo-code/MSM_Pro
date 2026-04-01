@@ -1,0 +1,174 @@
+........................................................................ [ 14%]
+........................................................................ [ 28%]
+........................................................................ [ 42%]
+........................................................................ [ 56%]
+........................................................................ [ 70%]
+............F..F........................................................ [ 84%]
+........................................................................ [ 99%]
+.....                                                                    [100%]
+================================== FAILURES ===================================
+________ TestRateLimitDisableFeature.test_rate_limit_disabled_via_env _________
+
+self = <tests.test_rate_limiting.TestRateLimitDisableFeature object at 0x0000018F531516D0>
+
+    def test_rate_limit_disabled_via_env(self):
+        """Verify RATE_LIMIT_ENABLED=false disables limiting."""
+        # The test environment has RATE_LIMIT_ENABLED=false set
+        # Verify the functions return None when disabled
+        assert os.environ.get("RATE_LIMIT_ENABLED") == "false"
+        from app.core.rate_limit import rate_limit_auth_login
+    
+        limit = rate_limit_auth_login()
+        # When disabled, should return None
+>       assert limit is None
+E       AssertionError: assert '5/minute' is None
+
+tests\test_rate_limiting.py:147: AssertionError
+_ TestRateLimitDisabledBehavior.test_rate_limit_functions_return_none_when_disabled _
+
+self = <tests.test_rate_limiting.TestRateLimitDisabledBehavior object at 0x0000018F53151A90>
+
+    def test_rate_limit_functions_return_none_when_disabled(self):
+        """Verify all rate limit functions return None when disabled."""
+        from app.core.rate_limit import (
+            rate_limit_auth_login,
+            rate_limit_auth_register,
+            rate_limit_api_general,
+        )
+    
+        # When RATE_LIMIT_ENABLED=false (set at module level)
+        assert os.environ["RATE_LIMIT_ENABLED"] == "false"
+    
+        # All functions should return None
+>       assert rate_limit_auth_login() is None
+E       AssertionError: assert '5/minute' is None
+E        +  where '5/minute' = <function rate_limit_auth_login at 0x0000018F54D35F30>()
+
+tests\test_rate_limiting.py:193: AssertionError
+=============================== tests coverage ================================
+_______________ coverage: platform win32, python 3.14.2-final-0 _______________
+
+Name                                          Stmts   Miss Branch BrPart   Cover   Missing
+------------------------------------------------------------------------------------------
+app\ads\models.py                                39     39      0      0   0.00%   1-99
+app\ads\router.py                                51     51     16      0   0.00%   1-117
+app\ads\service.py                              112    112     16      0   0.00%   1-307
+app\alertas\router.py                            36     36      0      0   0.00%   6-119
+app\analise\router.py                            13     13      0      0   0.00%   7-46
+app\analise\schemas.py                           30     30      0      0   0.00%   1-56
+app\analise\service.py                           98     98     30      0   0.00%   7-460
+app\atendimento\router.py                        91     91      6      0   0.00%   2-259
+app\atendimento\service.py                      233    233     84      0   0.00%   9-587
+app\concorrencia\router.py                       44     44      4      0   0.00%   1-124
+app\concorrencia\service.py                      86     86     24      0   0.00%   1-292
+app\consultor\router.py                          14     14      0      0   0.00%   1-34
+app\consultor\service.py                        243    243    100      0   0.00%   1-505
+app\core\models.py                               18     18      0      0   0.00%   7-58
+app\financeiro\models.py                         18     18      0      0   0.00%   1-56
+app\financeiro\router.py                         45     45      2      0   0.00%   9-211
+app\financeiro\schemas.py                        90     90      0      0   0.00%   4-188
+app\intel\analytics\router.py                    37     37      0      0   0.00%   1-163
+app\intel\analytics\service_abc.py               49     49     10      0   0.00%   1-169
+app\intel\analytics\service_comparison.py        43     43      2      0   0.00%   1-161
+app\intel\analytics\service_distribution.py      34     34      8      0   0.00%   1-99
+app\intel\analytics\service_insights.py          51     51      8      0   0.00%   1-185
+app\intel\analytics\service_inventory.py         46     46     14      0   0.00%   1-150
+app\intel\analytics\service_pareto.py            37     37     12      0   0.00%   1-107
+app\intel\pricing\router.py                     166    166     42      0   0.00%   1-555
+app\intel\pricing\schemas.py                     54     54      0      0   0.00%   1-161
+app\intel\pricing\service.py                     58     58     18      0   0.00%   7-150
+app\intel\pricing\service_analyzer.py           131    131     44      0   0.00%   13-392
+app\intel\router.py                               6      6      0      0   0.00%   1-8
+app\main.py                                     135    135     30      0   0.00%   1-317
+app\perguntas\router.py                          46     46      8      0   0.00%   1-100
+app\perguntas\schemas.py                         10     10      0      0   0.00%   2-33
+app\produtos\router.py                           25     25      0      0   0.00%   1-64
+app\produtos\service.py                          39     39      8      0   0.00%   1-75
+app\reputacao\router.py                          67     67     22      0   0.00%   1-187
+app\reputacao\schemas.py                         47     47      0      0   0.00%   1-90
+app\vendas\router.py                            192    192     22      0   0.00%   1-759
+app\vendas\service.py                            44     44     12      0   0.00%   16-150
+app\vendas\service_analytics.py                 213    213     56      0   0.00%   4-637
+app\vendas\service_kpi.py                       306    306    102      0   0.00%   4-768
+app\vendas\service_price.py                     228    228     56      0   0.00%   4-643
+app\vendas\service_sync.py                      181    181     76      0   0.00%   4-320
+app\intel\pricing\service_score.py              179    173     98      0   2.17%   26-44, 77-271, 313-373
+app\jobs\tasks_listings.py                      278    263     94      0   4.03%   36-361, 379-472, 478-499
+app\jobs\tasks_digest.py                        209    193     68      0   5.78%   31-426, 452-458, 465, 474-686, 753-799, 809-837
+app\jobs\tasks_competitors.py                   155    142     48      0   6.40%   34-223, 238-358
+app\jobs\tasks_orders.py                        128    117     32      0   6.88%   30-278
+app\intel\pricing\service_collector.py          203    182     74      0   7.58%   33-35, 40, 73-115, 128-178, 197-248, 253-320, 338-361, 377-387, 394-526
+app\intel\pricing\service_report.py             228    201     66      0   9.18%   87-116, 125-150, 166-168, 172, 177-187, 195-202, 227-270, 293-310, 323-342, 369-532, 573-634, 660-732
+app\jobs\tasks_daily_intel.py                   162    139     54      0  10.65%   55-103, 113-126, 131-195, 200-212, 217-280, 290-333, 344-435
+app\financeiro\service.py                       350    308     74      0  10.85%   119-254, 273-395, 412-513, 548-735, 760-770, 785-812, 835-993, 1027-1121
+app\intel\pricing\service_weights.py             71     60     30      0  10.89%   43-179
+app\alertas\service.py                          316    275    142      0  11.14%   65-112, 122-135, 144-156, 166-179, 188-190, 204-216, 227-239, 258-294, 302-337, 344-355, 360-403, 408-438, 443-478, 488-538, 545-587, 595-643, 651-703, 716-769
+app\jobs\tasks_alerts.py                         41     35     10      0  11.76%   22-83
+app\reputacao\service.py                        118    101     22      0  12.14%   33-43, 51-60, 70-185, 192-202, 209-224, 244-328
+app\core\email.py                                64     54      4      0  14.71%   59-60, 75-109, 125-166
+app\jobs\tasks_tokens.py                         44     36      8      0  15.38%   26-113
+app\auth\service.py                             125     99     20      0  17.93%   24, 28, 35-43, 50-64, 69-75, 82-90, 95-116, 125-128, 144-179, 188-211, 216-223, 230-274
+app\jobs\tasks_ads.py                            29     22      4      0  21.21%   24-64
+app\mercadolivre\client.py                      342    251    114      4  22.15%   21-26, 34-49, 86, 89, 100-120, 163, 177-189, 201, 210-214, 225-234, 254-281, 294-319, 326-337, 351-368, 382-393, 410-420, 433-450, 460-479, 489-510, 519-532, 550-577, 593, 599, 608-612, 624, 636-640, 654-684, 693-707, 719-733, 755, 773, 783, 802, 817, 839-851, 858, 865, 886-896, 903, 919-930, 946-958, 981, 989-992, 1015-1032, 1036
+app\jobs\tasks_reputation.py                     23     17      4      0  22.22%   19-43
+app\auth\router.py                              133     92     36      0  24.26%   53-64, 79-92, 104, 112-113, 125-127, 140-163, 178-216, 226-246, 259-295, 308-319, 328-334, 345-369
+app\atendimento\service_templates.py             76     52     18      0  27.66%   22-31, 52-65, 84-118, 137-181, 199-215, 228-242
+app\jobs\tasks.py                               110     73      6      0  31.90%   69-75, 87-99, 110-114, 125-129, 145-149, 165-169, 180-184, 195-207, 223-227, 239-243, 260-272
+app\jobs\tasks_helpers.py                        26     16      4      0  33.33%   15-20, 32-45
+app\core\deps.py                                 28     16      6      0  35.29%   22-52
+app\intel\analytics\service_forecast.py          78     39     20      1  46.94%   36, 77-157
+app\core\database.py                             16      8      0      0  50.00%   35-43
+app\core\rate_limit.py                           49     19     12      3  57.38%   38-64, 85-90, 108, 119, 130
+app\vendas\service_health.py                    151     45     64      2  71.63%   115, 145-147, 218-319
+app\vendas\schemas.py                           195     23     24      0  78.54%   429-447, 459-485
+app\core\config.py                               38      4      6      1  79.55%   66-72
+app\vendas\service_mock.py                       23      5      2      0  80.00%   56-62
+app\core\crypto.py                               49     10      8      1  80.70%   33->39, 41-45, 75-80, 94-96
+app\auth\oauth_state.py                          31      2      6      0  94.59%   54, 59
+app\vendas\service_calculations.py               93      2     46      1  97.84%   94->98, 107-108
+app\__init__.py                                   0      0      0      0 100.00%
+app\ads\__init__.py                               0      0      0      0 100.00%
+app\ads\schemas.py                               10      0      0      0 100.00%
+app\alertas\__init__.py                           0      0      0      0 100.00%
+app\alertas\models.py                            32      0      0      0 100.00%
+app\alertas\schemas.py                           34      0      4      0 100.00%
+app\analise\__init__.py                           0      0      0      0 100.00%
+app\atendimento\__init__.py                       0      0      0      0 100.00%
+app\atendimento\models.py                        19      0      0      0 100.00%
+app\atendimento\schemas.py                       29      0      0      0 100.00%
+app\auth\__init__.py                              0      0      0      0 100.00%
+app\auth\models.py                               43      0      0      0 100.00%
+app\auth\schemas.py                              22      0      0      0 100.00%
+app\concorrencia\__init__.py                      0      0      0      0 100.00%
+app\concorrencia\models.py                       30      0      0      0 100.00%
+app\concorrencia\schemas.py                      15      0      0      0 100.00%
+app\consultor\__init__.py                         0      0      0      0 100.00%
+app\consultor\schemas.py                          6      0      0      0 100.00%
+app\core\__init__.py                              0      0      0      0 100.00%
+app\core\celery_app.py                            6      0      0      0 100.00%
+app\core\constants.py                            15      0      0      0 100.00%
+app\financeiro\__init__.py                        0      0      0      0 100.00%
+app\intel\__init__.py                             0      0      0      0 100.00%
+app\intel\analytics\__init__.py                   0      0      0      0 100.00%
+app\intel\analytics\schemas.py                   22      0      0      0 100.00%
+app\intel\models.py                              65      0      0      0 100.00%
+app\intel\pricing\__init__.py                     0      0      0      0 100.00%
+app\jobs\__init__.py                              0      0      0      0 100.00%
+app\jobs\tasks_lock.py                           25      0      2      0 100.00%
+app\mercadolivre\__init__.py                      0      0      0      0 100.00%
+app\perguntas\__init__.py                         0      0      0      0 100.00%
+app\produtos\__init__.py                          0      0      0      0 100.00%
+app\produtos\models.py                           23      0      0      0 100.00%
+app\produtos\schemas.py                          18      0      0      0 100.00%
+app\reputacao\__init__.py                         0      0      0      0 100.00%
+app\reputacao\models.py                          26      0      0      0 100.00%
+app\vendas\__init__.py                            0      0      0      0 100.00%
+app\vendas\models.py                            111      0      0      0 100.00%
+app\ws\__init__.py                                0      0      0      0 100.00%
+------------------------------------------------------------------------------------------
+TOTAL                                          8218   6580   2062     13  17.42%
+Coverage HTML written to dir htmlcov
+=========================== short test summary info ===========================
+FAILED tests/test_rate_limiting.py::TestRateLimitDisableFeature::test_rate_limit_disabled_via_env
+FAILED tests/test_rate_limiting.py::TestRateLimitDisabledBehavior::test_rate_limit_functions_return_none_when_disabled
+2 failed, 507 passed in 17.71s

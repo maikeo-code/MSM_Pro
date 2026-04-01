@@ -58,3 +58,30 @@ class UserPreferenceOut(BaseModel):
 
 class UserPreferenceUpdate(BaseModel):
     active_ml_account_id: UUID | None = None
+
+
+class TokenDiagnosticAccount(BaseModel):
+    """Diagnóstico de token para uma conta ML."""
+    id: UUID
+    nickname: str
+    token_status: str  # "healthy" | "expiring_soon" | "expired" | "unknown"
+    token_expires_at: datetime | None
+    remaining_hours: float | None
+    has_refresh_token: bool
+    last_successful_sync: datetime | None
+    last_refresh_attempt: datetime | None
+    last_refresh_success: bool
+    days_since_last_sync: int | None
+    data_gap_warning: str | None
+    refresh_failure_count: int
+    needs_reauth: bool
+
+    model_config = {"from_attributes": True}
+
+
+class TokenDiagnosticResponse(BaseModel):
+    """Resposta completa do diagnóstico de tokens."""
+    celery_status: str  # "online" | "offline" | "unknown"
+    last_token_refresh_task: datetime | None
+    accounts: list[TokenDiagnosticAccount]
+    recommendations: list[str]

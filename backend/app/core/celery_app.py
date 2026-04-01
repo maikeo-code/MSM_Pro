@@ -54,12 +54,14 @@ celery_app.conf.beat_schedule = {
         },
     },
     # Renova tokens ML que vão expirar nas próximas 3 horas
-    # Roda a cada 1 hora para garantir que nunca perca a janela de renovação
+    # Roda a cada 30 minutos para garantir que nunca perca a janela de renovação
+    # (antes rodava 1x/hora no minuto 30, agora rodará nos minutos 0 e 30)
+    # Inclui lock distribuído para evitar race condition entre workers
     "refresh-expired-tokens": {
         "task": "app.jobs.tasks.refresh_expired_tokens",
-        "schedule": crontab(minute=30),  # A cada hora (minuto 30)
+        "schedule": crontab(minute="*/30"),  # A cada 30 minutos (minutos 0, 30)
         "options": {
-            "expires": 3600,
+            "expires": 1800,  # 30 minutos (deve terminar antes da próxima execução)
             "retry": True,
             "retry_policy": {
                 "max_retries": 3,

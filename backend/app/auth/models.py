@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -73,6 +73,15 @@ class MLAccount(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_token_refresh_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    token_refresh_failures: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    needs_reauth: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
     )
 
     # Relacionamentos

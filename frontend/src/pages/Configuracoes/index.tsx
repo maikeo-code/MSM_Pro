@@ -172,20 +172,31 @@ export default function Configuracoes() {
                       <p className="text-sm text-muted-foreground">
                         {account.email ?? account.ml_user_id}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <div className="text-xs text-muted-foreground mt-2 space-y-1">
                         {tokenStatus === "healthy" && (
-                          <>Conexao ativa — renova automaticamente</>
+                          <p>Conexao ativa — renova automaticamente</p>
                         )}
                         {tokenStatus === "expiring_soon" && (
-                          <>Renovando em breve (automatico)</>
+                          <p className="text-amber-600">Renovando em breve (automatico)</p>
                         )}
                         {tokenStatus === "auto_renewing" && (
-                          <span className="text-blue-600">Renovacao automatica em andamento</span>
+                          <p className="text-blue-600">Renovacao automatica em andamento</p>
                         )}
                         {tokenStatus === "unknown" && (
-                          <>Token nao disponivel</>
+                          <p className="text-red-600">Token nao disponivel — reconectar recomendado</p>
                         )}
-                      </p>
+                        {account.last_sync_at && (
+                          <p className="text-muted-foreground">
+                            Última sincronização: {new Date(account.last_sync_at).toLocaleDateString('pt-BR', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <span

@@ -78,11 +78,15 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> User
 # --- OAuth Mercado Livre ---
 
 def get_ml_auth_url(state: str | None = None) -> str:
-    """Monta a URL de autorização OAuth do Mercado Livre."""
+    """
+    Monta a URL de autorização OAuth do Mercado Livre.
+    IMPORTANTE: inclui scope 'offline_access' para permitir refresh de token mesmo sem usuário ativo.
+    """
     params = {
         "response_type": "code",
         "client_id": settings.ml_client_id,
         "redirect_uri": settings.ml_redirect_uri,
+        "scope": "offline_access read write",
     }
     if state:
         params["state"] = state
@@ -134,6 +138,8 @@ async def refresh_ml_token_by_id(account_id: UUID) -> str | None:
     Retorna o novo access_token se sucesso, None se falha.
     Salva o token renovado no banco.
 
+    Atualiza rastreamento: last_token_refresh_at, token_refresh_failures, needs_reauth.
+
     Args:
         account_id: UUID da conta MLAccount a renovar
 
@@ -148,13 +154,30 @@ async def refresh_ml_token_by_id(account_id: UUID) -> str | None:
         account = result.scalar_one_or_none()
 
         if not account or not account.refresh_token:
-            logger.warning(f"Conta {account_id} não encontrada ou sem refresh_token")
+            logger.warning(
+                f"Conta {account_id} não encontrada ou sem refresh_token — refresh abortado"
+            )
             return None
 
         try:
+            refresh_start = datetime.now(timezone.utc)
+            logger.debug(f"Iniciando refresh de token para {account.nickname} (account_id={account_id})")
+
             token_data = await _exchange_refresh_token(account.refresh_token)
             if token_data is None:
-                logger.error(f"Falha ao renovar token para {account_id}: API retornou erro")
+                logger.error(
+                    f"Falha ao renovar token para {account.nickname}: API do ML retornou erro"
+                )
+                # Registra falha no refresh
+                account.token_refresh_failures += 1
+                account.last_token_refresh_at = datetime.now(timezone.utc)
+                if account.token_refresh_failures >= 5:
+                    account.needs_reauth = True
+                    logger.warning(
+                        f"Conta {account.nickname} marcada para reautenticação "
+                        f"após {account.token_refresh_failures} falhas"
+                    )
+                await db.commit()
                 return None
 
             access_token = token_data.get("access_token")
@@ -167,15 +190,35 @@ async def refresh_ml_token_by_id(account_id: UUID) -> str | None:
             account.token_expires_at = datetime.now(timezone.utc) + timedelta(
                 seconds=expires_in
             )
+            account.last_token_refresh_at = datetime.now(timezone.utc)
+            account.token_refresh_failures = 0  # Reset de falhas após sucesso
+            account.needs_reauth = False  # Reset do flag de reauth
             await db.commit()
 
+            refresh_elapsed = (datetime.now(timezone.utc) - refresh_start).total_seconds()
             logger.info(
-                f"Token renovado via refresh_ml_token_by_id para {account.nickname} (exp={account.token_expires_at})"
+                f"Token renovado com sucesso para {account.nickname}: "
+                f"expires_at={account.token_expires_at.isoformat()}, "
+                f"elapsed={refresh_elapsed:.2f}s, "
+                f"account_id={account_id}"
             )
             return access_token
 
         except Exception as e:
-            logger.error(f"Falha ao renovar token para {account_id}: {e}")
+            logger.error(
+                f"Exceção ao renovar token para {account.nickname} ({account_id}): {e}",
+                exc_info=True
+            )
+            # Registra falha por exceção
+            account.token_refresh_failures += 1
+            account.last_token_refresh_at = datetime.now(timezone.utc)
+            if account.token_refresh_failures >= 5:
+                account.needs_reauth = True
+                logger.warning(
+                    f"Conta {account.nickname} marcada para reautenticação "
+                    f"após {account.token_refresh_failures} falhas"
+                )
+            await db.commit()
             return None
 
 
@@ -184,9 +227,15 @@ async def _exchange_refresh_token(refresh_token: str) -> dict | None:
     Helper interno para trocar refresh_token por novo access_token.
     Retorna dict com token data se sucesso, None se falha.
     Seguro para uso tanto em FastAPI endpoints quanto em Celery tasks.
+
+    Casos de falha comuns:
+    - 400: refresh_token expirou ou inválido
+    - 401: client_id/secret inválido
+    - 503: API ML indisponível (retry automático)
     """
     try:
         async with httpx.AsyncClient() as client:
+            logger.debug("Iniciando troca de refresh_token com ML")
             response = await client.post(
                 settings.ml_token_url,
                 data={
@@ -198,16 +247,34 @@ async def _exchange_refresh_token(refresh_token: str) -> dict | None:
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 timeout=30,
             )
+
         if response.status_code != 200:
+            error_detail = response.text[:500]  # mais contexto para debug
             logger.error(
-                "Falha ao renovar token ML: status=%d body=%s",
+                "Falha ao renovar token ML: status=%d detail=%s",
                 response.status_code,
-                response.text[:200],
+                error_detail,
             )
+
+            # Detalhamento por status
+            if response.status_code == 400:
+                logger.warning("Possível refresh_token expirado ou inválido")
+            elif response.status_code == 401:
+                logger.warning("Credenciais client_id/client_secret inválidas")
+            elif response.status_code >= 500:
+                logger.warning("Servidor ML indisponível (5xx) — retry será feito automaticamente")
+
             return None
-        return response.json()
+
+        token_data = response.json()
+        logger.info(
+            "Token renovado com sucesso via refresh_token: expires_in=%s",
+            token_data.get("expires_in", "unknown"),
+        )
+        return token_data
+
     except Exception as e:
-        logger.error("Exceção ao renovar token ML: %s", e)
+        logger.error("Exceção ao renovar token ML: %s", type(e).__name__, exc_info=True)
         return None
 
 

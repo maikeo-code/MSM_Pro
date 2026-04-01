@@ -65,11 +65,19 @@ async def _sync_listing_snapshot_async(
                 new_token = await refresh_ml_token_by_id(account.id)
                 if new_token:
                     account.access_token = new_token
-                    logger.info(f"Token renovado para {account.nickname}")
+                    logger.info(f"Token renovado com sucesso para {account.nickname}")
                 else:
+                    # FALHA CRÍTICA: se refresh falha, PARAR a sync para esta conta
+                    # Continuar com token expirado causaria N chamadas falhadas à API ML
                     logger.error(
-                        f"Falha ao renovar token para {account.nickname}, prosseguindo com token atual"
+                        f"CRÍTICO: Falha ao renovar token para {account.nickname} — "
+                        f"sync abortado para evitar múltiplas chamadas com token inválido"
                     )
+                    return {
+                        "error": f"Token refresh falhou para {account.nickname}",
+                        "listing_id": listing_id,
+                        "skip_reason": "token_refresh_failed"
+                    }
 
         # Chama a API ML
         # Passa ml_account_id ao cliente para que ele possa fazer refresh automático em caso de 401

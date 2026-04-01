@@ -1,17 +1,17 @@
 # SWARM GENESIS v6.0 — RELATORIO COMPLETO
-Gerado em: 18/03/2026 15:41
+Gerado em: 26/03/2026 05:51
 
 ## SAUDE DO SISTEMA
-  Ciclos completos: 300
+  Ciclos completos: 454
   Regras: 10 ativas | 0 deprecadas
-  Feedbacks: 11 | Sucessos: 8 | Falhas abertas: 0
+  Feedbacks: 12 | Sucessos: 9 | Falhas abertas: 0
   Agentes: 20 ativos | 0 elite | 0 aposentados
-  Memoria: 2 episodios | 10 fatos | 6 padroes
+  Memoria: 5 episodios | 19 fatos | 8 padroes
 
 ## CHECKPOINT DA SESSAO (v6)
 
-  Ultimo checkpoint: ID=16 | Ciclo=300 | Fase=synthesis
-  Registrado em: 2026-03-18 18:41:08
+  Ultimo checkpoint: ID=21 | Ciclo=454 | Fase=synthesis
+  Registrado em: 2026-03-26 08:50:54
   Sessao retomada de checkpoint: NAO
 
 ## MUDANCAS DE CODIGO (v6)
@@ -28,35 +28,27 @@ Gerado em: 18/03/2026 15:41
 
 ## LOG DE ACOES — RESUMO POR AGENTE (v6)
 
-  Total de acoes registradas: 9
-  unknown                        ######### (9)
-
-## IMPORTANTES — Quando puder (1)
-
-  [Q9] ux: Ideia de Brainstorm: Criar pagina unificada de Atendimento (Perguntas + Reclamacoes + Devolucoes) em vez de paginas separadas. Isso faria mais sentido para o workflow diario? Ou prefere manter separado?
-
-## CURIOSIDADES (1)
-
-  [Q10] Ideia: Quando um alerta dispara (ex: estoque baixo, concorrente mudou preco), gerar automaticamente uma sugestao da IA (Claude Haiku) e incluir no email de alerta. Isso seria util ou ruido demais?
+  Total de acoes registradas: 10
+  unknown                        ########## (10)
 
 ## SCORES POR AREA
 
-  #######     76.0 | features
+  #######     78.2 | features
   #######     73.6 | deploy
-  ######      68.4 | architecture
-  ######      68.3 | frontend
-  ######      67.2 | code_quality
-  ######      61.0 | security
+  #######     70.1 | architecture
+  ######      69.9 | code_quality
+  ######      69.8 | frontend
+  ######      63.6 | security
   #####       58.8 | error_handling
-  ####        49.9 | testing
+  ####        48.2 | testing
 
 ## EVOLUCAO ENTRE CICLOS
 
-  Ciclo 296 | Score:  95 | Q:0 F:0 I:0 | Ciclo 296 - Verificacao Search Ranking - posicao na busca ML
-  Ciclo 297 | Score:  95 | Q:0 F:0 I:0 | Ciclo 297 - Verificacao Repricing Rules - CRUD completo, 3 t
-  Ciclo 298 | Score:  78 | Q:0 F:0 I:0 | Ciclo 298: Exploração completa do estado atual (22,686 LOC, 
-  Ciclo 299 | Score:  82 | Q:0 F:0 I:0 | Ciclo 299: 8 warnings corrigidos. response_model em 9 endpoi
-  Ciclo 300 | Score:  82 | Q:0 F:0 I:0 | Ciclo 300 (marco estrategico): Planejamento 5 ciclos (301-30
+  Ciclo 450 | Score:  87 | Q:0 F:0 I:0 | Batch final ciclo 450 - TS fixes, API tests, startup analysi
+  Ciclo 451 | Score:  87 | Q:0 F:0 I:0 | Batch final ciclo 451 - TS fixes, API tests, startup analysi
+  Ciclo 452 | Score:  87 | Q:0 F:0 I:0 | Batch final ciclo 452 - TS fixes, API tests, startup analysi
+  Ciclo 453 | Score:  87 | Q:0 F:0 I:0 | Batch final ciclo 453 - TS fixes, API tests, startup analysi
+  Ciclo 454 | Score:  87 | Q:0 F:0 I:0 | Batch final ciclo 454 - TS fixes, API tests, startup analysi
 
 ## PERFORMANCE DOS AGENTES
 
@@ -84,6 +76,8 @@ Gerado em: 18/03/2026 15:41
   [ANTI-PADRAO] [1x] Webhook endpoints sem validacao de user_id permitem abuso. SEMPRE verificar que 
   [SUCESSO] [1x] Para PATCH endpoints, usar model_dump(exclude_unset=True) em vez de verificar ca
   [ANTI-PADRAO] [1x] Loop de queries individuais dentro de for (N+1). Substituir por subquery com agg
+  [ANTI-PADRAO] [1x] Knowledge base pode ficar desatualizado: auditoria reportou 3 criticos mas 2 ja 
+  [SUCESSO] [1x] conftest.py com SQLite in-memory + @compiles PG_UUID/PG_JSON para sqlite permite
 
 ## TOP REGRAS APRENDIDAS
 
@@ -98,9 +92,9 @@ Gerado em: 18/03/2026 15:41
 ## CONHECIMENTO SOBRE O PROJETO
 
   [arquitetura]
+    vendas_refatorado: vendas/service.py refatorado de 2109 para 167 linhas. Dividi
+    backend_overview_ciclo302: 18 modulos, 114 .py, ~26480 LOC, 96 endpoints em 15 routers.
     backend_overview: 13,244 linhas. 15 modulos. 79 arquivos .py. 70+ endpoints em
-    frontend_overview: React 18 + TS + Vite + Tailwind. 13 paginas, Layout com 12 i
-    celery_tasks: 8 tasks: sync_all_snapshots (diario 06:00 BRT), sync_recent_
   [bugs]
     ciclo_298_criticos: 4 CRITICOS: (1) Webhook /notifications sem auth — qualquer u
   [divida_tecnica]
@@ -108,5 +102,6 @@ Gerado em: 18/03/2026 15:41
   [pontos_fortes]
     coisas_boas: Auth JWT funciona. OAuth multi-conta funciona. 8 Celery task
   [reflexao]
+    ciclo_302_autoavaliacao: CICLO 302: 6 agentes. +84 testes (231-315). conftest.py cria
     ciclo_298_autoavaliacao: 4 acoes de correcao, todas bem-sucedidas. Security subiu 75-
     ciclo_299_autoavaliacao: 8 warnings corrigidos em 1 ciclo: response_model (9 endpoint

@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 from uuid import UUID
 
@@ -13,6 +14,8 @@ from app.auth.schemas import (
     MLAccountOut,
     MLConnectURL,
     Token,
+    TokenDiagnosticAccount,
+    TokenDiagnosticResponse,
     UserCreate,
     UserLogin,
     UserOut,
@@ -27,6 +30,8 @@ from app.core.rate_limit import (
     rate_limit_auth_login,
     rate_limit_auth_register,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -158,6 +163,18 @@ async def ml_callback(
     # Salva/atualiza conta ML
     account = await service.save_ml_account(db, user_id, token_data)
     await db.commit()
+
+    # Dispara backfill de pedidos automaticamente após OAuth callback
+    # Estima ~7 dias de gap como padrão (pode ter mais, mas 7 é reasonable)
+    from app.jobs.tasks import backfill_orders_after_reconnect
+    logger.info(
+        f"Conta ML reconectada (OAuth callback): {account.nickname}. "
+        f"Agendando backfill de 7 dias..."
+    )
+    backfill_orders_after_reconnect.apply_async(
+        args=[str(account.id), 7],
+        countdown=10,  # delay 10s para permitir propagação
+    )
 
     from fastapi.responses import RedirectResponse
     return RedirectResponse(
@@ -319,6 +336,170 @@ async def delete_ml_account(
     await db.commit()
 
 
+@router.get("/diagnostics", response_model=TokenDiagnosticResponse)
+async def ml_diagnostics(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Retorna diagnóstico completo de saúde dos tokens ML e Celery.
+
+    Inclui:
+    - Status de cada token ML (healthy/expiring_soon/expired)
+    - Último refresh bem-sucedido
+    - Contador de falhas de refresh
+    - Status do Celery (online/offline)
+    - Recomendações de ação
+    """
+    from datetime import datetime, timezone as tz
+    from app.core.celery_app import celery_app
+    from app.core.models import SyncLog
+
+    now = datetime.now(tz.utc)
+    recommendations = []
+
+    # 1. Verificar status do Celery
+    celery_status = "unknown"
+    try:
+        inspector = celery_app.control.inspect()
+        active = inspector.active()
+        if active is not None and len(active) > 0:
+            celery_status = "online"
+        else:
+            celery_status = "offline"
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Erro ao verificar Celery: {e}")
+        celery_status = "unknown"
+
+    # 2. Obter último token refresh task
+    last_token_refresh_task = None
+    try:
+        result = await db.execute(
+            select(SyncLog)
+            .where(SyncLog.task_name == "refresh_expired_tokens")
+            .order_by(SyncLog.started_at.desc())
+            .limit(1)
+        )
+        last_sync_log = result.scalar_one_or_none()
+        if last_sync_log:
+            last_token_refresh_task = last_sync_log.started_at
+    except Exception:
+        pass
+
+    # 3. Processar cada conta ML
+    result = await db.execute(
+        select(MLAccount).where(
+            MLAccount.user_id == current_user.id,
+            MLAccount.is_active == True,  # noqa: E712
+        )
+    )
+    accounts = result.scalars().all()
+
+    diagnostic_accounts = []
+    for account in accounts:
+        # Determinar status do token
+        expires_at = account.token_expires_at
+        token_status = "unknown"
+        remaining_hours = None
+        if expires_at:
+            remaining_secs = (expires_at - now).total_seconds()
+            remaining_hours = remaining_secs / 3600
+            if remaining_secs < 0:
+                token_status = "expired"
+            elif remaining_secs < 3600:  # 1 hora
+                token_status = "expiring_soon"
+            else:
+                token_status = "healthy"
+
+        # Obter último sync bem-sucedido
+        last_successful_sync = None
+        try:
+            sync_result = await db.execute(
+                select(SyncLog)
+                .where(
+                    SyncLog.ml_account_id == account.id,
+                    SyncLog.task_name == "sync_all_snapshots",
+                    SyncLog.status == "success",
+                )
+                .order_by(SyncLog.finished_at.desc())
+                .limit(1)
+            )
+            last_sync = sync_result.scalar_one_or_none()
+            if last_sync and last_sync.finished_at:
+                last_successful_sync = last_sync.finished_at
+        except Exception:
+            pass
+
+        # Calcular dias desde último sync
+        days_since_last_sync = None
+        data_gap_warning = None
+        if last_successful_sync:
+            days_diff = (now - last_successful_sync).days
+            days_since_last_sync = days_diff
+            if days_diff > 2:
+                data_gap_warning = f"Sem sincronização há {days_diff} dias"
+
+        # Status do último refresh attempt
+        last_refresh_success = True
+        if account.last_token_refresh_at:
+            # Se token_refresh_failures > 0, o último attempt falhou
+            last_refresh_success = account.token_refresh_failures == 0
+
+        diagnostic_accounts.append(
+            TokenDiagnosticAccount(
+                id=account.id,
+                nickname=account.nickname,
+                token_status=token_status,
+                token_expires_at=expires_at,
+                remaining_hours=remaining_hours,
+                has_refresh_token=bool(account.refresh_token),
+                last_successful_sync=last_successful_sync,
+                last_refresh_attempt=account.last_token_refresh_at,
+                last_refresh_success=last_refresh_success,
+                days_since_last_sync=days_since_last_sync,
+                data_gap_warning=data_gap_warning,
+                refresh_failure_count=account.token_refresh_failures,
+                needs_reauth=account.needs_reauth,
+            )
+        )
+
+        # Gerar recomendações
+        if account.needs_reauth:
+            recommendations.append(
+                f"Reconectar conta '{account.nickname}' — "
+                f"refresh token expirou ou foi invalidado ({account.token_refresh_failures} falhas)"
+            )
+        elif token_status == "expired":
+            recommendations.append(
+                f"Token da conta '{account.nickname}' expirou — "
+                f"refresh será feito automaticamente nas próximas 2h"
+            )
+        elif token_status == "expiring_soon":
+            recommendations.append(
+                f"Token da conta '{account.nickname}' expira em menos de 1h — "
+                f"será renovado automaticamente"
+            )
+
+        if data_gap_warning:
+            recommendations.append(
+                f"Conta '{account.nickname}': {data_gap_warning} — "
+                f"verifique se Celery está ativo"
+            )
+
+    # Adicionar recomendações sobre Celery
+    if celery_status == "offline":
+        recommendations.insert(0, "Celery worker offline — sincronizações não estão acontecendo")
+    elif celery_status == "unknown":
+        recommendations.insert(0, "Status do Celery desconhecido — verifique logs de erro")
+
+    return TokenDiagnosticResponse(
+        celery_status=celery_status,
+        last_token_refresh_task=last_token_refresh_task,
+        accounts=diagnostic_accounts,
+        recommendations=recommendations,
+    )
+
+
 @router.get("/preferences", response_model=UserPreferenceOut)
 async def get_preferences(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -367,3 +548,62 @@ async def update_preferences(
     await db.commit()
     await db.refresh(pref)
     return pref
+
+
+@router.post("/ml/accounts/{account_id}/backfill-orders")
+async def backfill_orders_manual(
+    account_id: UUID,
+    days: int = Query(default=7, ge=1, le=30, description="Dias a fazer backfill (1-30)"),
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Dispara backfill manual de pedidos para uma conta ML específica.
+
+    Útil quando:
+    - Uma conta ficou desconectada e o backfill automático não foi acionado
+    - Usuário quer recuperar manualmente dados de pedidos históricos
+
+    Args:
+        account_id: UUID da conta ML
+        days: Número de dias a fazer backfill (1-30, padrão 7)
+
+    Retorna:
+        Status da task agendada
+    """
+    # Verifica se conta pertence ao usuário
+    result = await db.execute(
+        select(MLAccount).where(
+            MLAccount.id == account_id,
+            MLAccount.user_id == current_user.id,
+            MLAccount.is_active == True,  # noqa: E712
+        )
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conta ML não encontrada ou inativa",
+        )
+
+    # Dispara task Celery de backfill
+    from app.jobs.tasks import backfill_orders_after_reconnect
+
+    logger.info(
+        f"Backfill manual solicitado por {current_user.email} "
+        f"para conta {account.nickname} ({days} dias)"
+    )
+
+    task = backfill_orders_after_reconnect.apply_async(
+        args=[str(account.id), days],
+        countdown=5,  # delay 5s
+    )
+
+    return {
+        "status": "backfill_scheduled",
+        "account_id": str(account.id),
+        "nickname": account.nickname,
+        "days": days,
+        "task_id": task.id,
+        "message": f"Backfill de {days} dias agendado. Verifique o status em alguns minutos.",
+    }

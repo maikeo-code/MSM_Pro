@@ -8,6 +8,7 @@ import { ConsultorDrawer } from "@/components/ConsultorDrawer";
 import { DiasBadge } from "@/components/DiasBadge";
 import { Variacao } from "@/components/Variacao";
 import { KpiCard } from "@/components/KpiCard";
+import { TokenHealthBanner } from "@/components/TokenHealthBanner";
 import { exportCSV } from "@/utils/exportCSV";
 import { useActiveAccount } from "@/hooks/useActiveAccount";
 
@@ -358,6 +359,11 @@ export default function Dashboard() {
         aberto={consultorAberto}
         onFechar={() => setConsultorAberto(false)}
       />
+
+      {/* Token Health Banner */}
+      <div className="mb-6">
+        <TokenHealthBanner />
+      </div>
 
       {/* Header */}
       <div className="mb-6">

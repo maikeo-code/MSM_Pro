@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import { useAccountStore } from "@/store/accountStore";
 import { AccountSelector } from "@/components/AccountSelector";
+import { NotificationBell } from "@/components/NotificationBell";
 import authService from "@/services/authService";
 
 // ─── Secao principal do menu com agrupamento semantico ──────────────────────
@@ -162,10 +163,7 @@ function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
         </div>
 
         {/* Notification bell */}
-        <button className="relative p-2 hover:bg-accent rounded-md transition-colors lg:block hidden">
-          <Bell className="h-5 w-5 text-muted-foreground" />
-          <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500 text-xs" />
-        </button>
+        <NotificationBell />
 
         {/* User menu */}
         <div className="relative">
