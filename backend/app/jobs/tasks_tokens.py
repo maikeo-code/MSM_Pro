@@ -93,8 +93,12 @@ async def _refresh_expired_tokens_async():
         errors = []
         skipped = []
 
+        # Salva token_expires_at antigo ANTES de atualizar (para calcular gap de backfill)
+        old_expires_map: dict[str, datetime | None] = {}
+
         for account in accounts:
             account_id_str = str(account.id)
+            old_expires_map[account_id_str] = account.token_expires_at
 
             # Tenta adquirir lock distribuído para esta conta
             # Evita race condition entre múltiplos workers
@@ -126,6 +130,10 @@ async def _refresh_expired_tokens_async():
                         account.token_expires_at = datetime.now(timezone.utc) + timedelta(
                             seconds=expires_in
                         )
+                        # Atualiza campos de tracking
+                        account.last_token_refresh_at = datetime.now(timezone.utc)
+                        account.token_refresh_failures = 0
+                        account.needs_reauth = False
 
                         logger.info(
                             "Token renovado com sucesso: account=%s nickname=%s expires=%s attempt=%d",
@@ -152,6 +160,11 @@ async def _refresh_expired_tokens_async():
                             logger.error(
                                 f"Falha permanente ao renovar token de {account.nickname} após {max_retries} tentativas: {last_error}"
                             )
+                            # Atualiza campos de tracking para falha
+                            account.last_token_refresh_at = datetime.now(timezone.utc)
+                            account.token_refresh_failures = (account.token_refresh_failures or 0) + 1
+                            if account.token_refresh_failures >= 5:
+                                account.needs_reauth = True
                             errors.append(
                                 {
                                     "account_id": account_id_str,
@@ -196,14 +209,15 @@ async def _refresh_expired_tokens_async():
 
         # Dispara backfill automático para contas que ficaram desconectadas
         backfill_accounts = []
+        now = datetime.now(timezone.utc)
         for account in accounts:
             account_id_str = str(account.id)
             if account_id_str not in refreshed:
                 continue
 
-            # Verifica se estava expirado há mais de 1 dia
-            now = datetime.now(timezone.utc)
-            time_since_expiry = (now - account.token_expires_at).total_seconds() if account.token_expires_at else 0
+            # Usa o token_expires_at ANTIGO (antes do refresh) para calcular gap real
+            old_expires = old_expires_map.get(account_id_str)
+            time_since_expiry = (now - old_expires).total_seconds() if old_expires else 0
 
             # Se expirou há mais de 24h, quer dizer que ficou desconectado
             if time_since_expiry > 86400:  # 24h em segundos

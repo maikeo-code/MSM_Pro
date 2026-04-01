@@ -119,8 +119,8 @@ def sync_recent_snapshots():
 @celery_app.task(name="app.jobs.tasks.refresh_expired_tokens", bind=True)
 def refresh_expired_tokens(self):
     """
-    Renova tokens ML que vão expirar nas próximas 2 horas.
-    Executado a cada 4 horas.
+    Renova tokens ML que vão expirar nas próximas 3 horas.
+    Executado a cada 30 minutos via Celery beat.
     """
     try:
         return run_async(_refresh_expired_tokens_async())

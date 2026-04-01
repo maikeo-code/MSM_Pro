@@ -740,6 +740,7 @@ class MLClient:
         self,
         seller_id: int | str,
         date_from: str,
+        date_to: str | None = None,
         offset: int = 0,
         limit: int = 50,
     ) -> dict:
@@ -750,23 +751,23 @@ class MLClient:
         Args:
             seller_id: ID do vendedor no ML
             date_from: Data de inicio no formato ISO (ex: "2026-03-10T00:00:00.000-03:00")
+            date_to: Data de fim no formato ISO (opcional)
             offset: Offset para paginacao
             limit: Quantidade maxima de resultados (max 50)
 
         Returns:
             Dict com "results" (lista de pedidos) e "paging" (total, offset, limit)
         """
-        return await self._request(
-            "GET",
-            "/orders/search",
-            params={
-                "seller": str(seller_id),
-                "order.date_created.from": date_from,
-                "sort": "date_desc",
-                "offset": offset,
-                "limit": limit,
-            },
-        )
+        params = {
+            "seller": str(seller_id),
+            "order.date_created.from": date_from,
+            "sort": "date_desc",
+            "offset": offset,
+            "limit": limit,
+        }
+        if date_to:
+            params["order.date_created.to"] = date_to
+        return await self._request("GET", "/orders/search", params=params)
 
     async def get_shipment(self, shipment_id: int | str) -> dict:
         """

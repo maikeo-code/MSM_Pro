@@ -142,24 +142,20 @@ async def mark_all_as_read(db: AsyncSession, user_id: UUID) -> int:
     Returns:
         Número de notificações atualizadas
     """
-    result = await db.execute(
-        select(UserNotification).where(
-            UserNotification.user_id == user_id,
-            UserNotification.is_read == False,  # noqa: E712
-        )
-    )
-    notifs = result.scalars().all()
-
-    for notif in notifs:
-        notif.is_read = True
-
+    from sqlalchemy import update as sa_update
+    stmt = sa_update(UserNotification).where(
+        UserNotification.user_id == user_id,
+        UserNotification.is_read == False,  # noqa: E712
+    ).values(is_read=True)
+    result = await db.execute(stmt)
     await db.commit()
 
+    count = result.rowcount
     logger.info(
         "Marcadas %d notificações como lidas para user_id=%s",
-        len(notifs), user_id
+        count, user_id
     )
-    return len(notifs)
+    return count
 
 
 async def get_unread_count(db: AsyncSession, user_id: UUID) -> int:
@@ -172,13 +168,14 @@ async def get_unread_count(db: AsyncSession, user_id: UUID) -> int:
     Returns:
         Número de notificações não lidas
     """
+    from sqlalchemy import func
     result = await db.execute(
-        select(UserNotification).where(
+        select(func.count(UserNotification.id)).where(
             UserNotification.user_id == user_id,
             UserNotification.is_read == False,  # noqa: E712
         )
     )
-    return len(result.scalars().all())
+    return result.scalar_one()
 
 
 async def delete_notification(

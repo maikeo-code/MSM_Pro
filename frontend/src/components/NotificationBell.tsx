@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import notificationsService, { Notification } from '@/services/notificationsService';
 import { cn } from '@/lib/utils';
 
@@ -42,13 +42,14 @@ function getRelativeTime(dateString: string): string {
 
   // Meses
   const diffMonths = Math.floor(diffDays / 30);
-  return `há ${diffMonths}mês`;
+  return `há ${diffMonths} ${diffMonths === 1 ? 'mês' : 'meses'}`;
 }
 
 export function NotificationBell() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const queryClient = useQueryClient();
 
   // Buscar contagem de notificações não lidas a cada 60 segundos
   const { data: countData = { unread_count: 0 } } = useQuery({
@@ -92,6 +93,8 @@ export function NotificationBell() {
     // Marcar como lida
     if (!notification.is_read) {
       await notificationsService.markAsRead(notification.id);
+      queryClient.invalidateQueries({ queryKey: ['notifications-count'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
     }
 
     // Navegar se houver URL
@@ -102,6 +105,8 @@ export function NotificationBell() {
 
   const handleMarkAllAsRead = async () => {
     await notificationsService.markAllAsRead();
+    queryClient.invalidateQueries({ queryKey: ['notifications-count'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
     setIsDropdownOpen(false);
   };
 
