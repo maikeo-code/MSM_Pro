@@ -51,7 +51,7 @@ export function NotificationBell() {
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   // Buscar contagem de notificações não lidas a cada 60 segundos
-  const { data: countData = { count: 0 } } = useQuery({
+  const { data: countData = { unread_count: 0 } } = useQuery({
     queryKey: ['notifications-count'],
     queryFn: notificationsService.getCount,
     refetchInterval: 60000, // 60 segundos
@@ -131,9 +131,9 @@ export function NotificationBell() {
         </svg>
 
         {/* Badge de contagem */}
-        {countData.count > 0 && (
+        {countData.unread_count > 0 && (
           <span className="absolute top-1 right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">
-            {countData.count > 99 ? '99+' : countData.count}
+            {countData.unread_count > 99 ? '99+' : countData.unread_count}
           </span>
         )}
       </button>
@@ -147,7 +147,7 @@ export function NotificationBell() {
           {/* Header */}
           <div className="px-4 py-3 border-b border-border flex items-center justify-between sticky top-0 bg-popover rounded-t-lg">
             <h3 className="font-semibold text-sm">Notificações</h3>
-            {countData.count > 0 && (
+            {countData.unread_count > 0 && (
               <button
                 onClick={handleMarkAllAsRead}
                 className="text-xs text-primary hover:underline transition-colors"

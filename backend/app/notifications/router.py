@@ -45,6 +45,26 @@ async def list_notifications(
     return notifs
 
 
+@router.get("/count", response_model=NotificationCountOut)
+async def get_unread_count(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Retorna contagem de notificações não lidas."""
+    count = await service.get_unread_count(db, current_user.id)
+    return {"unread_count": count}
+
+
+@router.post("/read-all", status_code=status.HTTP_200_OK)
+async def mark_all_read(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Marca todas as notificações não lidas como lidas."""
+    count = await service.mark_all_as_read(db, current_user.id)
+    return {"status": "ok", "marked_count": count}
+
+
 @router.post("/{notification_id}/read", status_code=status.HTTP_200_OK)
 async def mark_as_read(
     notification_id: UUID,
@@ -61,26 +81,6 @@ async def mark_as_read(
         raise HTTPException(status_code=404, detail="Notificação não encontrada")
 
     return {"status": "ok"}
-
-
-@router.post("/read-all", status_code=status.HTTP_200_OK)
-async def mark_all_read(
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Marca todas as notificações não lidas como lidas."""
-    count = await service.mark_all_as_read(db, current_user.id)
-    return {"status": "ok", "marked_count": count}
-
-
-@router.get("/count", response_model=NotificationCountOut)
-async def get_unread_count(
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Retorna contagem de notificações não lidas."""
-    count = await service.get_unread_count(db, current_user.id)
-    return {"unread_count": count}
 
 
 @router.delete("/{notification_id}", status_code=status.HTTP_200_OK)

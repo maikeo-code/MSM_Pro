@@ -11,7 +11,7 @@ export interface Notification {
 }
 
 export interface NotificationCount {
-  count: number;
+  unread_count: number;
 }
 
 const notificationsService = {
@@ -19,7 +19,9 @@ const notificationsService = {
    * Busca todas as notificações não lidas do usuário
    */
   getUnread: async (): Promise<Notification[]> => {
-    const response = await api.get<Notification[]>('/notifications/unread');
+    const response = await api.get<Notification[]>('/notifications', {
+      params: { unread_only: true },
+    });
     return response.data;
   },
 
@@ -53,6 +55,13 @@ const notificationsService = {
       params: { limit },
     });
     return response.data;
+  },
+
+  /**
+   * Deleta uma notificação específica
+   */
+  deleteNotification: async (id: string): Promise<void> => {
+    await api.delete(`/notifications/${id}`);
   },
 };
 

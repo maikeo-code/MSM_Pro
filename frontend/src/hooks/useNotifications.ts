@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import notificationsService, { Notification, NotificationCount } from '@/services/notificationsService';
+import notificationsService from '@/services/notificationsService';
 
 /**
  * Hook customizado para gerenciar notificações
@@ -41,7 +41,7 @@ export function useNotifications() {
   });
 
   return {
-    count: countQuery.data?.count ?? 0,
+    count: countQuery.data?.unread_count ?? 0,
     countLoading: countQuery.isLoading,
     countError: countQuery.error,
 
