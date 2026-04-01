@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Settings, User, Lock, AlertCircle, Loader2, RefreshCw, CheckCircle2, Clock } from "lucide-react";
 import authService from "@/services/authService";
+import tokenDiagnosticsService from "@/services/tokenDiagnosticsService";
 // formatDateTime removido — UX agora mostra status em texto, não data de expiração
 
 export default function Configuracoes() {
@@ -17,6 +18,13 @@ export default function Configuracoes() {
   const { data: mlAccounts, isLoading, isError: mlError } = useQuery({
     queryKey: ["ml-accounts"],
     queryFn: () => authService.listMLAccounts(),
+  });
+
+  const { data: diagnostics } = useQuery({
+    queryKey: ["token-diagnostics"],
+    queryFn: () => tokenDiagnosticsService.getDiagnostics(),
+    refetchInterval: 300000, // 5 minutos
+    retry: 1,
   });
 
   const deleteMutation = useMutation({
@@ -148,12 +156,23 @@ export default function Configuracoes() {
             <div className="space-y-3">
               {mlAccounts.map((account) => {
                 const tokenStatus = getTokenStatus(account.token_expires_at);
+                  const diagnostic = diagnostics?.accounts.find(d => d.id === account.id);
+                  const hasDataGap = diagnostic?.days_since_last_sync && diagnostic.days_since_last_sync > 1;
+                  const lastSyncFormatted = diagnostic?.last_successful_sync
+                    ? new Date(diagnostic.last_successful_sync).toLocaleDateString("pt-BR", {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "Nunca sincronizou";
                 const isInactive = !account.is_active;
                 return (
                   <div
                     key={account.id}
                     className={`flex items-center justify-between rounded-lg border p-4 ${
-                      isInactive ? "bg-red-50 dark:bg-red-950" : ""
+                      isInactive ? "bg-red-50 dark:bg-red-950" : hasDataGap ? "bg-yellow-50 dark:bg-yellow-950" : ""
                     }`}
                   >
                     <div className="flex-1">

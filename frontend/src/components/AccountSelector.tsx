@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from "react";
-import { ChevronDown, Layers } from "lucide-react";
+import { ChevronDown, Layers, AlertCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useAccountStore } from "@/store/accountStore";
 import authService, { type MLAccountOut } from "@/services/authService";
+import tokenDiagnosticsService from "@/services/tokenDiagnosticsService";
 import { cn } from "@/lib/utils";
 
 interface AccountSelectorProps {
@@ -17,6 +19,14 @@ export function AccountSelector({ className, fullWidth = false }: AccountSelecto
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { activeAccountId, setActiveAccount, clearActiveAccount } = useAccountStore();
+
+  // Buscar diagnÛsticos de tokens
+  const { data: diagnostics } = useQuery({
+    queryKey: ['token-diagnostics'],
+    queryFn: () => tokenDiagnosticsService.getDiagnostics(),
+    refetchInterval: 300000, // 5 minutos
+    retry: 2,
+  });
 
   // Carregar contas ao montar
   useEffect(() => {
@@ -49,6 +59,13 @@ export function AccountSelector({ className, fullWidth = false }: AccountSelecto
 
   // Buscar a conta ativa no array
   const activeAccount = accounts.find((acc) => acc.id === activeAccountId);
+
+  // Helper para verificar se uma conta tem problemas de token
+  const accountHasTokenIssue = (accountId: string): boolean => {
+    if (!diagnostics) return false;
+    const diag = diagnostics.accounts.find(acc => acc.id === accountId);
+    return diag ? (diag.needs_reauth || diag.token_status === 'expired') : false;
+  };
 
   // Se tem apenas 1 conta, n√£o mostrar o seletor
   if (accounts.length <= 1) {
@@ -92,7 +109,7 @@ export function AccountSelector({ className, fullWidth = false }: AccountSelecto
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex items-center gap-2 px-3 py-2 rounded-md bg-accent text-accent-foreground hover:bg-accent/90 transition-colors text-sm",
+          "flex items-center gap-2 px-3 py-2 rounded-md bg-accent text-accent-foreground hover:bg-accent/90 transition-colors text-sm relative",
           fullWidth && "w-full",
         )}
       >
@@ -100,8 +117,11 @@ export function AccountSelector({ className, fullWidth = false }: AccountSelecto
           <div className="h-4 w-4 bg-muted-foreground/50 rounded animate-pulse" />
         ) : activeAccount ? (
           <>
-            <div className={cn("h-6 w-6 rounded flex items-center justify-center text-xs font-bold shrink-0", getAccountBadgeColor(accounts.indexOf(activeAccount)))}>
+            <div className={cn("h-6 w-6 rounded flex items-center justify-center text-xs font-bold shrink-0 relative", getAccountBadgeColor(accounts.indexOf(activeAccount)))}>
               {activeAccount.nickname.charAt(0).toUpperCase()}
+              {accountHasTokenIssue(activeAccount.id) && (
+                <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border border-white" />
+              )}
             </div>
             <span className={cn("truncate", fullWidth ? "flex-1 text-left" : "hidden sm:inline max-w-[120px]")}>
               {activeAccount.nickname}
@@ -114,6 +134,13 @@ export function AccountSelector({ className, fullWidth = false }: AccountSelecto
           </>
         )}
         <ChevronDown className={cn("h-4 w-4 transition-transform shrink-0", isOpen ? "rotate-180" : "")} />
+
+        {/* Badge de alerta se houver contas com problemas */}
+        {problematicAccountsCount > 0 && (
+          <div className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 border border-white flex items-center justify-center">
+            <AlertCircle className="h-3 w-3 text-white" />
+          </div>
+        )}
       </button>
 
       {/* Dropdown menu */}
@@ -142,29 +169,41 @@ export function AccountSelector({ className, fullWidth = false }: AccountSelecto
           </button>
 
           {/* Lista de contas */}
-          {accounts.map((account, index) => (
-            <button
-              key={account.id}
-              onClick={() => {
-                setActiveAccount(account.id);
-                setIsOpen(false);
-              }}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-accent transition-colors text-left",
-                activeAccountId === account.id ? "bg-accent text-accent-foreground" : "text-foreground",
-              )}
-            >
-              <div className={cn("h-6 w-6 rounded flex items-center justify-center text-xs font-bold text-white shrink-0", getAccountBadgeColor(index))}>
-                {account.nickname.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium truncate">{account.nickname}</div>
-                <div className="text-xs text-muted-foreground truncate">{account.ml_user_id}</div>
-              </div>
-              {getStatusBadge(account)}
-              {activeAccountId === account.id && <div className="h-2 w-2 rounded-full bg-current shrink-0" />}
-            </button>
-          ))}
+          {accounts.map((account, index) => {
+            const hasIssue = accountHasTokenIssue(account.id);
+            return (
+              <button
+                key={account.id}
+                onClick={() => {
+                  setActiveAccount(account.id);
+                  setIsOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-accent transition-colors text-left relative",
+                  activeAccountId === account.id ? "bg-accent text-accent-foreground" : "text-foreground",
+                  hasIssue && "bg-red-50 dark:bg-red-950"
+                )}
+              >
+                <div className={cn("h-6 w-6 rounded flex items-center justify-center text-xs font-bold text-white shrink-0 relative", getAccountBadgeColor(index))}>
+                  {account.nickname.charAt(0).toUpperCase()}
+                  {hasIssue && (
+                    <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border border-white" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{account.nickname}</div>
+                  <div className="text-xs text-muted-foreground truncate">{account.ml_user_id}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {getStatusBadge(account)}
+                  {hasIssue && (
+                    <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+                  )}
+                </div>
+                {activeAccountId === account.id && <div className="h-2 w-2 rounded-full bg-current shrink-0" />}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

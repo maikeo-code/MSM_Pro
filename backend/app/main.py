@@ -180,7 +180,7 @@ def _verify_ml_signature(body: bytes, x_signature: str | None) -> tuple[bool, st
     return False, "assinatura_invalida"
 
 
-@app.post("/api/v1/notifications", tags=["webhooks"])
+@app.post("/api/v1/webhooks/notifications", tags=["webhooks"])
 async def ml_notifications(request: Request):
     """Recebe notificações webhook do Mercado Livre.
 

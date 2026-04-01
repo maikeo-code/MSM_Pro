@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, AlertCircle, Link as LinkIcon } from 'lucide-react';
+import { AlertTriangle, AlertCircle, Link as LinkIcon, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import tokenDiagnosticsService from '@/services/tokenDiagnosticsService';
 import { cn } from '@/lib/utils';
