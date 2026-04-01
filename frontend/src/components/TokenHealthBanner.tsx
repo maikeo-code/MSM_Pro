@@ -51,10 +51,20 @@ export function TokenHealthBanner() {
               <p className={cn('font-medium', needsReauth || isExpired ? 'text-red-900 dark:text-red-100' : 'text-amber-900 dark:text-amber-100')}>
                 Conta "{account.nickname}" desconectada
               </p>
-              <p className={cn('text-sm mt-1', needsReauth || isExpired ? 'text-red-800 dark:text-red-200' : 'text-amber-800 dark:text-amber-200')}>
-                {needsReauth ? 'Autenticação expirada — reconnecte para sincronizar dados.' : 'Token expirado — reconnecte para continuar.'}
-                {account.days_since_last_sync && account.days_since_last_sync > 0 && ` Sem dados por ${account.days_since_last_sync} dia${account.days_since_last_sync > 1 ? 's' : ''}.`}
-              </p>
+              <div className={cn('text-sm mt-2 space-y-1', needsReauth || isExpired ? 'text-red-800 dark:text-red-200' : 'text-amber-800 dark:text-amber-200')}>
+                <p>
+                  {needsReauth ? 'Autenticação expirada — reconnecte para sincronizar dados.' : 'Token expirado — reconnecte para continuar.'}
+                </p>
+                {account.days_since_last_sync && account.days_since_last_sync > 0 && (
+                  <p className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5 shrink-0" />
+                    {account.days_since_last_sync} dia{account.days_since_last_sync > 1 ? 's' : ''} sem sincronização
+                  </p>
+                )}
+                {account.data_gap_warning && (
+                  <p className="text-xs mt-1 italic">{account.data_gap_warning}</p>
+                )}
+              </div>
             </div>
 
             <Link

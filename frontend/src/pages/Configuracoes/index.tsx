@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Settings, User, Lock, AlertCircle, Loader2, RefreshCw, CheckCircle2, Clock } from "lucide-react";
 import authService from "@/services/authService";
 import tokenDiagnosticsService from "@/services/tokenDiagnosticsService";
-// formatDateTime removido — UX agora mostra status em texto, não data de expiração
 
 export default function Configuracoes() {
   const queryClient = useQueryClient();
