@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, AlertCircle, Link as LinkIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import tokenDiagnosticsService, { type AccountDiagnostic } from '@/services/tokenDiagnosticsService';
+import tokenDiagnosticsService from '@/services/tokenDiagnosticsService';
 import { cn } from '@/lib/utils';
 
 export function TokenHealthBanner() {
@@ -12,7 +12,7 @@ export function TokenHealthBanner() {
     retry: 2,
   });
 
-  if (!diagnostics) {
+  if (!diagnostics || diagnostics.accounts.length === 0) {
     return null;
   }
 
@@ -53,7 +53,7 @@ export function TokenHealthBanner() {
               </p>
               <p className={cn('text-sm mt-1', needsReauth || isExpired ? 'text-red-800 dark:text-red-200' : 'text-amber-800 dark:text-amber-200')}>
                 {needsReauth ? 'Autenticação expirada — reconnecte para sincronizar dados.' : 'Token expirado — reconnecte para continuar.'}
-                {account.days_since_last_sync > 0 && ` Sem dados por ${account.days_since_last_sync} dia${account.days_since_last_sync > 1 ? 's' : ''}.`}
+                {account.days_since_last_sync && account.days_since_last_sync > 0 && ` Sem dados por ${account.days_since_last_sync} dia${account.days_since_last_sync > 1 ? 's' : ''}.`}
               </p>
             </div>
 

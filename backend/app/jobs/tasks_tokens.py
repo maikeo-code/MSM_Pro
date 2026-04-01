@@ -18,6 +18,7 @@ from app.auth.models import MLAccount
 from app.auth.service import refresh_ml_token
 from app.core.database import AsyncSessionLocal
 from app.core.redis_client import get_redis_client
+from app.notifications.service import create_notification
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,19 @@ async def _refresh_expired_tokens_async():
                                     "error": last_error,
                                     "attempts": max_retries,
                                 }
+                            )
+                            # Cria notificação in-app para o usuário
+                            await create_notification(
+                                db,
+                                user_id=account.user_id,
+                                type="token_expired",
+                                title=f"Conta '{account.nickname}' desconectada",
+                                message=(
+                                    f"Não foi possível renovar o token da sua conta '{account.nickname}' no Mercado Livre "
+                                    f"após {max_retries} tentativas. Reconecte a conta para continuar recebendo dados de vendas. "
+                                    f"Erro: {last_error[:100]}"
+                                ),
+                                action_url="/configuracoes",
                             )
 
             finally:

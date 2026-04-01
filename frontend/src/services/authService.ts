@@ -22,6 +22,8 @@ export interface MLAccountOut {
   token_expires_at: string | null;
   is_active: boolean;
   created_at: string;
+  needs_reauth?: boolean;
+  last_sync_at?: string | null;
 }
 
 export interface MLConnectURL {
