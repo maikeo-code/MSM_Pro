@@ -553,9 +553,9 @@ async def update_preferences(
 @router.post("/ml/accounts/{account_id}/backfill-orders")
 async def backfill_orders_manual(
     account_id: UUID,
-    days: int = Query(default=7, ge=1, le=30, description="Dias a fazer backfill (1-30)"),
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    days: int = Query(default=7, ge=1, le=30, description="Dias a fazer backfill (1-30)"),
 ):
     """
     Dispara backfill manual de pedidos para uma conta ML específica.
