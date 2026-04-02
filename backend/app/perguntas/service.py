@@ -138,9 +138,11 @@ async def sync_questions_for_account(
                                 question.answer_date = answer_date
                                 if answer_text:
                                     question.answer_source = "ml_direct"
-                                question.item_thumbnail = thumbnail
+                                if thumbnail:
+                                    question.item_thumbnail = thumbnail
                                 question.synced_at = datetime.now(timezone.utc)
                                 question.updated_at = datetime.now(timezone.utc)
+                                await db.flush()
                                 updated += 1
                             else:
                                 # CREATE
@@ -162,17 +164,20 @@ async def sync_questions_for_account(
                                     synced_at=datetime.now(timezone.utc),
                                 )
                                 db.add(question)
+                                await db.flush()
                                 new += 1
 
                             synced += 1
 
                         except Exception as exc:
                             logger.error(
-                                "Erro ao processar pergunta %s: %s",
+                                "Erro ao processar pergunta ml_id=%s mlb=%s: %s",
                                 q.get("id"),
+                                q.get("item_id", "?"),
                                 exc,
                                 exc_info=True,
                             )
+                            await db.rollback()
                             errors += 1
                             continue
 
