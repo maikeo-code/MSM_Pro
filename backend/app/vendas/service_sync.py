@@ -259,7 +259,7 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                             existing_snap.price = price
                             existing_snap.visits = visits_today
                             existing_snap.stock = stock
-                            existing_snap.captured_at = datetime.utcnow()
+                            existing_snap.captured_at = datetime.now(timezone.utc)
                             await db.flush()
                         else:
                             snapshot = ListingSnapshot(
@@ -282,30 +282,41 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                     today = datetime.now(BRT).date()
                     today_start = f"{today.isoformat()}T00:00:00.000-03:00"
 
-                    orders_resp = await client._request(
-                        "GET",
-                        "/orders/search",
-                        params={
-                            "seller": account.ml_user_id,
-                            "order.date_created.from": today_start,
-                            "sort": "date_desc",
-                            "limit": 50,
-                        },
-                    )
-
-                    # Conta vendas por MLB ID
+                    # Conta vendas por MLB ID — com paginação para cobrir >50 pedidos/dia
                     sales_by_mlb: dict[str, int] = {}
-                    for order in orders_resp.get("results", []):
-                        for oi in order.get("order_items", []):
-                            oi_mlb = oi.get("item", {}).get("id", "")
-                            qty = oi.get("quantity", 1)
-                            sales_by_mlb[oi_mlb] = sales_by_mlb.get(oi_mlb, 0) + qty
+                    orders_offset = 0
+                    orders_limit = 50
+                    while True:
+                        orders_resp = await client._request(
+                            "GET",
+                            "/orders/search",
+                            params={
+                                "seller": account.ml_user_id,
+                                "order.date_created.from": today_start,
+                                "sort": "date_desc",
+                                "limit": orders_limit,
+                                "offset": orders_offset,
+                            },
+                        )
+                        page_orders = orders_resp.get("results", [])
+                        for order in page_orders:
+                            for oi in order.get("order_items", []):
+                                oi_mlb = oi.get("item", {}).get("id", "")
+                                qty = oi.get("quantity", 1)
+                                sales_by_mlb[oi_mlb] = sales_by_mlb.get(oi_mlb, 0) + qty
+                        total_results = orders_resp.get("paging", {}).get("total", 0)
+                        orders_offset += orders_limit
+                        if orders_offset >= total_results or len(page_orders) < orders_limit:
+                            break
 
                     # Atualiza snapshots com vendas reais
                     for mlb_id_raw, sales_count in sales_by_mlb.items():
                         if sales_count > 0:
                             lst_result = await db.execute(
-                                select(Listing).where(Listing.mlb_id == mlb_id_raw)
+                                select(Listing).where(
+                                    Listing.mlb_id == mlb_id_raw,
+                                    Listing.user_id == user_id,
+                                )
                             )
                             lst = lst_result.scalar_one_or_none()
                             if lst:

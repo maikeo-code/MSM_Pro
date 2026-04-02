@@ -8,6 +8,7 @@ Create Date: 2026-03-23 15:00:00.000000
 from typing import Sequence, Union
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
@@ -23,13 +24,13 @@ def upgrade() -> None:
         "tax_configs",
         sa.Column(
             "id",
-            sa.dialects.postgresql.UUID(as_uuid=True),
+            postgresql.UUID(as_uuid=True),
             nullable=False,
             primary_key=True,
         ),
         sa.Column(
             "user_id",
-            sa.dialects.postgresql.UUID(as_uuid=True),
+            postgresql.UUID(as_uuid=True),
             nullable=False,
             comment="User who owns this tax config",
         ),

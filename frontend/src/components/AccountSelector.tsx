@@ -72,6 +72,11 @@ export function AccountSelector({ className, fullWidth = false }: AccountSelecto
     ? diagnostics.accounts.filter(acc => acc.needs_reauth || acc.token_status === 'expired').length
     : 0;
 
+  // Exibir skeleton durante o carregamento inicial para evitar layout shift
+  if (isLoading) {
+    return <div className="h-8 w-24 rounded bg-muted animate-pulse" />;
+  }
+
   // Se tem apenas 1 conta, não mostrar o seletor
   if (accounts.length <= 1) {
     return null;

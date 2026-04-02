@@ -605,6 +605,12 @@ export default function PriceSuggestions() {
   const [confidenceFilter, setConfidenceFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("confidence");
   const [applyTarget, setApplyTarget] = useState<PriceRecommendation | null>(null);
+  const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const showFeedback = (type: "success" | "error", text: string) => {
+    setFeedbackMsg({ type, text });
+    setTimeout(() => setFeedbackMsg(null), 5000);
+  };
 
   // ─── Queries ───────────────────────────────────────────────────────────────
   const {
@@ -633,7 +639,8 @@ export default function PriceSuggestions() {
       queryClient.invalidateQueries({ queryKey: ["pricing-recommendations"] });
     },
     onError: () => {
-      alert("Erro ao gerar recomendacoes. Verifique se o backend esta online.");
+      console.error("Erro ao gerar recomendacoes de preco");
+      showFeedback("error", "Erro ao gerar recomendacoes. Verifique se o backend esta online.");
     },
   });
 
@@ -645,12 +652,13 @@ export default function PriceSuggestions() {
       const baseMsg = data.ml_api_success
         ? `Preco alterado com sucesso para ${data.mlb_id}!`
         : data.message;
-      const promoMsg = data.promo_warning ? `\n\n${data.promo_warning}` : "";
-      alert(baseMsg + promoMsg);
+      const promoMsg = data.promo_warning ? ` ${data.promo_warning}` : "";
+      showFeedback("success", baseMsg + promoMsg);
     },
     onError: () => {
       setApplyTarget(null);
-      alert("Erro ao aplicar a recomendacao.");
+      console.error("Erro ao aplicar recomendacao de preco");
+      showFeedback("error", "Erro ao aplicar a recomendacao.");
     },
   });
 
@@ -714,6 +722,29 @@ export default function PriceSuggestions() {
           )}
         </div>
       </div>
+
+      {/* ─── Feedback Banner (substitui alert() nativo) ────────────────────── */}
+      {feedbackMsg && (
+        <div className={cn(
+          "mb-4 flex items-start gap-3 rounded-lg border p-4 text-sm",
+          feedbackMsg.type === "success"
+            ? "border-green-200 bg-green-50 text-green-700"
+            : "border-red-200 bg-red-50 text-red-700",
+        )}>
+          {feedbackMsg.type === "success" ? (
+            <Check className="h-5 w-5 mt-0.5 shrink-0" />
+          ) : (
+            <AlertTriangle className="h-5 w-5 mt-0.5 shrink-0" />
+          )}
+          <p>{feedbackMsg.text}</p>
+          <button
+            onClick={() => setFeedbackMsg(null)}
+            className="ml-auto shrink-0 opacity-70 hover:opacity-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* ─── Error Banner ──────────────────────────────────────────────────── */}
       {isError && (

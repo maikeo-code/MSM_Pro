@@ -111,6 +111,16 @@ api.interceptors.response.use(
       // Se não é a request de refresh, tenta renovar o token
       const originalRequest = error.config;
       if (originalRequest && !originalRequest.url?.includes("/auth/refresh")) {
+        // Evitar loop infinito: se já foi feito retry uma vez, ir direto para logout
+        if ((originalRequest as any)._retry) {
+          removeStoredToken();
+          useAuthStore.getState().clearAuth();
+          if (!window.location.pathname.includes("/login")) {
+            window.location.href = "/login";
+          }
+          return Promise.reject(error);
+        }
+        (originalRequest as any)._retry = true;
         const refreshed = await tryRefreshJwt();
         if (refreshed && originalRequest) {
           // Retry com novo token usando api (com interceptors)

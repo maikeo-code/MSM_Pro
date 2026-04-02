@@ -16,6 +16,14 @@ import app.produtos.models  # noqa: F401
 import app.vendas.models  # noqa: F401
 import app.concorrencia.models  # noqa: F401
 import app.alertas.models  # noqa: F401
+import app.ads.models  # noqa: F401
+import app.financeiro.models  # noqa: F401
+import app.intel.models  # noqa: F401
+import app.notifications.models  # noqa: F401
+import app.perguntas.models  # noqa: F401
+import app.reputacao.models  # noqa: F401
+import app.atendimento.models  # noqa: F401
+import app.core.models  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

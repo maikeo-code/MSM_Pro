@@ -15,6 +15,7 @@ import Notificacoes from "@/pages/Notificacoes";
 import Login from "@/pages/Login";
 import Layout from "@/components/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const PriceSuggestions = lazy(() => import("@/pages/PriceSuggestions"));
 const Financeiro = lazy(() => import("@/pages/Financeiro"));
@@ -34,7 +35,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route element={<ProtectedRoute />}>
-          <Route element={<Layout />}>
+          <Route element={<ErrorBoundary><Layout /></ErrorBoundary>}>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/anuncios" element={<Anuncios />} />

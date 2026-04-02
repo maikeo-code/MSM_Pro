@@ -1,24 +1,11 @@
 import React from "react";
 
 /**
- * Escapa HTML perigoso, preservando apenas formatacao segura.
- * Converte **texto** em <strong>texto</strong> de forma segura usando React elements.
- */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-/**
  * Renderiza texto com bold (**texto**) de forma segura usando React elements.
+ * React ja escapa automaticamente strings passadas como children — escapeHtml nao e necessario.
  */
 function renderBoldText(text: string): React.ReactNode[] {
-  const escaped = escapeHtml(text);
-  const parts = escaped.split(/\*\*(.+?)\*\*/g);
+  const parts = text.split(/\*\*(.+?)\*\*/g);
   return parts.map((part, idx) => {
     // Indices impares sao o conteudo entre **
     if (idx % 2 === 1) {

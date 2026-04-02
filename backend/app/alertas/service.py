@@ -380,7 +380,7 @@ async def _check_conversion_below(db: AsyncSession, alert: AlertConfig) -> str |
         if not snaps:
             continue
 
-        snaps_with_conv = [s for s in snaps if s.conversion_rate]
+        snaps_with_conv = [s for s in snaps if s.conversion_rate is not None]
         if not snaps_with_conv:
             continue
         avg_conversion = sum(
@@ -424,6 +424,9 @@ async def _check_stock_below(db: AsyncSession, alert: AlertConfig) -> str | None
         if snap is None:
             continue
 
+        if snap.stock is None:
+            continue
+
         if snap.stock < threshold:
             listing_result = await db.execute(
                 select(Listing).where(Listing.id == lid)
@@ -463,7 +466,7 @@ async def _check_no_sales_days(db: AsyncSession, alert: AlertConfig) -> str | No
         if not snaps:
             continue
 
-        total_sales = sum(s.sales_today for s in snaps)
+        total_sales = sum(s.sales_today or 0 for s in snaps)
         if total_sales == 0:
             listing_result = await db.execute(
                 select(Listing).where(Listing.id == lid)
@@ -737,7 +740,7 @@ async def _check_stockout_forecast(db: AsyncSession, alert: AlertConfig) -> str 
             continue
 
         # Calcula velocidade de venda média
-        total_sales = sum(s.sales_today for s in snaps)
+        total_sales = sum(s.sales_today or 0 for s in snaps)
         days_with_data = len(snaps)
         if days_with_data == 0:
             continue
