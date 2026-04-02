@@ -49,9 +49,14 @@ async def _acquire_token_refresh_lock(account_id: str, timeout: int = 60) -> boo
             logger.debug(f"Lock já existe para {account_id} — outro worker está refreshing")
             return False
     except Exception as e:
-        logger.warning(f"Erro ao adquirir lock Redis para {account_id}: {e} — prosseguindo sem lock")
-        # Fail-open: se Redis falhar, prossegue mesmo assim (pode ter race condition, mas app não quebra)
-        return True
+        # BUG 3: fail-closed — refresh_token do ML é single-use.
+        # Se dois workers tentam refresh simultaneamente, o segundo invalida o token do primeiro.
+        # Melhor não fazer refresh do que corromper o token por race condition.
+        logger.warning(
+            f"Erro ao adquirir lock Redis para {account_id}: {e} — "
+            f"abortando refresh por segurança (fail-closed para evitar invalidar refresh_token single-use)"
+        )
+        return False
 
 
 async def _release_token_refresh_lock(account_id: str) -> None:
@@ -217,7 +222,14 @@ async def _refresh_expired_tokens_async():
 
             # Usa o token_expires_at ANTIGO (antes do refresh) para calcular gap real
             old_expires = old_expires_map.get(account_id_str)
-            time_since_expiry = (now - old_expires).total_seconds() if old_expires else 0
+            # BUG 4: se token_expires_at é None, usar last_token_refresh_at como heurística;
+            # se ambos são None, assume 7 dias para garantir que backfill sempre dispara.
+            if old_expires:
+                time_since_expiry = (now - old_expires).total_seconds()
+            elif account.last_token_refresh_at:
+                time_since_expiry = (now - account.last_token_refresh_at).total_seconds()
+            else:
+                time_since_expiry = 86400 * 7  # 7 dias — sem informação, assume desconectado longo prazo
 
             # Se expirou há mais de 24h, quer dizer que ficou desconectado
             if time_since_expiry > 86400:  # 24h em segundos

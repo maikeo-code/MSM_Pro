@@ -128,14 +128,19 @@ class MLClient:
     ) -> dict:
         """
         Executa requisição com retry e backoff exponencial.
-        Respeita rate limit de 1 req/seg.
-        Se receber 401, tenta renovar o token automaticamente antes de falhar.
+        Respeita rate limit de 1 req/seg (verificado a cada tentativa).
+        Se receber 401, tenta renovar o token UMA única vez — se 401 persistir após
+        o refresh, falha imediatamente para evitar loop infinito.
         """
-        await self._rate_limit()
+        import logging
+        logger = logging.getLogger(__name__)
 
         last_exception = None
+        token_refreshed = False  # BUG 1: flag para evitar loop infinito no retry de 401
         for attempt in range(max_retries):
             try:
+                await self._rate_limit()  # BUG 2: rate limit dentro do loop (cada tentativa respeita o limite)
+
                 response = await self._client.request(method, url, **kwargs)
 
                 if response.status_code == 429:
@@ -145,25 +150,22 @@ class MLClient:
                     continue
 
                 if response.status_code == 401:
-                    # Token expirado — tenta renovar e repetir a requisição
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.info(
-                        f"Token expirado para conta {self.ml_account_id}, tentando renovar..."
-                    )
-
-                    if await self._refresh_token_and_retry():
-                        # Token renovado com sucesso — tenta novamente a requisição original
+                    # BUG 1: só tenta refresh uma única vez; segunda vez falha imediatamente
+                    if not token_refreshed:
                         logger.info(
-                            f"Token renovado para conta {self.ml_account_id}, repetindo requisição..."
+                            f"Token expirado para conta {self.ml_account_id}, tentando renovar..."
                         )
-                        continue
-                    else:
-                        # Falha na renovação — leva um MLClientError
-                        raise MLClientError(
-                            "Token ML expirado e falha ao renovar",
-                            status_code=401,
-                        )
+                        if await self._refresh_token_and_retry():
+                            logger.info(
+                                f"Token renovado para conta {self.ml_account_id}, repetindo requisição..."
+                            )
+                            token_refreshed = True
+                            continue
+                        # Refresh falhou — não adianta tentar novamente
+                    raise MLClientError(
+                        "Token ML expirado" if token_refreshed else "Token ML expirado e falha ao renovar",
+                        status_code=401,
+                    )
 
                 if response.status_code >= 500:
                     # Erro do servidor — tenta novamente com backoff
