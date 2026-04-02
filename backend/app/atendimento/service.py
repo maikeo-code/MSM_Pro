@@ -87,6 +87,7 @@ def _parse_questions(questions: list[dict], account: MLAccount) -> list[Atendime
             from_user=from_user if isinstance(from_user, dict) else {},
             item_id=item_id or None,
             item_title=item_title,
+            item_thumbnail=None,
             order_id=None,
             last_message=None,
             requires_action=_requires_action("pergunta", status),
@@ -97,10 +98,33 @@ def _parse_questions(questions: list[dict], account: MLAccount) -> list[Atendime
     return items
 
 
-def _parse_claims(claims: list[dict], claim_type: str, account: MLAccount) -> list[AtendimentoItem]:
-    """Converte claims/devoluções ML em AtendimentoItem."""
+def _parse_claims(
+    claims: list[dict],
+    claim_type: str,
+    account: MLAccount,
+    seen_ids: set[str] | None = None,
+) -> list[AtendimentoItem]:
+    """
+    Converte claims/devoluções ML em AtendimentoItem.
+
+    Args:
+        claims: Lista de claims do ML
+        claim_type: "reclamacao" ou "devolucao"
+        account: Conta ML
+        seen_ids: Set para deduplicação entre múltiplas buscas (ex: múltiplos statuses)
+    """
+    if seen_ids is None:
+        seen_ids = set()
+
     items: list[AtendimentoItem] = []
     for c in claims:
+        claim_id = str(c.get("id", ""))
+
+        # Deduplicação
+        if claim_id in seen_ids:
+            continue
+        seen_ids.add(claim_id)
+
         status = str(c.get("status", "")).lower()
         # Claims têm "reason_id" como texto da reclamação
         text = c.get("reason_id") or c.get("subject") or c.get("description") or "Sem descrição"
@@ -122,7 +146,7 @@ def _parse_claims(claims: list[dict], claim_type: str, account: MLAccount) -> li
         order_id = str(resource.get("order_id", "")) if resource.get("order_id") else None
 
         item = AtendimentoItem(
-            id=str(c.get("id", "")),
+            id=claim_id,
             type=claim_type,
             status=status,
             date_created=_parse_dt(c.get("date_created")),
@@ -130,6 +154,7 @@ def _parse_claims(claims: list[dict], claim_type: str, account: MLAccount) -> li
             from_user=buyer,
             item_id=item_id,
             item_title=None,
+            item_thumbnail=None,
             order_id=order_id,
             last_message=None,
             requires_action=_requires_action(claim_type, status),
@@ -166,6 +191,7 @@ def _parse_message_packs(packs: list[dict], account: MLAccount) -> list[Atendime
             from_user=from_user if isinstance(from_user, dict) else {},
             item_id=None,
             item_title=None,
+            item_thumbnail=None,
             order_id=order_id,
             last_message=text or None,
             requires_action=_requires_action("mensagem", status),
@@ -218,6 +244,7 @@ async def get_all_atendimentos(
         "mensagens": 0,
         "devolucoes": 0,
     }
+    seen_claim_ids: set[str] = set()  # Deduplicação de claims (ao buscar múltiplos statuses)
 
     for account in accounts:
         if not account.access_token:
@@ -252,29 +279,45 @@ async def get_all_atendimentos(
 
             # --- Reclamações ---
             if type_filter is None or type_filter == "reclamacao":
-                cl_status = status_filter or "open"
-                try:
-                    cl_data = await client.get_claims(
-                        seller_id=str(ml_user_id),
-                        status=cl_status,
-                        limit=50,
-                    )
-                    claims_raw = cl_data.get("data", cl_data.get("results", []))
-                    # Excluir devoluções desta lista (filtramos por claim_type != "return")
-                    claims_only = [
-                        c for c in claims_raw
-                        if c.get("claim_type", "").lower() != "return"
-                    ]
-                    parsed_cl = _parse_claims(claims_only, "reclamacao", account)
-                    all_items.extend(parsed_cl)
-                    by_type["reclamacoes"] += len(parsed_cl)
-                except Exception as exc:
-                    logger.error(
-                        "Atendimento: falha ao buscar reclamacoes conta=%s user=%s: %s",
-                        account.id,
-                        user.id,
-                        exc,
-                    )
+                # Se status_filter especificado, buscar apenas aquele
+                # Caso contrário, buscar múltiplos statuses relevantes
+                claim_statuses_to_search = [status_filter] if status_filter else [
+                    "open",
+                    "opened",
+                    "waiting_for_seller_response",
+                ]
+
+                for cl_status in claim_statuses_to_search:
+                    try:
+                        cl_data = await client.get_claims(
+                            seller_id=str(ml_user_id),
+                            status=cl_status,
+                            limit=50,
+                        )
+                        claims_raw = cl_data.get("data", cl_data.get("results", []))
+                        # Excluir devoluções desta lista (filtramos por claim_type != "return")
+                        claims_only = [
+                            c for c in claims_raw
+                            if c.get("claim_type", "").lower() != "return"
+                        ]
+                        parsed_cl = _parse_claims(claims_only, "reclamacao", account, seen_claim_ids)
+                        all_items.extend(parsed_cl)
+                        by_type["reclamacoes"] += len(parsed_cl)
+
+                        logger.info(
+                            "Atendimento: carregadas reclamacoes status=%s conta=%s total=%d",
+                            cl_status,
+                            account.id,
+                            len(parsed_cl),
+                        )
+                    except Exception as exc:
+                        logger.error(
+                            "Atendimento: falha ao buscar reclamacoes status=%s conta=%s user=%s: %s",
+                            cl_status,
+                            account.id,
+                            user.id,
+                            exc,
+                        )
 
             # --- Devoluções ---
             if type_filter is None or type_filter == "devolucao":
@@ -284,9 +327,15 @@ async def get_all_atendimentos(
                         limit=50,
                     )
                     returns_raw = ret_data.get("data", ret_data.get("results", []))
-                    parsed_ret = _parse_claims(returns_raw, "devolucao", account)
+                    parsed_ret = _parse_claims(returns_raw, "devolucao", account, seen_claim_ids)
                     all_items.extend(parsed_ret)
                     by_type["devolucoes"] += len(parsed_ret)
+
+                    logger.info(
+                        "Atendimento: carregadas devolucoes conta=%s total=%d",
+                        account.id,
+                        len(parsed_ret),
+                    )
                 except Exception as exc:
                     logger.error(
                         "Atendimento: falha ao buscar devolucoes conta=%s user=%s: %s",
@@ -302,16 +351,27 @@ async def get_all_atendimentos(
                         seller_id=str(ml_user_id),
                         limit=50,
                     )
-                    packs_raw = msg_data.get("data", msg_data.get("results", []))
+                    # A API ML pode retornar em 'results', 'data', ou direto como lista
+                    packs_raw = msg_data.get("results", msg_data.get("data", []))
+                    if isinstance(msg_data, list):
+                        packs_raw = msg_data
+
                     # Filtrar por status se solicitado
                     if status_filter and status_filter.lower() in ("unread", "pending"):
                         packs_raw = [
                             p for p in packs_raw
                             if str(p.get("status", "")).lower() in ("unread", "pending")
                         ]
+
                     parsed_msg = _parse_message_packs(packs_raw, account)
                     all_items.extend(parsed_msg)
                     by_type["mensagens"] += len(parsed_msg)
+
+                    logger.info(
+                        "Atendimento: carregadas mensagens conta=%s total=%d",
+                        account.id,
+                        len(parsed_msg),
+                    )
                 except Exception as exc:
                     logger.error(
                         "Atendimento: falha ao buscar mensagens conta=%s user=%s: %s",
@@ -322,6 +382,27 @@ async def get_all_atendimentos(
 
     # Ordena por data_created decrescente (mais recente primeiro)
     all_items.sort(key=lambda x: x.date_created, reverse=True)
+
+    # Enriquecer items com thumbnails dos listings locais
+    if all_items:
+        from app.vendas.models import Listing
+
+        # Coletar todos os item_ids (mlb_ids) únicos
+        mlb_ids = {item.item_id for item in all_items if item.item_id}
+
+        if mlb_ids:
+            # Buscar thumbnails em batch (1 query)
+            listing_result = await db.execute(
+                select(Listing.mlb_id, Listing.thumbnail).where(
+                    Listing.mlb_id.in_(mlb_ids)
+                )
+            )
+            thumbnail_map = {row.mlb_id: row.thumbnail for row in listing_result.all()}
+
+            # Popular thumbnail em cada item
+            for item in all_items:
+                if item.item_id and item.item_id in thumbnail_map:
+                    item.item_thumbnail = thumbnail_map[item.item_id]
 
     total = len(all_items)
     paginated = all_items[offset: offset + limit]

@@ -17,6 +17,7 @@ class AtendimentoItem(BaseModel):
     from_user: Optional[dict] = None  # {"id": ..., "nickname": ...}
     item_id: Optional[str] = None
     item_title: Optional[str] = None
+    item_thumbnail: Optional[str] = None  # URL da thumbnail do produto
     order_id: Optional[str] = None
     last_message: Optional[str] = None
     requires_action: bool = False

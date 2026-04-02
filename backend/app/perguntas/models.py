@@ -38,6 +38,9 @@ class Question(Base):
     item_title: Mapped[str | None] = mapped_column(
         String(500), nullable=True, comment="Título do anúncio"
     )
+    item_thumbnail: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, comment="URL da thumbnail do produto"
+    )
     text: Mapped[str] = mapped_column(
         Text(), nullable=False, comment="Texto da pergunta"
     )

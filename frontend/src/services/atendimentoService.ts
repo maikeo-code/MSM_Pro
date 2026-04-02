@@ -9,6 +9,7 @@ export interface AtendimentoItem {
   from_user?: { id: number; nickname: string } | null;
   item_id?: string;
   item_title?: string;
+  item_thumbnail?: string;
   order_id?: string;
   last_message?: string;
   requires_action: boolean;

@@ -8,6 +8,7 @@ export interface QuestionDB {
   ml_account_id: string;
   mlb_id: string;
   item_title: string | null;
+  item_thumbnail: string | null;
   text: string;
   status: string;
   buyer_id: number | null;

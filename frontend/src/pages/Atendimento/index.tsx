@@ -356,9 +356,16 @@ function AtendimentoCard({
         {item.text.length > 200 ? item.text.slice(0, 200) + "..." : item.text}
       </p>
 
-      {/* Metadados */}
-      {(item.item_id || item.item_title) && (
+      {/* Metadados com thumbnail */}
+      {(item.item_id || item.item_title || item.item_thumbnail) && (
         <div className="flex items-center gap-2 text-xs text-gray-500">
+          {item.item_thumbnail && (
+            <img
+              src={item.item_thumbnail}
+              alt=""
+              className="h-8 w-8 rounded object-cover flex-shrink-0"
+            />
+          )}
           {item.item_id && (
             <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">
               {item.item_id}

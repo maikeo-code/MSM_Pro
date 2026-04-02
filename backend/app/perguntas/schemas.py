@@ -47,6 +47,7 @@ class QuestionDB(BaseModel):
     ml_account_id: UUID
     mlb_id: str
     item_title: str | None = None
+    item_thumbnail: str | None = None
     text: str
     status: str
     buyer_id: int | None = None
