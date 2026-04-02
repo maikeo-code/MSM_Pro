@@ -115,6 +115,7 @@ async def get_dre(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     period: PeriodParam = Query(default="30d", description="Periodo de analise"),
+    ml_account_id: str | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
 ):
     """
     Retorna DRE Gerencial Simplificado (Income Statement) para o periodo.
@@ -131,8 +132,10 @@ async def get_dre(
     = Lucro Operacional
 
     Inclui percentuais e comparação com período anterior.
+
+    Se ml_account_id for fornecido, filtra apenas os dados dessa conta ML.
     """
-    data = await service.get_dre(db, current_user.id, period=period)
+    data = await service.get_dre(db, current_user.id, period=period, ml_account_id=ml_account_id)
     return DREOut(**data)
 
 
@@ -193,6 +196,7 @@ async def get_rentabilidade_sku(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     period: PeriodParam = Query(default="30d", description="Periodo de analise"),
+    ml_account_id: str | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
 ):
     """
     Retorna rentabilidade agregada por SKU (Product) para o periodo.
@@ -206,6 +210,8 @@ async def get_rentabilidade_sku(
     - Melhor e pior listing por margem
 
     Útil para identificar quais produtos são mais lucrativos e onde há oportunidades.
+
+    Se ml_account_id for fornecido, filtra apenas os dados dessa conta ML.
     """
-    data = await service.get_rentabilidade_por_sku(db, current_user.id, period=period)
+    data = await service.get_rentabilidade_por_sku(db, current_user.id, period=period, ml_account_id=ml_account_id)
     return RentabilidadeSKUOut(**data)

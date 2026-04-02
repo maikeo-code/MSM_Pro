@@ -9,17 +9,18 @@ from decimal import Decimal
 
 
 # Taxas ML por tipo de anuncio (percentual sobre o preco de venda)
+# Fonte: https://www.mercadolivre.com.br/tarifas
 ML_FEES: dict[str, Decimal] = {
-    "classico": Decimal("0.115"),   # 11.5%
-    "premium": Decimal("0.17"),     # 17%
-    "full": Decimal("0.17"),        # 17% + frete gratis (custo separado)
+    "classico": Decimal("0.11"),    # 11%
+    "premium": Decimal("0.16"),     # 16%
+    "full": Decimal("0.16"),        # 16% + frete gratis (custo separado)
 }
 
 # Mapeamento para uso em contextos float (vendas/service.py, etc.)
 ML_FEES_FLOAT: dict[str, float] = {
-    "classico": 0.115,
-    "premium": 0.17,
-    "full": 0.17,
+    "classico": 0.11,
+    "premium": 0.16,
+    "full": 0.16,
 }
 
 # Default ML fee for unknown listing types

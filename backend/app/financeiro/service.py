@@ -527,6 +527,7 @@ async def get_dre(
     db: AsyncSession,
     user_id,
     period: str = "30d",
+    ml_account_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Retorna DRE Gerencial Simplificado (Income Statement).
@@ -545,7 +546,7 @@ async def get_dre(
     Também compara com período anterior para variações.
     """
     # Obter resumo P&L atual
-    resumo_atual = await get_financeiro_resumo(db, user_id, period=period)
+    resumo_atual = await get_financeiro_resumo(db, user_id, period=period, ml_account_id=ml_account_id)
     data_inicio, data_fim = _parse_period(period)
 
     # Período anterior
@@ -605,6 +606,11 @@ async def get_dre(
             )
             .where(
                 Listing.user_id == user_id,
+                *(
+                    [Listing.ml_account_id == ml_account_id]
+                    if ml_account_id
+                    else []
+                ),
             )
             .group_by(
                 Listing.id,
@@ -820,6 +826,7 @@ async def get_rentabilidade_por_sku(
     db: AsyncSession,
     user_id,
     period: str = "30d",
+    ml_account_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Retorna rentabilidade agregada por SKU (Product).
@@ -882,6 +889,11 @@ async def get_rentabilidade_por_sku(
         .where(
             Listing.user_id == user_id,
             Listing.product_id.isnot(None),
+            *(
+                [Listing.ml_account_id == ml_account_id]
+                if ml_account_id
+                else []
+            ),
         )
         .group_by(
             Listing.product_id,
