@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.core.rate_limit import setup_rate_limiting
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,8 @@ if settings.cors_origins:
         o.strip() for o in settings.cors_origins.split(",") if o.strip()
     )
 logger.info(f"CORS origins allowed: {_cors_origins}")
+
+setup_rate_limiting(app)
 
 app.add_middleware(
     CORSMiddleware,

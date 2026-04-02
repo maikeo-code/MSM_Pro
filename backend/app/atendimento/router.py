@@ -165,7 +165,9 @@ async def ai_suggestion(
 # ─── Response Templates ────────────────────────────────────────────────────────
 
 @router.get("/templates-test")
-async def templates_test():
+async def templates_test(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
     """Teste simples para verificar se rotas estão carregando."""
     return {"status": "ok", "msg": "Templates route is loaded"}
 

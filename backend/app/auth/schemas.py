@@ -12,7 +12,7 @@ class UserCreate(BaseModel):
 
 class UserLogin(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(max_length=256)
 
 
 class UserOut(BaseModel):

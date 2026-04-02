@@ -66,8 +66,8 @@ class Settings(BaseSettings):
         """Valida configurações críticas de segurança após inicialização."""
         if self.environment == "production":
             if self.secret_key == "insecure-default-secret-change-in-production":
-                logger.critical(
-                    "SECURITY ALERT: Usando secret_key padrão em PRODUÇÃO! "
+                raise ValueError(
+                    "SECRET_KEY padrão não pode ser usado em produção. "
                     "Defina SECRET_KEY em variáveis de ambiente imediatamente."
                 )
             if not self.ml_client_id or not self.ml_client_secret:

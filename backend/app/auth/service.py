@@ -113,9 +113,14 @@ async def exchange_code_for_token(code: str) -> dict:
         )
 
     if response.status_code != 200:
+        logger.error(
+            "Falha ao trocar código ML: status=%d detail=%s",
+            response.status_code,
+            response.text[:500],
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Erro ao trocar código ML: {response.text}",
+            detail="Erro ao conectar conta ML. Tente novamente.",
         )
     return response.json()
 
