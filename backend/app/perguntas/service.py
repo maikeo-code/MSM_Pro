@@ -95,19 +95,15 @@ async def sync_questions_for_account(
                             buyer_id = buyer_data.get("id")
                             buyer_nickname = buyer_data.get("nickname")
 
-                            # Tenta encontrar listing local e buscar thumbnail
+                            # Tenta encontrar listing local
                             listing_id = None
-                            thumbnail = None
                             if mlb_id:
                                 result = await db.execute(
-                                    select(Listing.id, Listing.thumbnail).where(Listing.mlb_id == mlb_id)
+                                    select(Listing.id).where(Listing.mlb_id == mlb_id)
                                 )
-                                row = result.first()
+                                row = result.scalar_one_or_none()
                                 if row:
-                                    listing_id, thumbnail = row
-
-                            # Thumbnail vem do Listing local — não fazer chamada API extra
-                            # para evitar rate limit (N perguntas = N chamadas extras)
+                                    listing_id = row
 
                             # Trata resposta (se houver)
                             answer_text = None
@@ -138,8 +134,6 @@ async def sync_questions_for_account(
                                 question.answer_date = answer_date
                                 if answer_text:
                                     question.answer_source = "ml_direct"
-                                if thumbnail:
-                                    question.item_thumbnail = thumbnail
                                 question.synced_at = datetime.now(timezone.utc)
                                 question.updated_at = datetime.now(timezone.utc)
                                 await db.flush()
@@ -152,7 +146,6 @@ async def sync_questions_for_account(
                                     listing_id=listing_id,
                                     mlb_id=mlb_id,
                                     item_title=item_title,
-                                    item_thumbnail=thumbnail,
                                     text=text,
                                     status=status,
                                     buyer_id=buyer_id,
