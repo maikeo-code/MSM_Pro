@@ -20,7 +20,7 @@ export function AccountSelector({ className, fullWidth = false }: AccountSelecto
 
   const { activeAccountId, setActiveAccount, clearActiveAccount } = useAccountStore();
 
-  // Buscar diagnÛsticos de tokens
+  // Buscar diagnÔøΩsticos de tokens
   const { data: diagnostics } = useQuery({
     queryKey: ['token-diagnostics'],
     queryFn: () => tokenDiagnosticsService.getDiagnostics(),
@@ -66,6 +66,11 @@ export function AccountSelector({ className, fullWidth = false }: AccountSelecto
     const diag = diagnostics.accounts.find(acc => acc.id === accountId);
     return diag ? (diag.needs_reauth || diag.token_status === 'expired') : false;
   };
+
+  // Contar contas com problemas de token
+  const problematicAccountsCount = diagnostics
+    ? diagnostics.accounts.filter(acc => acc.needs_reauth || acc.token_status === 'expired').length
+    : 0;
 
   // Se tem apenas 1 conta, n√£o mostrar o seletor
   if (accounts.length <= 1) {
