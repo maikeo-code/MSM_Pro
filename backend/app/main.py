@@ -297,8 +297,10 @@ async def ml_notifications(request: Request):
             user_id, resource,
         )
     elif topic == "questions":
+        from app.jobs.tasks import sync_questions
+        sync_questions.delay()
         logger.info(
-            "Webhook: nova pergunta registrada — user_id=%s resource=%s",
+            "Webhook: sync_questions enfileirado — user_id=%s resource=%s",
             user_id, resource,
         )
     elif topic == "items":

@@ -13,6 +13,7 @@ A lógica assíncrona está nos submódulos:
   - tasks_reputation.py — _sync_reputation_async
   - tasks_digest.py     — _send_weekly_digest_async
   - tasks_daily_intel.py — _send_daily_intel_report_async
+  - tasks_questions.py  — _sync_questions_async
 
 Tasks agendadas (beat schedule em core/celery_app.py):
   - sync_all_snapshots:       diariamente às 06:00 BRT (09:00 UTC)
@@ -25,6 +26,7 @@ Tasks agendadas (beat schedule em core/celery_app.py):
   - sync_ads:                 diariamente às 10:00 UTC (07:00 BRT)
   - send_weekly_digest:       todo domingo às 20:00 BRT (23:00 UTC)
   - send_daily_intel_report:  diariamente às 08:00 BRT (11:00 UTC)
+  - sync_questions:           a cada 15 minutos
 """
 import asyncio
 import logging
@@ -44,6 +46,7 @@ from .tasks_listings import (
     _sync_recent_snapshots_async,
 )
 from .tasks_orders import _sync_orders_async, _backfill_orders_after_reconnect_async
+from .tasks_questions import _sync_questions_async
 from .tasks_reputation import _sync_reputation_async
 from .tasks_tokens import _refresh_expired_tokens_async
 
@@ -269,6 +272,30 @@ def send_daily_intel_report(self):
         return run_async(_run())
     except Exception as exc:
         logger.error("Erro em send_daily_intel_report: %s", exc)
+        raise
+
+
+# --- Task: Sincronizar perguntas Q&A ---
+
+@celery_app.task(name="app.jobs.tasks.sync_questions", bind=True)
+def sync_questions(self):
+    """
+    Sincroniza perguntas recebidas de todas as contas ML ativas.
+    Executado a cada 15 minutos via Celery beat.
+    Uses Redis lock to prevent duplicate execution across workers.
+    """
+    async def _run():
+        if not await acquire_task_lock("sync_questions", timeout=300):
+            return {"status": "skipped", "reason": "lock_held"}
+        try:
+            return await _sync_questions_async()
+        finally:
+            await release_task_lock("sync_questions")
+
+    try:
+        return run_async(_run())
+    except Exception as exc:
+        logger.error("Erro em sync_questions: %s", exc)
         raise
 
 

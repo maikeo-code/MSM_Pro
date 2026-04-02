@@ -128,4 +128,12 @@ celery_app.conf.beat_schedule = {
             "expires": 3600,
         },
     },
+    # Sincroniza perguntas recebidas a cada 15 minutos
+    "sync-questions-every-15min": {
+        "task": "app.jobs.tasks.sync_questions",
+        "schedule": crontab(minute="*/15"),
+        "options": {
+            "expires": 900,  # 15 minutos
+        },
+    },
 }
