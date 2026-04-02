@@ -9,9 +9,7 @@ import {
   RefreshCw,
   Search,
   Sparkles,
-  ChevronRight,
   Loader2,
-  X,
 } from "lucide-react";
 import {
   listQuestions,
@@ -20,12 +18,9 @@ import {
   getQuestionStats,
   syncQuestions,
   type QuestionDB,
-  type QuestionsListResponse,
-  type QuestionStats,
-  type AISuggestion,
 } from "@/services/perguntasService";
 import { useAccountStore } from "@/store/accountStore";
-import AccountSelector from "@/components/AccountSelector";
+import { AccountSelector } from "@/components/AccountSelector";
 import { cn } from "@/lib/utils";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -147,7 +142,6 @@ function QuestionList({
   tab,
 }: QuestionListProps) {
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const debounceTimer = useRef<NodeJS.Timeout>();
 
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -231,14 +225,14 @@ function QuestionDetail({ question, tab, accountId }: QuestionDetailProps) {
   const [resposta, setResposta] = useState("");
   const [editedSuggestion, setEditedSuggestion] = useState(false);
 
-  const // Suggestion mutation
-  suggestMutation = useMutation({
-    mutationFn: (regenerate = false) =>
+  // Suggestion mutation
+  const suggestMutation = useMutation({
+    mutationFn: (regenerate: boolean = false) =>
       question ? getSuggestion(question.id, regenerate) : Promise.reject(),
   });
 
-  const // Answer mutation
-  answerMutation = useMutation({
+  // Answer mutation
+  const answerMutation = useMutation({
     mutationFn: (text: string) =>
       answerQuestion(
         question!.id,
@@ -263,7 +257,7 @@ function QuestionDetail({ question, tab, accountId }: QuestionDetailProps) {
   };
 
   const handleGenerateSuggestion = () => {
-    suggestMutation.mutate();
+    suggestMutation.mutate(false);
   };
 
   const handleAnswer = () => {
@@ -348,7 +342,9 @@ function QuestionDetail({ question, tab, accountId }: QuestionDetailProps) {
                 Usar resposta
               </button>
               <button
-                onClick={() => suggestMutation.mutate(true)}
+                onClick={() => {
+                  suggestMutation.mutate(true);
+                }}
                 disabled={suggestMutation.isPending}
                 className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
               >
