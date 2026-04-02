@@ -12,6 +12,7 @@ celery_app = Celery(
     "msm_pro",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
+    include=["app.jobs.tasks"],
 )
 
 # Configurações gerais

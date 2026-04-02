@@ -9,8 +9,10 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class SyncOut(BaseModel):
-    synced: int
-    errors: int | None = None
+    created: int
+    updated: int
+    total: int
+    errors: list[str] = []
     message: str | None = None
 
 
