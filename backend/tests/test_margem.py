@@ -8,17 +8,17 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-32chars!")
 
 def test_taxa_ml_classico():
     from app.financeiro.service import calcular_taxa_ml
-    assert calcular_taxa_ml("classico") == Decimal("0.115")
+    assert calcular_taxa_ml("classico") == Decimal("0.11")
 
 
 def test_taxa_ml_premium():
     from app.financeiro.service import calcular_taxa_ml
-    assert calcular_taxa_ml("premium") == Decimal("0.17")
+    assert calcular_taxa_ml("premium") == Decimal("0.16")
 
 
 def test_taxa_ml_full():
     from app.financeiro.service import calcular_taxa_ml
-    assert calcular_taxa_ml("full") == Decimal("0.17")
+    assert calcular_taxa_ml("full") == Decimal("0.16")
 
 
 def test_taxa_ml_unknown_fallback():
@@ -39,7 +39,7 @@ def test_taxa_ml_custom_sale_fee():
 
 def test_taxa_ml_zero_sale_fee_uses_table():
     from app.financeiro.service import calcular_taxa_ml
-    assert calcular_taxa_ml("classico", sale_fee_pct=Decimal("0")) == Decimal("0.115")
+    assert calcular_taxa_ml("classico", sale_fee_pct=Decimal("0")) == Decimal("0.11")
 
 
 def test_margem_classico():
@@ -50,11 +50,11 @@ def test_margem_classico():
         custo=Decimal("40.00"),
         listing_type="classico",
     )
-    # taxa = 100 * 0.115 = 11.50
-    # margem = 100 - 40 - 11.50 - 0 = 48.50
-    assert result["taxa_ml_valor"] == Decimal("11.50")
-    assert result["margem_bruta"] == Decimal("48.50")
-    assert result["margem_pct"] == Decimal("48.50")
+    # taxa = 100 * 0.11 = 11.00
+    # margem = 100 - 40 - 11.00 - 0 = 49.00
+    assert result["taxa_ml_valor"] == Decimal("11.00")
+    assert result["margem_bruta"] == Decimal("49.00")
+    assert result["margem_pct"] == Decimal("49.00")
     assert result["lucro"] == result["margem_bruta"]
 
 
@@ -67,10 +67,10 @@ def test_margem_premium_with_frete():
         listing_type="premium",
         frete=Decimal("15.00"),
     )
-    # taxa = 200 * 0.17 = 34.00
-    # margem = 200 - 80 - 34 - 15 = 71.00
-    assert result["taxa_ml_valor"] == Decimal("34.00")
-    assert result["margem_bruta"] == Decimal("71.00")
+    # taxa = 200 * 0.16 = 32.00
+    # margem = 200 - 80 - 32 - 15 = 73.00
+    assert result["taxa_ml_valor"] == Decimal("32.00")
+    assert result["margem_bruta"] == Decimal("73.00")
     assert result["frete"] == Decimal("15.00")
 
 
@@ -94,9 +94,9 @@ def test_margem_negative_margin():
         listing_type="premium",
         frete=Decimal("10.00"),
     )
-    # taxa = 50 * 0.17 = 8.50
-    # margem = 50 - 60 - 8.50 - 10 = -28.50
-    assert result["margem_bruta"] == Decimal("-28.50")
+    # taxa = 50 * 0.16 = 8.00
+    # margem = 50 - 60 - 8.00 - 10 = -28.00
+    assert result["margem_bruta"] == Decimal("-28.00")
     assert result["margem_pct"] < 0
 
 

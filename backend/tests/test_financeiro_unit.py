@@ -57,29 +57,29 @@ async def db():
 class TestCalcularTaxaML:
     """Testes da função calcular_taxa_ml — sem banco de dados."""
 
-    def test_taxa_classico_115_pct(self):
-        """Anúncio Clássico deve usar taxa de 11.5%."""
+    def test_taxa_classico_11_pct(self):
+        """Anúncio Clássico deve usar taxa de 11%."""
         from app.financeiro.service import calcular_taxa_ml
         taxa = calcular_taxa_ml("classico")
-        assert taxa == Decimal("0.115")
+        assert taxa == Decimal("0.11")
 
     def test_taxa_classico_case_insensitive(self):
         """Case insensitive para tipo de anúncio Clássico."""
         from app.financeiro.service import calcular_taxa_ml
-        assert calcular_taxa_ml("CLASSICO") == Decimal("0.115")
-        assert calcular_taxa_ml("Classico") == Decimal("0.115")
+        assert calcular_taxa_ml("CLASSICO") == Decimal("0.11")
+        assert calcular_taxa_ml("Classico") == Decimal("0.11")
 
-    def test_taxa_premium_17_pct(self):
-        """Anúncio Premium deve usar taxa de 17%."""
+    def test_taxa_premium_16_pct(self):
+        """Anúncio Premium deve usar taxa de 16%."""
         from app.financeiro.service import calcular_taxa_ml
         taxa = calcular_taxa_ml("premium")
-        assert taxa == Decimal("0.17")
+        assert taxa == Decimal("0.16")
 
-    def test_taxa_full_17_pct(self):
-        """Anúncio Full deve usar taxa de 17% (frete grátis incluído separado)."""
+    def test_taxa_full_16_pct(self):
+        """Anúncio Full deve usar taxa de 16% (frete grátis incluído separado)."""
         from app.financeiro.service import calcular_taxa_ml
         taxa = calcular_taxa_ml("full")
-        assert taxa == Decimal("0.17")
+        assert taxa == Decimal("0.16")
 
     def test_taxa_tipo_desconhecido_fallback_16_pct(self):
         """Tipo de anúncio desconhecido deve usar fallback de 16%."""
@@ -104,7 +104,7 @@ class TestCalcularTaxaML:
         """sale_fee_pct=0 não deve sobreescrever a tabela (usa valor da tabela)."""
         from app.financeiro.service import calcular_taxa_ml
         taxa = calcular_taxa_ml("classico", sale_fee_pct=Decimal("0"))
-        assert taxa == Decimal("0.115")
+        assert taxa == Decimal("0.11")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -117,9 +117,9 @@ class TestCalcularMargem:
     def test_margem_classico_valores_reais_brl(self):
         """
         Produto vendido a R$150, custo R$50, Clássico, sem frete.
-        Taxa ML = 150 * 0.115 = R$17.25
-        Margem bruta = 150 - 50 - 17.25 = R$82.75
-        Margem % = 82.75 / 150 * 100 = 55.17%
+        Taxa ML = 150 * 0.11 = R$16.50
+        Margem bruta = 150 - 50 - 16.50 = R$83.50
+        Margem % = 83.50 / 150 * 100 = 55.67%
         """
         from app.financeiro.service import calcular_margem
         result = calcular_margem(
@@ -127,18 +127,18 @@ class TestCalcularMargem:
             custo=Decimal("50.00"),
             listing_type="classico",
         )
-        assert result["taxa_ml_pct"] == Decimal("0.115")
-        assert result["taxa_ml_valor"] == Decimal("17.25")
-        assert result["margem_bruta"] == Decimal("82.75")
-        assert result["margem_pct"] == Decimal("55.17")
+        assert result["taxa_ml_pct"] == Decimal("0.11")
+        assert result["taxa_ml_valor"] == Decimal("16.50")
+        assert result["margem_bruta"] == Decimal("83.50")
+        assert result["margem_pct"] == Decimal("55.67")
         assert result["frete"] == Decimal("0")
         assert result["lucro"] == result["margem_bruta"]
 
     def test_margem_premium_com_frete(self):
         """
         Produto a R$200, custo R$80, Premium, frete R$15.
-        Taxa ML = 200 * 0.17 = R$34.00
-        Margem bruta = 200 - 80 - 34 - 15 = R$71.00
+        Taxa ML = 200 * 0.16 = R$32.00
+        Margem bruta = 200 - 80 - 32 - 15 = R$73.00
         """
         from app.financeiro.service import calcular_margem
         result = calcular_margem(
@@ -147,8 +147,8 @@ class TestCalcularMargem:
             listing_type="premium",
             frete=Decimal("15.00"),
         )
-        assert result["taxa_ml_valor"] == Decimal("34.00")
-        assert result["margem_bruta"] == Decimal("71.00")
+        assert result["taxa_ml_valor"] == Decimal("32.00")
+        assert result["margem_bruta"] == Decimal("73.00")
 
     def test_margem_negativa_preco_abaixo_do_custo(self):
         """
@@ -185,8 +185,8 @@ class TestCalcularMargem:
         preco = Decimal("100.00")
         custo = Decimal("40.00")
         result = calcular_margem(preco=preco, custo=custo, listing_type="classico")
-        # margem_bruta = 100 - 40 - 11.50 = 48.50
-        # margem_pct = 48.50 / 100 * 100 = 48.50%
+        # margem_bruta = 100 - 40 - 11.00 = 49.00
+        # margem_pct = 49.00 / 100 * 100 = 49.00%
         expected_pct = (result["margem_bruta"] / preco * 100).quantize(Decimal("0.01"))
         assert result["margem_pct"] == expected_pct
 
@@ -260,7 +260,7 @@ async def listing_classico(db, user_fin, ml_account_fin, product_fin):
         price=Decimal("150.00"),
         original_price=Decimal("150.00"),
         status="active",
-        sale_fee_pct=Decimal("0.115"),
+        sale_fee_pct=Decimal("0.11"),
         avg_shipping_cost=Decimal("10.00"),
     )
     db.add(listing)
@@ -283,7 +283,7 @@ async def listing_sem_custo(db, user_fin, ml_account_fin):
         price=Decimal("200.00"),
         original_price=Decimal("200.00"),
         status="active",
-        sale_fee_pct=Decimal("0.17"),
+        sale_fee_pct=Decimal("0.16"),
         avg_shipping_cost=Decimal("0.00"),
     )
     db.add(listing)
@@ -360,21 +360,21 @@ async def test_resumo_com_dados_calcula_corretamente(db, user_fin, listing_class
     Requer PostgreSQL — a query usa CAST(captured_at AS DATE) incompatível com SQLite.
 
     Lógica esperada (testada unitariamente em TestCalcularMargem):
-    - taxa_ml = R$1500 * 0.115 = R$172.50
+    - taxa_ml = R$1500 * 0.11 = R$165.00
     - frete = R$10 * 10 pedidos = R$100.00
-    - receita_liquida = R$1500 - R$172.50 - R$100 = R$1227.50
+    - receita_liquida = R$1500 - R$165.00 - R$100 = R$1235.00
     - custo = R$45 * 10 = R$450.00
-    - margem_bruta = R$1227.50 - R$450 = R$777.50
+    - margem_bruta = R$1235.00 - R$450 = R$785.00
     """
     from app.financeiro.service import get_financeiro_resumo
     await _create_snapshot(db, listing_classico.id, revenue=Decimal("1500.00"), orders=10)
     result = await get_financeiro_resumo(db, user_fin.id, period="7d")
     assert result["vendas_brutas"] == Decimal("1500.00")
-    assert result["taxas_ml_total"] == Decimal("172.50")
+    assert result["taxas_ml_total"] == Decimal("165.00")
     assert result["frete_total"] == Decimal("100.00")
-    assert result["receita_liquida"] == Decimal("1227.50")
+    assert result["receita_liquida"] == Decimal("1235.00")
     assert result["custo_total"] == Decimal("450.00")
-    assert result["margem_bruta"] == Decimal("777.50")
+    assert result["margem_bruta"] == Decimal("785.00")
     assert result["total_pedidos"] == 10
 
 
@@ -472,7 +472,7 @@ async def test_resumo_margem_negativa_quando_custo_alto(db, user_fin, ml_account
         listing_type="classico",
         price=Decimal("100.00"),
         status="active",
-        sale_fee_pct=Decimal("0.115"),
+        sale_fee_pct=Decimal("0.11"),
         avg_shipping_cost=Decimal("0.00"),
     )
     db.add(listing_prejuizo)
@@ -516,16 +516,16 @@ async def test_timeline_sem_dados_points_vazio(db, user_fin):
 
 def test_detalhado_calculo_taxa_ml_classico_em_percentual():
     """
-    O breakdown exibe taxa_ml_pct em percentual (11.50), não decimal (0.115).
+    O breakdown exibe taxa_ml_pct em percentual (11.00), não decimal (0.11).
     Simulação do cálculo real do get_financeiro_detalhado.
     """
     from app.financeiro.service import calcular_taxa_ml
     from decimal import ROUND_HALF_UP
 
-    taxa_pct = calcular_taxa_ml("classico")  # Decimal("0.115")
+    taxa_pct = calcular_taxa_ml("classico")  # Decimal("0.11")
     # O service converte para percentual: taxa_pct * 100
     taxa_display = (taxa_pct * 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    assert taxa_display == Decimal("11.50")
+    assert taxa_display == Decimal("11.00")
 
 
 def test_detalhado_calculo_margem_quando_produto_vinculado():
@@ -538,7 +538,7 @@ def test_detalhado_calculo_margem_quando_produto_vinculado():
 
     rev = Decimal("1500.00")
     orders = 10
-    taxa_pct = calcular_taxa_ml("classico", sale_fee_pct=Decimal("0.115"))
+    taxa_pct = calcular_taxa_ml("classico", sale_fee_pct=Decimal("0.11"))
     taxa_valor = (rev * taxa_pct).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     frete_listing = (Decimal("10.00") * orders).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     receita_liquida = rev - taxa_valor - frete_listing
@@ -547,9 +547,9 @@ def test_detalhado_calculo_margem_quando_produto_vinculado():
     custo_total = (custo_unitario * orders).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     margem = receita_liquida - custo_total
 
-    assert receita_liquida == Decimal("1227.50")  # 1500 - 172.50 - 100
+    assert receita_liquida == Decimal("1235.00")  # 1500 - 165.00 - 100
     assert custo_total == Decimal("450.00")        # 45 * 10
-    assert margem == Decimal("777.50")              # 1227.50 - 450
+    assert margem == Decimal("785.00")              # 1235.00 - 450
 
 
 def test_detalhado_margem_none_quando_sem_produto():

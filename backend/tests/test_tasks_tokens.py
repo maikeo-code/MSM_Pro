@@ -313,8 +313,8 @@ class TestDistributedLock:
         mock_release.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_acquire_lock_redis_falha_fail_open(self):
-        """Se Redis falhar, _acquire_token_refresh_lock retorna True (fail-open)."""
+    async def test_acquire_lock_redis_falha_fail_closed(self):
+        """Se Redis falhar, _acquire_token_refresh_lock retorna False (fail-closed)."""
         from app.jobs.tasks_tokens import _acquire_token_refresh_lock
 
         mock_redis = AsyncMock()
@@ -323,8 +323,8 @@ class TestDistributedLock:
         with patch("app.jobs.tasks_tokens.get_redis_client", return_value=mock_redis):
             result = await _acquire_token_refresh_lock("test-account-id")
 
-        # Fail-open: retorna True mesmo com Redis fora
-        assert result is True
+        # Fail-closed: retorna False quando Redis está fora
+        assert result is False
 
 
 # ============================================================================

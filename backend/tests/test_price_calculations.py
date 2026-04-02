@@ -25,19 +25,19 @@ class TestCalcularTaxaML:
     """Testes para cálculo da taxa do Mercado Livre."""
 
     def test_classico_taxa_default(self):
-        """Tipo 'classico' → taxa 11.5% (0.115)."""
+        """Tipo 'classico' → taxa 11% (0.11)."""
         taxa = calcular_taxa_ml("classico")
-        assert taxa == Decimal("0.115")
+        assert taxa == Decimal("0.11")
 
     def test_premium_taxa_default(self):
-        """Tipo 'premium' → taxa 17% (0.17)."""
+        """Tipo 'premium' → taxa 16% (0.16)."""
         taxa = calcular_taxa_ml("premium")
-        assert taxa == Decimal("0.17")
+        assert taxa == Decimal("0.16")
 
     def test_full_taxa_default(self):
-        """Tipo 'full' → taxa 17% (0.17)."""
+        """Tipo 'full' → taxa 16% (0.16)."""
         taxa = calcular_taxa_ml("full")
-        assert taxa == Decimal("0.17")
+        assert taxa == Decimal("0.16")
 
     def test_classico_case_insensitive(self):
         """Tipo 'CLASSICO' (maiúsculas) → mesmo que 'classico'."""
@@ -45,7 +45,7 @@ class TestCalcularTaxaML:
         taxa_upper = calcular_taxa_ml("CLASSICO")
         taxa_mixed = calcular_taxa_ml("Classico")
 
-        assert taxa_lower == taxa_upper == taxa_mixed == Decimal("0.115")
+        assert taxa_lower == taxa_upper == taxa_mixed == Decimal("0.11")
 
     def test_unknown_listing_type_fallback_to_16_percent(self):
         """Tipo desconhecido → fallback 16% (0.16)."""
@@ -64,7 +64,7 @@ class TestCalcularTaxaML:
 
     def test_sale_fee_pct_overrides_default(self):
         """sale_fee_pct fornecido → usa esse valor em vez da tabela."""
-        # Mesmo que listing_type seja classico (11.5%), se sale_fee_pct=0.12
+        # Mesmo que listing_type seja classico (11%), se sale_fee_pct=0.12
         taxa = calcular_taxa_ml("classico", sale_fee_pct=Decimal("0.12"))
         assert taxa == Decimal("0.12")
 
@@ -72,12 +72,12 @@ class TestCalcularTaxaML:
         """sale_fee_pct=0 → ignora e usa default da tabela."""
         taxa = calcular_taxa_ml("premium", sale_fee_pct=Decimal("0"))
         # 0 é falsy, portanto usa default
-        assert taxa == Decimal("0.17")
+        assert taxa == Decimal("0.16")
 
     def test_sale_fee_pct_none_uses_default(self):
         """sale_fee_pct=None → usa default da tabela."""
         taxa = calcular_taxa_ml("full", sale_fee_pct=None)
-        assert taxa == Decimal("0.17")
+        assert taxa == Decimal("0.16")
 
     def test_sale_fee_pct_negative_uses_default(self):
         """sale_fee_pct negativo → ignora (não faz sentido), usa default."""
@@ -85,7 +85,7 @@ class TestCalcularTaxaML:
         # Aqui assumimos que negativos são tratados como inválidos
         taxa = calcular_taxa_ml("classico", sale_fee_pct=Decimal("-0.10"))
         # -0.10 < 0, então ignora e usa default
-        assert taxa == Decimal("0.115")
+        assert taxa == Decimal("0.11")
 
     def test_sale_fee_pct_very_high(self):
         """sale_fee_pct muito alta (erro de API) → ainda respeita."""
@@ -112,23 +112,23 @@ class TestCalcularMargem:
         """Caso básico: preço 100, custo 40, classico."""
         # Preço: 100
         # Custo: 40
-        # Taxa ML 11.5%: 100 * 0.115 = 11.50
-        # Margem bruta: 100 - 40 - 11.50 - 0 (frete) = 48.50
+        # Taxa ML 11%: 100 * 0.11 = 11.00
+        # Margem bruta: 100 - 40 - 11.00 - 0 (frete) = 49.00
         result = calcular_margem(
             preco=Decimal("100"),
             custo=Decimal("40"),
             listing_type="classico",
         )
 
-        assert result["taxa_ml_pct"] == Decimal("0.115")
-        assert result["taxa_ml_valor"] == Decimal("11.50")
-        assert result["margem_bruta"] == Decimal("48.50")
-        assert result["lucro"] == Decimal("48.50")  # alias
+        assert result["taxa_ml_pct"] == Decimal("0.11")
+        assert result["taxa_ml_valor"] == Decimal("11.00")
+        assert result["margem_bruta"] == Decimal("49.00")
+        assert result["lucro"] == Decimal("49.00")  # alias
 
     def test_margin_with_frete(self):
         """Margem com custo de frete."""
         # Preço: 100, Custo: 40, Frete: 5
-        # Taxa: 11.50, Margem: 100 - 40 - 11.50 - 5 = 43.50
+        # Taxa: 11.00, Margem: 100 - 40 - 11.00 - 5 = 44.00
         result = calcular_margem(
             preco=Decimal("100"),
             custo=Decimal("40"),
@@ -137,19 +137,19 @@ class TestCalcularMargem:
         )
 
         assert result["frete"] == Decimal("5")
-        assert result["margem_bruta"] == Decimal("43.50")
+        assert result["margem_bruta"] == Decimal("44.00")
 
     def test_margin_percentage_calculation(self):
         """margem_pct = (margem_bruta / preco) * 100."""
-        # Preço: 100, Margem bruta: 48.50
-        # Margem %: 48.50 / 100 * 100 = 48.50%
+        # Preço: 100, Margem bruta: 49.00
+        # Margem %: 49.00 / 100 * 100 = 49.00%
         result = calcular_margem(
             preco=Decimal("100"),
             custo=Decimal("40"),
             listing_type="classico",
         )
 
-        assert result["margem_pct"] == Decimal("48.50")
+        assert result["margem_pct"] == Decimal("49.00")
 
     def test_margin_negative_when_cost_too_high(self):
         """Margem negativa quando custo > preço."""
@@ -166,11 +166,11 @@ class TestCalcularMargem:
 
     def test_margin_zero_when_break_even(self):
         """Margem zero quando preço = custo + taxa."""
-        # Preço: 45.30, Custo: 40
-        # Taxa classico: 45.30 * 0.115 = 5.21
-        # Margem: 45.30 - 40 - 5.21 = 0.09 (arredondado próximo a zero)
+        # Preço: 44.94, Custo: 40
+        # Taxa classico 11%: 44.94 * 0.11 = 4.94
+        # Margem: 44.94 - 40 - 4.94 = 0.00 (arredondado próximo a zero)
         result = calcular_margem(
-            preco=Decimal("45.21"),
+            preco=Decimal("44.94"),
             custo=Decimal("40"),
             listing_type="classico",
         )
@@ -179,7 +179,7 @@ class TestCalcularMargem:
         assert result["margem_bruta"] <= Decimal("0.10")
 
     def test_premium_higher_tax_lower_margin(self):
-        """Premium (17%) tem taxa maior que classico (11.5%)."""
+        """Premium (16%) tem taxa maior que classico (11%)."""
         # Mesmo preço e custo
         result_classico = calcular_margem(
             preco=Decimal("100"),
@@ -243,7 +243,7 @@ class TestMargemPriceZero:
             listing_type="classico",
         )
 
-        assert result["taxa_ml_pct"] == Decimal("0.115")
+        assert result["taxa_ml_pct"] == Decimal("0.11")
         assert result["taxa_ml_valor"] == Decimal("0.00")  # 0 * taxa = 0
         assert result["margem_bruta"] == Decimal("-40.00")  # 0 - 40 - 0
         assert result["margem_pct"] == Decimal("0.00")  # proteção: preco > 0
@@ -276,9 +276,9 @@ class TestMargemCostZero:
             listing_type="classico",
         )
 
-        # Margem: 100 - 0 - 11.50 = 88.50
-        assert result["margem_bruta"] == Decimal("88.50")
-        assert result["margem_pct"] == Decimal("88.50")
+        # Margem: 100 - 0 - 11.00 = 89.00
+        assert result["margem_bruta"] == Decimal("89.00")
+        assert result["margem_pct"] == Decimal("89.00")
 
     def test_cost_zero_with_frete(self):
         """Custo zero mas com frete → frete reduz margem."""
@@ -289,8 +289,8 @@ class TestMargemCostZero:
             frete=Decimal("10"),
         )
 
-        # Margem: 100 - 0 - 11.50 - 10 = 78.50
-        assert result["margem_bruta"] == Decimal("78.50")
+        # Margem: 100 - 0 - 11.00 - 10 = 79.00
+        assert result["margem_bruta"] == Decimal("79.00")
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -309,10 +309,10 @@ class TestMargemLargeValues:
             listing_type="full",
         )
 
-        # Taxa 17%: 50000 * 0.17 = 8500
-        # Margem: 50000 - 30000 - 8500 = 11500
-        assert result["taxa_ml_valor"] == Decimal("8500.00")
-        assert result["margem_bruta"] == Decimal("11500.00")
+        # Taxa 16%: 50000 * 0.16 = 8000
+        # Margem: 50000 - 30000 - 8000 = 12000
+        assert result["taxa_ml_valor"] == Decimal("8000.00")
+        assert result["margem_bruta"] == Decimal("12000.00")
 
     def test_very_high_cost(self):
         """Custo muito alto (produto importado)."""
@@ -322,10 +322,10 @@ class TestMargemLargeValues:
             listing_type="classico",
         )
 
-        # Taxa: 10000 * 0.115 = 1150
-        # Margem: 10000 - 9500 - 1150 = -650 (prejuízo)
-        assert result["margem_bruta"] == Decimal("-650.00")
-        assert result["margem_pct"] == Decimal("-6.50")
+        # Taxa: 10000 * 0.11 = 1100
+        # Margem: 10000 - 9500 - 1100 = -600 (prejuízo)
+        assert result["margem_bruta"] == Decimal("-600.00")
+        assert result["margem_pct"] == Decimal("-6.00")
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -344,11 +344,11 @@ class TestMargemSmallValues:
             listing_type="classico",
         )
 
-        # Taxa: 1.00 * 0.115 = 0.12 (arredondado)
-        # Margem: 1.00 - 0.50 - 0.12 = 0.38
-        assert result["taxa_ml_valor"] == Decimal("0.12")
+        # Taxa: 1.00 * 0.11 = 0.11
+        # Margem: 1.00 - 0.50 - 0.11 = 0.39
+        assert result["taxa_ml_valor"] == Decimal("0.11")
         # Margem será aproximada
-        assert Decimal("0.37") <= result["margem_bruta"] <= Decimal("0.39")
+        assert Decimal("0.38") <= result["margem_bruta"] <= Decimal("0.40")
 
     def test_fractional_prices_and_costs(self):
         """Preços e custos com frações (centavos)."""
@@ -359,9 +359,9 @@ class TestMargemSmallValues:
             frete=Decimal("8.75"),
         )
 
-        # Taxa 17%: 99.99 * 0.17 = 16.9983 (arredondado para 17.00)
-        # Margem: 99.99 - 45.50 - 17.00 - 8.75 = 28.74
-        assert result["margem_bruta"] == Decimal("28.74")
+        # Taxa 16%: 99.99 * 0.16 = 15.9984 (arredondado para 16.00)
+        # Margem: 99.99 - 45.50 - 16.00 - 8.75 = 29.74
+        assert result["margem_bruta"] == Decimal("29.74")
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -380,7 +380,7 @@ class TestMargemRounding:
             listing_type="classico",
         )
 
-        # Taxa: 10.33 * 0.115 = 1.187... deve arredondar para 1.19
+        # Taxa: 10.33 * 0.11 = 1.1363... deve arredondar para 1.14
         taxa_str = str(result["taxa_ml_valor"])
         decimal_places = taxa_str.split(".")[-1] if "." in taxa_str else "0"
         assert len(decimal_places) <= 2
@@ -399,7 +399,7 @@ class TestMargemRounding:
 
     def test_rounding_half_up_behavior(self):
         """Arredondamento usa ROUND_HALF_UP (0.5 sobe)."""
-        # 10.005 * 0.115 = 1.150575 → deve arredondar para 1.15 (5 sobe)
+        # 10.005 * 0.11 = 1.10055 → deve arredondar para 1.10
         result = calcular_margem(
             preco=Decimal("10.005"),
             custo=Decimal("5"),
@@ -408,7 +408,7 @@ class TestMargemRounding:
 
         # Verificar que o arredondamento foi aplicado
         taxa_valor = result["taxa_ml_valor"]
-        assert taxa_valor == Decimal("1.15")
+        assert taxa_valor == Decimal("1.10")
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -427,7 +427,7 @@ class TestMargemIntegration:
             "full": calcular_margem(Decimal("100"), Decimal("40"), "full"),
         }
 
-        # Premium e full têm mesma taxa (17%)
+        # Premium e full têm mesma taxa (16%)
         assert scenarios["premium"]["taxa_ml_valor"] == scenarios["full"]["taxa_ml_valor"]
 
         # Classico é mais vantajoso (menor taxa)
