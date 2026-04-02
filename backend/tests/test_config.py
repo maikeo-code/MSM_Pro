@@ -25,8 +25,16 @@ def test_ml_token_url_correct():
 
 
 def test_default_database_url_is_async():
-    from app.core.config import settings
-    assert "asyncpg" in settings.database_url
+    from app.core.config import Settings
+    # Instancia Settings sem variáveis de ambiente de teste para verificar o default
+    import os
+    orig = os.environ.pop("DATABASE_URL", None)
+    try:
+        s = Settings()
+        assert "asyncpg" in s.database_url
+    finally:
+        if orig:
+            os.environ["DATABASE_URL"] = orig
 
 
 def test_cors_origins_default_empty():

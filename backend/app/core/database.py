@@ -4,16 +4,31 @@ from sqlalchemy.orm import DeclarativeBase
 from app.core.config import settings
 
 
+def _build_engine():
+    """Cria o engine assíncrono com parâmetros adequados ao driver."""
+    url = settings.database_url
+    # SQLite não suporta pool_size/max_overflow/pool_timeout/pool_recycle
+    if url.startswith("sqlite"):
+        from sqlalchemy.pool import StaticPool
+        return create_async_engine(
+            url,
+            echo=settings.debug,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+    return create_async_engine(
+        url,
+        echo=settings.debug,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20,
+        pool_timeout=30,
+        pool_recycle=1800,
+    )
+
+
 # Engine async
-engine = create_async_engine(
-    settings.database_url,
-    echo=settings.debug,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-    pool_timeout=30,
-    pool_recycle=1800,
-)
+engine = _build_engine()
 
 # Session factory
 AsyncSessionLocal = async_sessionmaker(
