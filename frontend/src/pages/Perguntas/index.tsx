@@ -186,23 +186,41 @@ function QuestionList({
                   : "border-gray-100 bg-white hover:border-gray-300",
               )}
             >
-              {/* Buyer + Urgencia */}
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="text-xs font-medium text-gray-600 truncate">
-                  {q.buyer_nickname || `Comprador #${q.buyer_id}`}
-                </span>
-                {tab === "pendentes" && <UrgenciaBadge dateStr={q.date_created} />}
-              </div>
+              <div className="flex items-start gap-3">
+                {/* Thumbnail */}
+                {q.item_thumbnail ? (
+                  <img
+                    src={q.item_thumbnail}
+                    alt=""
+                    className="h-8 w-8 rounded object-cover flex-shrink-0 mt-0.5"
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <MessageCircle className="h-4 w-4 text-gray-300" />
+                  </div>
+                )}
 
-              {/* Texto truncado */}
-              <p className="text-sm text-gray-700 line-clamp-2 mb-1">{q.text}</p>
+                {/* Conteúdo */}
+                <div className="flex-1 min-w-0">
+                  {/* Buyer + Urgencia */}
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-xs font-medium text-gray-600 truncate">
+                      {q.buyer_nickname || `Comprador #${q.buyer_id}`}
+                    </span>
+                    {tab === "pendentes" && <UrgenciaBadge dateStr={q.date_created} />}
+                  </div>
 
-              {/* Tempo e MLB */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400">{tempoRelativo(q.date_created)}</span>
-                <span className="font-mono text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">
-                  {q.mlb_id}
-                </span>
+                  {/* Texto truncado */}
+                  <p className="text-sm text-gray-700 line-clamp-2 mb-1">{q.text}</p>
+
+                  {/* Tempo e MLB */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">{tempoRelativo(q.date_created)}</span>
+                    <span className="font-mono text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">
+                      {q.mlb_id}
+                    </span>
+                  </div>
+                </div>
               </div>
             </button>
           ))
@@ -281,19 +299,38 @@ function QuestionDetail({ question, tab, accountId }: QuestionDetailProps) {
 
   return (
     <div className="flex flex-col h-full space-y-4">
-      {/* Cabeçalho */}
+      {/* Cabeçalho com Thumbnail */}
       <div className="border-b border-gray-200 pb-4 space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide">MLB / Item</p>
-            <p className="font-mono text-sm font-medium text-gray-900">{question.mlb_id}</p>
+        <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
+          {question.item_thumbnail ? (
+            <img
+              src={question.item_thumbnail}
+              alt={question.item_title || ""}
+              className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
+            />
+          ) : (
+            <div className="h-12 w-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+              <MessageCircle className="h-6 w-6 text-gray-300" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <span className="font-mono text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+              {question.mlb_id}
+            </span>
+            {question.item_title && (
+              <p className="text-sm font-medium text-gray-900 truncate mt-1">
+                {question.item_title}
+              </p>
+            )}
           </div>
-          <span className="text-xs text-gray-400 whitespace-nowrap">{formatarData(question.date_created)}</span>
         </div>
 
-        {question.item_title && (
-          <p className="text-sm text-gray-700 font-medium line-clamp-2">{question.item_title}</p>
-        )}
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-xs text-gray-400 uppercase tracking-wide">Data</p>
+            <p className="text-xs text-gray-600 mt-1">{formatarData(question.date_created)}</p>
+          </div>
+        </div>
 
         <div className="flex items-center justify-between">
           <p className="text-sm text-gray-600">
@@ -357,28 +394,37 @@ function QuestionDetail({ question, tab, accountId }: QuestionDetailProps) {
 
       {/* Se pendente e NAO temos sugestao, mostrar botao para gerar */}
       {tab === "pendentes" && !question.ai_suggestion_text && !question.answer_text && (
-        <button
-          onClick={handleGenerateSuggestion}
-          disabled={suggestMutation.isPending}
-          className={cn(
-            "inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-            suggestMutation.isPending
-              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-              : "bg-violet-100 text-violet-700 hover:bg-violet-200",
+        <div className="space-y-2">
+          <button
+            onClick={handleGenerateSuggestion}
+            disabled={suggestMutation.isPending}
+            className={cn(
+              "inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              suggestMutation.isPending
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-violet-100 text-violet-700 hover:bg-violet-200",
+            )}
+          >
+            {suggestMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Gerando sugestao...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                Gerar sugestao IA
+              </>
+            )}
+          </button>
+          {suggestMutation.isError && (
+            <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2">
+              {(suggestMutation.error as any)?.response?.data?.detail ||
+                (suggestMutation.error as any)?.message ||
+                "Erro ao consultar IA. Tente novamente."}
+            </div>
           )}
-        >
-          {suggestMutation.isPending ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Gerando sugestao...
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4" />
-              Gerar sugestao IA
-            </>
-          )}
-        </button>
+        </div>
       )}
 
       {/* Formulario de resposta (apenas para pendentes) */}

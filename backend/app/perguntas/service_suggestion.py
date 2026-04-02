@@ -91,7 +91,7 @@ async def generate_suggestion(
 
     if not settings.anthropic_api_key:
         return {
-            "suggestion": "IA não configurada: ANTHROPIC_API_KEY ausente.",
+            "suggestion": "Sugestão IA indisponível: ANTHROPIC_API_KEY não configurada no servidor. Configure a variável de ambiente no Railway.",
             "confidence": "low",
             "question_type": question_type,
             "cached": False,
@@ -100,10 +100,48 @@ async def generate_suggestion(
 
     try:
         suggestion_text, tokens_used = await _call_claude(system_prompt, user_prompt)
-    except Exception as exc:
-        logger.error("Erro ao gerar sugestão IA: %s", exc)
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "Claude API HTTP error: status=%s body=%s",
+            e.response.status_code,
+            e.response.text[:200],
+        )
+        error_msg = f"Erro na API Claude (HTTP {e.response.status_code}). "
+        if e.response.status_code == 401:
+            error_msg += "ANTHROPIC_API_KEY inválida."
+        elif e.response.status_code == 429:
+            error_msg += "Limite de requisições excedido. Tente em alguns minutos."
+        else:
+            error_msg += "Tente novamente."
         return {
-            "suggestion": "Erro ao consultar IA. Tente novamente.",
+            "suggestion": error_msg,
+            "confidence": "low",
+            "question_type": question_type,
+            "cached": False,
+            "latency_ms": int(time.time() * 1000) - start_ms,
+        }
+    except httpx.ConnectError as e:
+        logger.error("Erro de conexão com Claude API: %s", e)
+        return {
+            "suggestion": "Erro de conexão com a API Claude. Verifique sua conexão de internet e tente novamente.",
+            "confidence": "low",
+            "question_type": question_type,
+            "cached": False,
+            "latency_ms": int(time.time() * 1000) - start_ms,
+        }
+    except httpx.TimeoutException:
+        logger.error("Timeout ao chamar Claude API")
+        return {
+            "suggestion": "Timeout ao chamar a API Claude. A requisição demorou muito tempo. Tente novamente.",
+            "confidence": "low",
+            "question_type": question_type,
+            "cached": False,
+            "latency_ms": int(time.time() * 1000) - start_ms,
+        }
+    except Exception as exc:
+        logger.error("Erro inesperado ao gerar sugestão IA: %s", exc, exc_info=True)
+        return {
+            "suggestion": f"Erro inesperado ao gerar sugestão: {str(exc)[:100]}. Entre em contato com o suporte.",
             "confidence": "low",
             "question_type": question_type,
             "cached": False,
