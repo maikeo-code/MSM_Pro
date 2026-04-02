@@ -24,12 +24,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 DEFAULT_WEIGHTS = {
-    "conv_trend": 0.30,
-    "visit_trend": 0.20,
+    "conv_trend": 0.25,
+    "visit_trend": 0.10,
     "comp_score": 0.20,
     "stock_score": 0.10,
     "margem_score": 0.05,
     "hist_score": 0.15,
+    "sales_trend": 0.15,
 }
 
 MIN_APPLIED_FOR_CALIBRATION = 10  # minimo de recomendacoes aplicadas para calibrar

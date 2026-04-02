@@ -6,6 +6,18 @@
       "env": {
         "DATABASE_URL": "postgresql://msm:msm@localhost:5432/msm_pro"
       }
+    },
+    "mercadolibre": {
+      "command": "npx",
+      "args": ["-y", "@dan1d/mercadolibre-mcp"],
+      "env": {}
+    },
+    "mercadolibre-official": {
+      "type": "sse",
+      "url": "https://mcp.mercadolibre.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${ML_ACCESS_TOKEN}"
+      }
     }
   }
 }

@@ -19,7 +19,9 @@ import {
   BarChart3,
   Loader2,
   Tag,
+  Activity,
 } from "lucide-react";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
 import {
   getRecommendations,
   applyRecommendation,
@@ -30,6 +32,38 @@ import {
 } from "@/services/pricingService";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useActiveAccount } from "@/hooks/useActiveAccount";
+
+// ─── Sparkline (mini chart de tendência) ───────────────────────────────────────
+function Sparkline({
+  data,
+  color = "#6366f1",
+  height = 20,
+  width = 80,
+}: {
+  data: number[];
+  color?: string;
+  height?: number;
+  width?: number;
+}) {
+  if (!data || data.length < 2) return <span className="text-[10px] text-muted-foreground">--</span>;
+  const chartData = data.map((v, i) => ({ v, i }));
+  return (
+    <div style={{ width, height }} className="inline-block">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chartData}>
+          <Line
+            type="monotone"
+            dataKey="v"
+            stroke={color}
+            strokeWidth={1.5}
+            dot={false}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 // ─── Confidence Badge ──────────────────────────────────────────────────────────
 function ConfidenceBadge({ confidence }: { confidence: "high" | "medium" | "low" }) {
@@ -373,80 +407,109 @@ function RecommendationCard({
           />
         )}
 
-        {/* Periods comparison table — "Hoje" NAO aparece como coluna de comparacao */}
-        {rec.periods_data && (
-          <div className="rounded-md border overflow-hidden">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-muted/60">
-                  <th className="text-left px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Metrica</th>
-                  <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Ontem</th>
-                  <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Anteontem</th>
-                  <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">7 dias</th>
-                  <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">15 dias</th>
-                  <th className="text-center px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">30 dias</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-t bg-blue-50/30">
-                  <td className="px-3 py-1.5 text-muted-foreground font-bold">Conversao</td>
-                  <td className="text-center px-2 py-1.5 font-bold">{rec.periods_data.yesterday?.conversion != null ? `${rec.periods_data.yesterday.conversion.toFixed(1)}%` : "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.day_before?.conversion != null ? `${rec.periods_data.day_before.conversion.toFixed(1)}%` : "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_7d?.conversion != null ? `${rec.periods_data.last_7d.conversion.toFixed(1)}%` : "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_15d?.conversion != null ? `${rec.periods_data.last_15d.conversion.toFixed(1)}%` : "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.last_30d?.conversion != null ? `${rec.periods_data.last_30d.conversion.toFixed(1)}%` : "--"}</td>
-                </tr>
-                <tr className="border-t">
-                  <td className="px-3 py-1.5 text-muted-foreground font-medium flex items-center gap-1"><Eye className="h-3 w-3" />Visitas</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.yesterday?.visits != null ? rec.periods_data.yesterday.visits.toLocaleString("pt-BR") : "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.day_before?.visits != null ? rec.periods_data.day_before.visits.toLocaleString("pt-BR") : "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">
-                    {rec.periods_data.last_7d?.visits != null ? (
-                      <>{rec.periods_data.last_7d.visits.toLocaleString("pt-BR")} <span className="text-[10px] text-muted-foreground font-normal">(~{(rec.periods_data.last_7d.visits / 7).toFixed(1)}/d)</span></>
-                    ) : "--"}
-                  </td>
-                  <td className="text-center px-2 py-1.5 font-semibold">
-                    {rec.periods_data.last_15d?.visits != null ? (
-                      <>{rec.periods_data.last_15d.visits.toLocaleString("pt-BR")} <span className="text-[10px] text-muted-foreground font-normal">(~{(rec.periods_data.last_15d.visits / 15).toFixed(1)}/d)</span></>
-                    ) : "--"}
-                  </td>
-                  <td className="text-center px-2 py-1.5 font-semibold">
-                    {rec.periods_data.last_30d?.visits != null ? (
-                      <>{rec.periods_data.last_30d.visits.toLocaleString("pt-BR")} <span className="text-[10px] text-muted-foreground font-normal">(~{(rec.periods_data.last_30d.visits / 30).toFixed(1)}/d)</span></>
-                    ) : "--"}
-                  </td>
-                </tr>
-                <tr className="border-t">
-                  <td className="px-3 py-1.5 text-muted-foreground font-medium flex items-center gap-1"><ShoppingCart className="h-3 w-3" />Vendas</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.yesterday?.sales ?? "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">{rec.periods_data.day_before?.sales ?? "--"}</td>
-                  <td className="text-center px-2 py-1.5 font-semibold">
-                    {rec.periods_data.last_7d?.sales != null ? (
-                      <>{rec.periods_data.last_7d.sales} <span className="text-[10px] text-muted-foreground font-normal">(~{(rec.periods_data.last_7d.sales / 7).toFixed(1)}/d)</span></>
-                    ) : "--"}
-                  </td>
-                  <td className="text-center px-2 py-1.5 font-semibold">
-                    {rec.periods_data.last_15d?.sales != null ? (
-                      <>{rec.periods_data.last_15d.sales} <span className="text-[10px] text-muted-foreground font-normal">(~{(rec.periods_data.last_15d.sales / 15).toFixed(1)}/d)</span></>
-                    ) : "--"}
-                  </td>
-                  <td className="text-center px-2 py-1.5 font-semibold">
-                    {rec.periods_data.last_30d?.sales != null ? (
-                      <>{rec.periods_data.last_30d.sales} <span className="text-[10px] text-muted-foreground font-normal">(~{(rec.periods_data.last_30d.sales / 30).toFixed(1)}/d)</span></>
-                    ) : "--"}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            {/* Tempo real (hoje) — separado, nao comparacao */}
-            {rec.periods_data.today && (rec.periods_data.today.visits > 0 || rec.periods_data.today.sales > 0) && (
-              <div className="px-3 py-1.5 bg-muted/30 border-t text-[10px] text-muted-foreground">
-                Tempo real (hoje): {rec.periods_data.today.visits} visitas, {rec.periods_data.today.sales} vendas
-                {rec.periods_data.today.conversion > 0 && ` (${rec.periods_data.today.conversion.toFixed(1)}% conv.)`}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Periods comparison table — dias individuais + blocos agregados + sparklines */}
+        {rec.periods_data && (() => {
+          const p = rec.periods_data;
+          // Dias individuais do mais antigo ao mais recente (D-6 → Ontem) para sparkline
+          const dailyPeriods = [p.d6, p.d5, p.d4, p.d3, p.day_before, p.yesterday];
+          const convSpark = dailyPeriods.map(d => d?.conversion ?? 0);
+          const visitsSpark = dailyPeriods.map(d => d?.visits ?? 0);
+          const salesSpark = dailyPeriods.map(d => d?.sales ?? 0);
+
+          const thCls = "text-center px-1.5 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium whitespace-nowrap";
+          const tdCls = "text-center px-1.5 py-1.5 font-semibold whitespace-nowrap";
+          const fmtN = (v: number | undefined | null) => v != null ? v.toLocaleString("pt-BR") : "--";
+          const fmtPct = (v: number | undefined | null) => v != null ? `${v.toFixed(1)}%` : "--";
+          const fmtAgg = (total: number | undefined | null, days: number) => {
+            if (total == null) return "--";
+            return <>{total.toLocaleString("pt-BR")} <span className="text-[9px] text-muted-foreground font-normal">(~{(total / days).toFixed(1)}/d)</span></>;
+          };
+
+          return (
+            <div className="rounded-md border overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-muted/60">
+                    <th className="text-left px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Metrica</th>
+                    {/* Dias individuais */}
+                    <th className={thCls}>D-6</th>
+                    <th className={thCls}>D-5</th>
+                    <th className={thCls}>D-4</th>
+                    <th className={thCls}>D-3</th>
+                    <th className={thCls}>Anteontem</th>
+                    <th className={cn(thCls, "font-bold text-foreground")}>Ontem</th>
+                    {/* Separador visual */}
+                    <th className="w-px bg-border"></th>
+                    {/* Blocos agregados */}
+                    <th className={cn(thCls, "bg-muted/80")}>7d</th>
+                    <th className={cn(thCls, "bg-muted/80")}>15d</th>
+                    <th className={cn(thCls, "bg-muted/80")}>30d</th>
+                    {/* Sparkline */}
+                    <th className="w-px bg-border"></th>
+                    <th className={cn(thCls, "text-center")}><Activity className="h-3 w-3 mx-auto" /></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Conversão */}
+                  <tr className="border-t bg-blue-50/30">
+                    <td className="px-2 py-1.5 text-muted-foreground font-bold whitespace-nowrap">Conversao</td>
+                    <td className={tdCls}>{fmtPct(p.d6?.conversion)}</td>
+                    <td className={tdCls}>{fmtPct(p.d5?.conversion)}</td>
+                    <td className={tdCls}>{fmtPct(p.d4?.conversion)}</td>
+                    <td className={tdCls}>{fmtPct(p.d3?.conversion)}</td>
+                    <td className={tdCls}>{fmtPct(p.day_before?.conversion)}</td>
+                    <td className={cn(tdCls, "font-bold")}>{fmtPct(p.yesterday?.conversion)}</td>
+                    <td className="w-px bg-border"></td>
+                    <td className={cn(tdCls, "bg-muted/30")}>{fmtPct(p.last_7d?.conversion)}</td>
+                    <td className={cn(tdCls, "bg-muted/30")}>{fmtPct(p.last_15d?.conversion)}</td>
+                    <td className={cn(tdCls, "bg-muted/30")}>{fmtPct(p.last_30d?.conversion)}</td>
+                    <td className="w-px bg-border"></td>
+                    <td className="text-center px-1.5 py-1"><Sparkline data={convSpark} color="#3b82f6" /></td>
+                  </tr>
+                  {/* Visitas */}
+                  <tr className="border-t">
+                    <td className="px-2 py-1.5 text-muted-foreground font-medium flex items-center gap-1 whitespace-nowrap"><Eye className="h-3 w-3" />Visitas</td>
+                    <td className={tdCls}>{fmtN(p.d6?.visits)}</td>
+                    <td className={tdCls}>{fmtN(p.d5?.visits)}</td>
+                    <td className={tdCls}>{fmtN(p.d4?.visits)}</td>
+                    <td className={tdCls}>{fmtN(p.d3?.visits)}</td>
+                    <td className={tdCls}>{fmtN(p.day_before?.visits)}</td>
+                    <td className={cn(tdCls, "font-bold")}>{fmtN(p.yesterday?.visits)}</td>
+                    <td className="w-px bg-border"></td>
+                    <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_7d?.visits, 7)}</td>
+                    <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_15d?.visits, 15)}</td>
+                    <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_30d?.visits, 30)}</td>
+                    <td className="w-px bg-border"></td>
+                    <td className="text-center px-1.5 py-1"><Sparkline data={visitsSpark} color="#8b5cf6" /></td>
+                  </tr>
+                  {/* Vendas */}
+                  <tr className="border-t">
+                    <td className="px-2 py-1.5 text-muted-foreground font-medium flex items-center gap-1 whitespace-nowrap"><ShoppingCart className="h-3 w-3" />Vendas</td>
+                    <td className={tdCls}>{fmtN(p.d6?.sales)}</td>
+                    <td className={tdCls}>{fmtN(p.d5?.sales)}</td>
+                    <td className={tdCls}>{fmtN(p.d4?.sales)}</td>
+                    <td className={tdCls}>{fmtN(p.d3?.sales)}</td>
+                    <td className={tdCls}>{fmtN(p.day_before?.sales)}</td>
+                    <td className={cn(tdCls, "font-bold")}>{fmtN(p.yesterday?.sales)}</td>
+                    <td className="w-px bg-border"></td>
+                    <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_7d?.sales, 7)}</td>
+                    <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_15d?.sales, 15)}</td>
+                    <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_30d?.sales, 30)}</td>
+                    <td className="w-px bg-border"></td>
+                    <td className="text-center px-1.5 py-1"><Sparkline data={salesSpark} color="#10b981" /></td>
+                  </tr>
+                </tbody>
+              </table>
+              {/* Tempo real (hoje) — separado, nao comparacao */}
+              {p.today && (p.today.visits > 0 || p.today.sales > 0) && (
+                <div className="px-3 py-1.5 bg-muted/30 border-t text-[10px] text-muted-foreground">
+                  Tempo real (hoje): {p.today.visits} visitas, {p.today.sales} vendas
+                  {p.today.conversion > 0 && ` (${p.today.conversion.toFixed(1)}% conv.)`}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Fallback: old-style metrics when periods_data not available */}
         {!rec.periods_data && (

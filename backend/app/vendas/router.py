@@ -222,6 +222,21 @@ async def get_kpi_compare(
     return await service.get_kpi_compare(db, current_user.id, period_a, period_b, ml_account_id=ml_account_id)
 
 
+@router.get("/kpi/daily")
+async def get_kpi_daily_breakdown(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    days: int = Query(default=7, ge=1, le=7, description="Numero de dias (1 a 7, padrao 7)"),
+    ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
+):
+    """Retorna KPIs ISOLADOS por dia (hoje, D-1, D-2, ..., D-6).
+
+    Cada dia e independente, nao somado. Ideal para visualizar evolucao diaria
+    de vendas e visitas na pagina de Precos.
+    """
+    return await service.get_kpi_daily_breakdown(db, current_user.id, days=days, ml_account_id=ml_account_id)
+
+
 @router.get("/analytics/funnel", response_model=FunnelOut)
 async def get_funnel(
     current_user: Annotated[User, Depends(get_current_user)],

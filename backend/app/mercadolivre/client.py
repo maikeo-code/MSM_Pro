@@ -373,6 +373,96 @@ class MLClient:
         except MLClientError:
             return []
 
+    async def create_price_discount_promotion(
+        self,
+        seller_id: str,
+        mlb_id: str,
+        deal_price: float,
+        start_date: str,
+        finish_date: str,
+        top_deal_price: float | None = None,
+    ) -> dict:
+        """
+        Cria promoção de desconto individual (PRICE_DISCOUNT) para um item.
+
+        POST /seller-promotions/items/{item_id}?user_id={seller_id}
+
+        IMPORTANTE:
+        - deal_price é o PREÇO FINAL em R$, NÃO percentual de desconto.
+        - O item deve ter status "active".
+        - Se já existe promoção PRICE_DISCOUNT ativa no item, este POST retorna erro.
+          Chamar delete_price_discount_promotion() antes de criar nova.
+        - start_date e finish_date devem ser ISO 8601 UTC (ex: "2026-04-02T00:00:00Z").
+
+        Args:
+            seller_id: ID do vendedor no ML (ex: "2050442871")
+            mlb_id: ID do anúncio (ex: "MLB6205732214")
+            deal_price: Preço com desconto em R$ para todos os compradores
+            start_date: Início da promoção em ISO 8601 UTC
+            finish_date: Fim da promoção em ISO 8601 UTC
+            top_deal_price: Preço especial para Mercado Pontos nível 3-6 (opcional)
+                           Deve ser pelo menos 5% menor que deal_price (desconto <= 35%)
+                           Deve ser pelo menos 10% menor que deal_price (desconto > 35%)
+
+        Validado com curl: PENDENTE — executar antes de ir para produção.
+        Ref: docs/ml_api_reference.md seção 2.
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+
+        payload: dict = {
+            "promotion_type": "PRICE_DISCOUNT",
+            "deal_price": deal_price,
+            "start_date": start_date,
+            "finish_date": finish_date,
+        }
+        if top_deal_price is not None:
+            payload["top_deal_price"] = top_deal_price
+
+        return await self._request(
+            "POST",
+            f"/seller-promotions/items/{item_id}",
+            params={"user_id": seller_id},
+            json=payload,
+        )
+
+    async def delete_price_discount_promotion(
+        self,
+        seller_id: str,
+        mlb_id: str,
+        promotion_type: str = "PRICE_DISCOUNT",
+    ) -> dict:
+        """
+        Remove/finaliza uma promoção de um item.
+
+        DELETE /seller-promotions/items/{item_id}?user_id={seller_id}&promotion_type={type}
+
+        Necessário antes de:
+        - Alterar preço via PUT /items/{id} quando há promoção ativa
+        - Criar nova promoção PRICE_DISCOUNT (não é possível ter duas simultâneas)
+
+        Para DOD e LIGHTNING: NÃO usar este método — estas promoções são do marketplace.
+
+        Args:
+            seller_id: ID do vendedor no ML
+            mlb_id: ID do anúncio
+            promotion_type: Tipo da promoção a remover (padrão: "PRICE_DISCOUNT")
+
+        Validado com curl: PENDENTE — executar antes de ir para produção.
+        Ref: docs/ml_api_reference.md seção 2.
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+
+        return await self._request(
+            "DELETE",
+            f"/seller-promotions/items/{item_id}",
+            params={"user_id": seller_id, "promotion_type": promotion_type},
+        )
+
+    # Mantido por compatibilidade — DEPRECADO: usar create_price_discount_promotion()
     async def create_promotion(
         self,
         seller_id: str,
@@ -382,26 +472,28 @@ class MLClient:
         end_date: str,
     ) -> dict:
         """
-        Cria nova promoção.
-        POST /seller-promotions/users/{seller_id}
+        DEPRECADO — endpoint e body estavam incorretos.
+        Use create_price_discount_promotion() que usa o endpoint correto:
+          POST /seller-promotions/items/{item_id}?user_id={seller_id}
+        com deal_price em R$ (não percentual).
+
+        Este método é mantido apenas para não quebrar chamadores existentes.
+        Ref: docs/ml_api_reference.md seção 9 (divergências conhecidas).
         """
-        item_id = mlb_id.upper().replace("-", "")
-        if not item_id.startswith("MLB"):
-            item_id = f"MLB{item_id}"
-
-        payload = {
-            "items": [{"item_id": item_id}],
-            "discount": {"type": "percentage", "value": discount_pct},
-            "start_date": start_date,
-            "end_date": end_date,
-        }
-
-        return await self._request(
-            "POST",
-            f"/seller-promotions/users/{seller_id}",
-            json=payload,
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "create_promotion() está DEPRECADO. Use create_price_discount_promotion() "
+            "com deal_price em R$ em vez de discount_pct."
+        )
+        # Não há como calcular deal_price sem saber o preço atual do item.
+        # Lança erro explícito para forçar migração.
+        raise NotImplementedError(
+            "create_promotion() foi depreciado pois usava endpoint e formato incorretos. "
+            "Use create_price_discount_promotion(seller_id, mlb_id, deal_price, start_date, finish_date)."
         )
 
+    # Mantido por compatibilidade — DEPRECADO: PRICE_DISCOUNT não suporta PUT
     async def update_promotion(
         self,
         promotion_id: str,
@@ -410,23 +502,23 @@ class MLClient:
         end_date: str,
     ) -> dict:
         """
-        Atualiza promoção existente.
-        PUT /seller-promotions/{promotion_id}
+        DEPRECADO — PRICE_DISCOUNT não suporta PUT (a API retornaria erro).
+        Para atualizar uma promoção PRICE_DISCOUNT:
+          1. delete_price_discount_promotion()
+          2. create_price_discount_promotion() com novos valores
+
+        PUT só existe para SELLER_CAMPAIGN via endpoint diferente.
+        Ref: docs/ml_api_reference.md seção 9 (divergências conhecidas).
         """
-        item_id = mlb_id.upper().replace("-", "")
-        if not item_id.startswith("MLB"):
-            item_id = f"MLB{item_id}"
-
-        payload = {
-            "items": [{"item_id": item_id}],
-            "discount": {"type": "percentage", "value": discount_pct},
-            "end_date": end_date,
-        }
-
-        return await self._request(
-            "PUT",
-            f"/seller-promotions/{promotion_id}",
-            json=payload,
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "update_promotion() está DEPRECADO. PRICE_DISCOUNT não suporta PUT. "
+            "Use delete_price_discount_promotion() + create_price_discount_promotion()."
+        )
+        raise NotImplementedError(
+            "update_promotion() foi depreciado. PRICE_DISCOUNT não suporta atualização via PUT. "
+            "Deletar a promoção existente e criar nova com os novos valores."
         )
 
     async def get_advertiser_id(self) -> str | None:

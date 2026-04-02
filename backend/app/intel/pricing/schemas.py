@@ -38,8 +38,12 @@ class PeriodMetrics(BaseModel):
 
 class PeriodsData(BaseModel):
     today: Optional[PeriodMetrics] = None       # apenas referencia visual, NAO para comparacao
-    yesterday: Optional[PeriodMetrics] = None    # baseline principal
-    day_before: Optional[PeriodMetrics] = None   # anteontem
+    yesterday: Optional[PeriodMetrics] = None    # baseline principal (D-1)
+    day_before: Optional[PeriodMetrics] = None   # anteontem (D-2)
+    d3: Optional[PeriodMetrics] = None           # D-3
+    d4: Optional[PeriodMetrics] = None           # D-4
+    d5: Optional[PeriodMetrics] = None           # D-5
+    d6: Optional[PeriodMetrics] = None           # D-6
     last_7d: Optional[PeriodMetrics] = None
     last_15d: Optional[PeriodMetrics] = None
     last_30d: Optional[PeriodMetrics] = None

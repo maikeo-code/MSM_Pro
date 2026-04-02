@@ -109,6 +109,10 @@ async def _enrich_with_periods(
     today = datetime.now(BRT).date()
     yesterday = today - timedelta(days=1)
     day_before_yesterday = today - timedelta(days=2)
+    d3 = today - timedelta(days=3)
+    d4 = today - timedelta(days=4)
+    d5 = today - timedelta(days=5)
+    d6 = today - timedelta(days=6)
     date_7d_ago = today - timedelta(days=6)
     date_15d_ago = today - timedelta(days=14)
     date_30d_ago = today - timedelta(days=29)
@@ -164,10 +168,14 @@ async def _enrich_with_periods(
             }
         return out
 
-    # Executar as 6 queries de periodo
+    # Executar as 10 queries de periodo (6 dias individuais + 3 agregados)
     p_today = await _aggregate(today, today)
     p_yesterday = await _aggregate(yesterday, yesterday)
     p_day_before = await _aggregate(day_before_yesterday, day_before_yesterday)
+    p_d3 = await _aggregate(d3, d3)
+    p_d4 = await _aggregate(d4, d4)
+    p_d5 = await _aggregate(d5, d5)
+    p_d6 = await _aggregate(d6, d6)
     p_7d = await _aggregate(date_7d_ago, today)
     p_15d = await _aggregate(date_15d_ago, today)
     p_30d = await _aggregate(date_30d_ago, today)
@@ -180,6 +188,10 @@ async def _enrich_with_periods(
             today=PeriodMetrics(**(p_today.get(lid, empty))),
             yesterday=PeriodMetrics(**(p_yesterday.get(lid, empty))),
             day_before=PeriodMetrics(**(p_day_before.get(lid, empty))),
+            d3=PeriodMetrics(**(p_d3.get(lid, empty))),
+            d4=PeriodMetrics(**(p_d4.get(lid, empty))),
+            d5=PeriodMetrics(**(p_d5.get(lid, empty))),
+            d6=PeriodMetrics(**(p_d6.get(lid, empty))),
             last_7d=PeriodMetrics(**(p_7d.get(lid, empty))),
             last_15d=PeriodMetrics(**(p_15d.get(lid, empty))),
             last_30d=PeriodMetrics(**(p_30d.get(lid, empty))),
@@ -383,9 +395,16 @@ async def apply_recommendation(
         has_active_promotion = apply_result.get("has_active_promotion")
         promo_warning = apply_result.get("promo_warning")
 
-    message = "Preco aplicado com sucesso" if ml_success else "Erro ao aplicar preco na API ML"
-    if promo_warning and ml_success:
-        message = f"{message}. {promo_warning}"
+    promo_finish = None
+    if apply_result is not None and isinstance(apply_result, dict):
+        promo_finish = apply_result.get("promotion_finish_date", "")[:10]
+
+    if ml_success:
+        message = f"Promocao de desconto criada com sucesso (valida ate {promo_finish})"
+        if promo_warning:
+            message = f"{message}. {promo_warning}"
+    else:
+        message = "Erro ao criar promocao na API ML"
 
     return ApplyRecommendationResponse(
         recommendation_id=rec.id,

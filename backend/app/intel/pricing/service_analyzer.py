@@ -34,8 +34,10 @@ REGRAS:
    - Concorrente com preco agressivo que pode ser temporario
 4. Voce GERA uma justificativa clara e acionavel para cada anuncio.
 
-5. HISTORICO DE VENDAS (6 meses):
-   - Se o campo "historical" estiver presente, USE para contextualizar a recomendacao.
+5. HISTORICO DE VENDAS (6 meses) — ISOLADO POR ANUNCIO:
+   - CADA anuncio tem seu PROPRIO campo "historical" com dados DISTINTOS.
+   - NUNCA misture o pico historico de um anuncio com outro. O campo "historical.mlb_id"
+     indica a qual anuncio aquele historico pertence. USE-O para conferir.
    - Se media atual (avg_daily_sales_30d) < 50% do pico historico (peak_daily_sales):
      produto em queda estrutural — NAO recomendar aumento de preco.
      Exemplo: "Pico de 5 vendas/dia em dez/2025, media atual 1.8/dia — queda estrutural, aumentar preco nao recupera volume."
@@ -45,7 +47,7 @@ REGRAS:
    - Se trend_180d == "increasing": isso valida recomendacoes de aumento.
    - Se preco baixo NAO aumentou vendas (preco atual proximo do min historico mas vendas abaixo da media):
      produto pode ter teto natural de demanda — nao insistir em reducao.
-   - Mencione o pico historico e a tendencia no reasoning quando relevante.
+   - Mencione o pico historico ESPECIFICO daquele anuncio no reasoning quando relevante.
 
 6. CONCORRENTES NAO VINCULADOS:
    - Se competitor_prices esta VAZIO (lista vazia ou ausente), MENCIONAR no reasoning:
@@ -116,6 +118,9 @@ async def analyze_with_ai(
         "e refine as recomendacoes de preco.\n"
         "Cada anuncio ja tem um score pre-calculado e uma acao sugerida. "
         "Valide, ajuste se necessario e gere justificativas.\n\n"
+        "IMPORTANTE: Cada anuncio tem seu PROPRIO historico (campo 'historical'). "
+        "O pico historico de um MLB NAO se aplica a outro. "
+        "Confira o campo 'historical.mlb_id' para garantir isolamento.\n\n"
         f"Dados:\n{json.dumps(simplified, ensure_ascii=False, indent=2)}\n\n"
         "Responda APENAS com o JSON array, sem texto adicional."
     )
@@ -189,9 +194,10 @@ def _simplify_for_ai(anuncios: list[dict]) -> list[dict]:
             },
         }
         # Incluir dados historicos se disponiveis (contexto crucial para IA)
+        # Ancorar com mlb_id para evitar que a IA misture picos entre anuncios
         historical = a.get("historical")
         if historical:
-            entry["historical"] = historical
+            entry["historical"] = {**historical, "mlb_id": a.get("mlb_id")}
         result.append(entry)
     return result
 
@@ -291,6 +297,7 @@ def _generate_fallback_reasoning(anuncio: dict, score_result: dict) -> str:
         drivers = sorted(breakdown.items(), key=lambda x: abs(x[1]), reverse=True)
         top_driver, top_value = drivers[0]
         driver_labels = {
+            "sales_trend": "tendencia de vendas",
             "conv_trend": "tendencia de conversao",
             "visit_trend": "tendencia de visitas",
             "comp_score": "posicao competitiva",

@@ -50,6 +50,7 @@ from app.vendas.service_kpi import (  # noqa: F401
     _kpi_single_day,
     get_kpi_by_period,
     get_kpi_compare,
+    get_kpi_daily_breakdown,
     list_listings,
 )
 

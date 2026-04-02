@@ -78,17 +78,26 @@ async def apply_price_suggestion(
     justification: str,
 ) -> dict:
     """
-    Aplica sugestão de preço: altera na API do ML e salva log no banco.
-    Respeita regra original_price/sale_price:
-    - PUT /items/{id} com {"price": new_price} altera o preço base.
-    - Se houver promoção ativa (original_price != null), alterar preço pode desativar a promoção.
-    - O response da API retorna o item atualizado com price, original_price e sale_price.
+    Aplica sugestão de preço via promoção PRICE_DISCOUNT do ML.
+
+    NÃO altera o preço base (PUT /items/{id}) — isso é bloqueado pelo ML em itens
+    com promoção ativa. Em vez disso, cria uma "Oferta do Vendedor" com deal_price
+    igual ao preço sugerido e duração fixa de 10 dias.
+
+    Fluxo:
+    1. Buscar promoções ativas do item
+    2. Se existir PRICE_DISCOUNT ativa → DELETE antes (ML não permite 2 simultâneas)
+    3. POST nova promoção com deal_price = new_price, duração 10 dias
+    4. Logar no PriceChangeLog com source="promotion_apply"
+    5. Atualizar listing local (sale_price = new_price, original_price = preço base)
     """
     from app.auth.models import MLAccount
     from app.auth.service import refresh_ml_token
     from app.mercadolivre.client import MLClient, MLClientError
     from app.vendas.models import PriceChangeLog
     from app.vendas.service import get_listing
+
+    PROMO_DURATION_DAYS = 10
 
     listing = await get_listing(db, mlb_id, user_id)
     old_price = float(listing.price)
@@ -103,6 +112,7 @@ async def apply_price_suggestion(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Conta ML não encontrada ou sem token válido",
         )
+    seller_id = ml_account.ml_user_id
 
     # Auto-refresh do token se expirado
     if ml_account.token_expires_at and ml_account.token_expires_at <= datetime.now(timezone.utc):
@@ -121,84 +131,121 @@ async def apply_price_suggestion(
                 detail="Falha ao renovar token ML. Tente novamente.",
             )
 
-    # Verificar se tem promocao ativa ANTES de alterar preco
+    # Validar que new_price é menor que o preço base (promoção = desconto)
+    base_price = float(listing.original_price or listing.price)
+    if new_price >= base_price:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Preço sugerido R${new_price:.2f} deve ser menor que o preço base "
+                f"R${base_price:.2f} para criar uma promoção de desconto."
+            ),
+        )
+
+    # ── Passo 1: Verificar e remover promoção PRICE_DISCOUNT existente ────
     promo_warning = None
     has_active_promotion = False
+    deleted_old_promo = False
+
     try:
         async with MLClient(ml_account.access_token) as promo_client:
             promotions = await promo_client.get_item_promotions(listing.mlb_id)
             active_promos = [
-                p
-                for p in promotions
-                if p.get("status") in ("active", "started")
+                p for p in promotions
+                if p.get("status") in ("active", "started", "pending")
             ]
-            if active_promos:
-                has_active_promotion = True
-                promo_warning = (
-                    f"Atencao: {len(active_promos)} promocao(oes) ativa(s) no anuncio. "
-                    "A alteracao de preco pode desativar a promocao."
-                )
+            price_discount_promos = [
+                p for p in active_promos
+                if p.get("type") == "PRICE_DISCOUNT"
+            ]
+            other_promos = [
+                p for p in active_promos
+                if p.get("type") != "PRICE_DISCOUNT"
+            ]
+
+            has_active_promotion = len(active_promos) > 0
+
+            # Deletar PRICE_DISCOUNT existente (ML não permite 2 simultâneas)
+            if price_discount_promos:
                 logger.info(
-                    "Promo check for %s: %d active promotions detected.",
+                    "Removendo PRICE_DISCOUNT existente de %s antes de criar nova",
                     mlb_id,
-                    len(active_promos),
                 )
-    except Exception as promo_exc:
-        logger.debug(
-            "Nao foi possivel verificar promocoes para %s: %s",
-            mlb_id,
-            promo_exc,
+                await promo_client.delete_price_discount_promotion(
+                    seller_id=seller_id,
+                    mlb_id=listing.mlb_id,
+                )
+                deleted_old_promo = True
+
+            # Avisar sobre promoções do marketplace (DOD/LIGHTNING) que NÃO removemos
+            if other_promos:
+                types = ", ".join(set(p.get("type", "?") for p in other_promos))
+                promo_warning = (
+                    f"Promocao(oes) do marketplace ativa(s): {types}. "
+                    "Estas nao foram alteradas."
+                )
+    except MLClientError as promo_exc:
+        logger.warning(
+            "Erro ao verificar/remover promocoes de %s: %s", mlb_id, promo_exc
         )
 
-    # Chamar API ML para alterar preço
+    # ── Passo 2: Criar nova promoção PRICE_DISCOUNT (10 dias) ──────────
+    now_utc = datetime.now(timezone.utc)
+    start_date = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    finish_date = (now_utc + timedelta(days=PROMO_DURATION_DAYS)).strftime(
+        "%Y-%m-%dT23:59:59Z"
+    )
+
     ml_api_success = False
     ml_api_response_raw = None
-    ml_price_returned = None
-    ml_original_price = None
-    ml_sale_price = None
     error_msg = None
 
     try:
         async with MLClient(ml_account.access_token) as client:
-            ml_response = await client.update_item_price(listing.mlb_id, new_price)
+            ml_response = await client.create_price_discount_promotion(
+                seller_id=seller_id,
+                mlb_id=listing.mlb_id,
+                deal_price=new_price,
+                start_date=start_date,
+                finish_date=finish_date,
+            )
             ml_api_response_raw = json.dumps(ml_response, default=str)[:5000]
             ml_api_success = True
-
-            # Extrair preços retornados pela API
-            ml_price_returned = ml_response.get("price")
-            ml_original_price = ml_response.get("original_price")
-            # sale_price pode ser objeto ou null
-            sp = ml_response.get("sale_price")
-            if isinstance(sp, dict):
-                ml_sale_price = sp.get("amount")
-            elif isinstance(sp, (int, float)):
-                ml_sale_price = sp
-
+            logger.info(
+                "Promocao PRICE_DISCOUNT criada para %s: deal_price=%.2f, "
+                "valida ate %s (deleted_old=%s)",
+                mlb_id,
+                new_price,
+                finish_date,
+                deleted_old_promo,
+            )
     except MLClientError as e:
         error_msg = str(e)
         ml_api_response_raw = error_msg[:5000]
+        logger.error("Falha ao criar promocao para %s: %s", mlb_id, error_msg)
 
-    # Atualizar listing local se API respondeu OK
+    # ── Passo 3: Atualizar listing local ──────────────────────────────
     if ml_api_success:
-        listing.price = Decimal(str(new_price))
-        if ml_original_price is not None:
-            listing.original_price = Decimal(str(ml_original_price))
-        else:
-            listing.original_price = None
-        if ml_sale_price is not None:
-            listing.sale_price = Decimal(str(ml_sale_price))
-        else:
-            listing.sale_price = None
+        # Com promoção ativa: price base não muda, sale_price = deal_price
+        listing.sale_price = Decimal(str(new_price))
+        if listing.original_price is None:
+            listing.original_price = listing.price
 
-    # Salvar log de ação no PostgreSQL
+    # ── Passo 4: Salvar log no PostgreSQL ─────────────────────────────
     log = PriceChangeLog(
         listing_id=listing.id,
         user_id=user_id,
         mlb_id=listing.mlb_id,
         old_price=Decimal(str(old_price)),
         new_price=Decimal(str(new_price)),
-        justification=justification,
-        source="suggestion_apply",
+        justification=(
+            f"[PROMO 10d] {justification} | "
+            f"deal_price={new_price:.2f}, "
+            f"base={base_price:.2f}, "
+            f"fim={finish_date[:10]}"
+            + (f" | promo anterior removida" if deleted_old_promo else "")
+        ),
+        source="promotion_apply",
         ml_api_response=ml_api_response_raw,
         success=ml_api_success,
         error_message=error_msg,
@@ -208,10 +255,12 @@ async def apply_price_suggestion(
     await db.refresh(log)
 
     if not ml_api_success:
-        logger.error("ML API rejected price update for %s: %s", mlb_id, error_msg)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="A API do Mercado Livre recusou a alteração de preço. Verifique os dados e tente novamente.",
+            detail=(
+                "Falha ao criar promoção no Mercado Livre. "
+                f"Erro: {error_msg or 'resposta inesperada'}"
+            ),
         )
 
     return {
@@ -220,13 +269,15 @@ async def apply_price_suggestion(
         "new_price": new_price,
         "justification": justification,
         "ml_api_success": ml_api_success,
-        "ml_api_price_returned": ml_price_returned,
-        "original_price": ml_original_price,
-        "sale_price": ml_sale_price,
+        "ml_api_price_returned": new_price,
+        "original_price": base_price,
+        "sale_price": new_price,
         "log_id": str(log.id),
         "applied_at": log.created_at.isoformat(),
-        "has_active_promotion": has_active_promotion,
+        "has_active_promotion": True,
         "promo_warning": promo_warning,
+        "promotion_finish_date": finish_date,
+        "deleted_old_promo": deleted_old_promo,
     }
 
 

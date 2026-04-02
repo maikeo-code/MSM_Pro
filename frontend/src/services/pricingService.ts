@@ -20,6 +20,10 @@ export interface PeriodsData {
   today: PeriodMetrics | null;
   yesterday: PeriodMetrics | null;
   day_before: PeriodMetrics | null;
+  d3: PeriodMetrics | null;
+  d4: PeriodMetrics | null;
+  d5: PeriodMetrics | null;
+  d6: PeriodMetrics | null;
   last_7d: PeriodMetrics | null;
   last_15d: PeriodMetrics | null;
   last_30d: PeriodMetrics | null;

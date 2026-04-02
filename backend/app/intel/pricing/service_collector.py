@@ -243,7 +243,9 @@ async def _collect_historical_data(
     # Calcular metricas historicas para cada listing
     out: dict[UUID, dict] = {}
     for lid, months_data in raw_by_listing.items():
-        out[lid] = _compute_historical_metrics(months_data, today)
+        metrics = _compute_historical_metrics(months_data, today)
+        metrics["listing_id"] = str(lid)
+        out[lid] = metrics
 
     return out
 

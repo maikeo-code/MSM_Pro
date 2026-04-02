@@ -911,3 +911,87 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID, ml_account_id: UUID
         periods[label]["conversao_variacao"] = None
 
     return periods
+
+
+async def get_kpi_daily_breakdown(
+    db: AsyncSession,
+    user_id: UUID,
+    days: int = 7,
+    ml_account_id: UUID | None = None,
+) -> dict:
+    """Retorna KPIs ISOLADOS por dia: hoje, D-1, D-2, D-3, D-4, D-5, D-6.
+
+    Cada dia é independente (não somado). Útil para a página de Preços
+    que precisa mostrar evolução dia a dia.
+
+    Args:
+        days: número de dias para retornar (default 7 = hoje + 6 dias anteriores)
+        ml_account_id: filtrar por conta ML específica
+
+    Retorna:
+        {
+            "days": [
+                {"date": "2026-04-02", "label": "hoje", "vendas": 5, "visitas": 120, ...},
+                {"date": "2026-04-01", "label": "D-1", "vendas": 3, "visitas": 98, ...},
+                ...
+            ],
+            "totals": {"vendas": 25, "visitas": 600, ...}
+        }
+    """
+    today = datetime.now(BRT).date()
+
+    # Busca listings do usuário
+    query = select(Listing.id).where(Listing.user_id == user_id)
+    if ml_account_id is not None:
+        query = query.where(Listing.ml_account_id == ml_account_id)
+
+    listings_result = await db.execute(query)
+    listing_ids = [row[0] for row in listings_result.fetchall()]
+
+    if not listing_ids:
+        return {"days": [], "totals": {
+            "vendas": 0, "visitas": 0, "conversao": 0.0, "receita_total": 0.0, "pedidos": 0,
+        }}
+
+    labels = {0: "hoje", 1: "D-1", 2: "D-2", 3: "D-3", 4: "D-4", 5: "D-5", 6: "D-6"}
+    daily_results = []
+    total_vendas = 0
+    total_visitas = 0
+    total_receita = 0.0
+    total_pedidos = 0
+
+    for i in range(min(days, 7)):
+        dt = today - timedelta(days=i)
+        kpi = await _kpi_single_day(db, listing_ids, dt)
+        label = labels.get(i, f"D-{i}")
+
+        daily_results.append({
+            "date": dt.isoformat(),
+            "label": label,
+            "vendas": kpi["vendas"],
+            "visitas": kpi["visitas"],
+            "conversao": kpi["conversao"],
+            "receita_total": kpi["receita_total"],
+            "pedidos": kpi["pedidos"],
+            "preco_medio": kpi["preco_medio"],
+            "taxa_cancelamento": kpi["taxa_cancelamento"],
+            "vendas_concluidas": kpi["vendas_concluidas"],
+        })
+
+        total_vendas += kpi["vendas"]
+        total_visitas += kpi["visitas"]
+        total_receita += kpi["receita_total"]
+        total_pedidos += kpi["pedidos"]
+
+    totals_conversao = round((total_vendas / total_visitas * 100), 2) if total_visitas > 0 else 0.0
+
+    return {
+        "days": daily_results,
+        "totals": {
+            "vendas": total_vendas,
+            "visitas": total_visitas,
+            "conversao": totals_conversao,
+            "receita_total": round(total_receita, 2),
+            "pedidos": total_pedidos,
+        },
+    }
