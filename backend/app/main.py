@@ -49,10 +49,12 @@ from app.vendas.router import router as vendas_router
 
 _is_prod = settings.environment == "production"
 
+APP_VERSION = "1.0.3"
+
 app = FastAPI(
     title="MSM_Pro API",
     description="Dashboard de inteligência de vendas para o Mercado Livre",
-    version="1.0.2",  # Forçar rebuild — fix sync perguntas
+    version=APP_VERSION,
     docs_url=None if _is_prod else "/docs",
     redoc_url=None if _is_prod else "/redoc",
 )
@@ -126,7 +128,7 @@ async def health_check():
     """Verifica se a API está no ar."""
     return {
         "status": "ok",
-        "version": "1.0.0",
+        "version": APP_VERSION,
     }
 
 
