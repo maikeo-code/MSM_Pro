@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: Optional[str] = None
     smtp_pass: Optional[str] = None
+    smtp_from: Optional[str] = None  # Remetente exibido; usa smtp_user se nao configurado
+    smtp_to: str = "maikeo@msmrp.com"  # Destinatario padrao do Daily Intel Report
 
     # --- Celery ---
     celery_broker_url: str = "redis://localhost:6379/1"

@@ -558,3 +558,123 @@ async def generate_recommendations(
         processing_time_ms=elapsed_ms,
         message=f"{count} recomendacoes geradas com sucesso" if count > 0 else "Nenhuma recomendacao gerada (service pendente ou sem dados)",
     )
+
+
+# ─── GET /intel/pricing/email/status ───────────────────────────────────────
+
+
+@router.get("/email/status")
+async def email_status(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> dict:
+    """
+    Retorna o status da configuracao SMTP atual.
+
+    Nao expoe credenciais — apenas indica se esta configurado e qual host/porta.
+    """
+    from app.core.config import settings
+    from app.core.email import is_smtp_configured
+
+    configured = is_smtp_configured()
+
+    return {
+        "configured": configured,
+        "host": settings.smtp_host or None,
+        "port": settings.smtp_port if configured else None,
+        "user": settings.smtp_user or None,
+        "from": settings.smtp_from or settings.smtp_user or None,
+        "default_to": settings.smtp_to,
+        "message": (
+            "SMTP configurado e pronto para envio."
+            if configured
+            else (
+                "SMTP nao configurado. Configure as variaveis de ambiente: "
+                "SMTP_HOST, SMTP_USER, SMTP_PASS. "
+                "Para Gmail: SMTP_HOST=smtp.gmail.com, SMTP_PORT=587, "
+                "SMTP_PASS=<App Password de 16 caracteres>."
+            )
+        ),
+    }
+
+
+# ─── POST /intel/pricing/email/test ────────────────────────────────────────
+
+
+@router.post("/email/test")
+async def test_email(
+    current_user: Annotated[User, Depends(get_current_user)],
+    to: str | None = None,
+) -> dict:
+    """
+    Envia um email de teste para verificar se o SMTP esta funcionando.
+
+    Se `to` nao for fornecido, usa o email do usuario logado.
+    Requer que SMTP esteja configurado.
+    """
+    import asyncio
+
+    from app.core.config import settings
+    from app.core.email import is_smtp_configured, send_html_email
+
+    if not is_smtp_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "SMTP nao configurado. "
+                "Defina SMTP_HOST, SMTP_USER e SMTP_PASS nas variaveis de ambiente. "
+                "Para Gmail use uma App Password (nao a senha normal)."
+            ),
+        )
+
+    recipient = to or current_user.email
+
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head><meta charset="UTF-8"/><title>Teste SMTP MSM_Pro</title></head>
+    <body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px;">
+      <div style="max-width:500px;margin:0 auto;background:#fff;border-radius:8px;
+                  overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1);">
+        <div style="background:#1e40af;color:#fff;padding:24px 32px;">
+          <h1 style="margin:0;font-size:20px;">MSM_Pro — Teste SMTP</h1>
+        </div>
+        <div style="padding:32px;color:#333;line-height:1.6;">
+          <p>Este email confirma que o SMTP esta configurado corretamente.</p>
+          <p><strong>Host:</strong> {settings.smtp_host}:{settings.smtp_port}</p>
+          <p><strong>Remetente:</strong> {settings.smtp_from or settings.smtp_user}</p>
+          <p><strong>Destinatario:</strong> {recipient}</p>
+          <p style="margin-top:24px;color:#666;font-size:14px;">
+            O Daily Intel Report sera enviado diariamente as 08:00 BRT.
+          </p>
+        </div>
+        <div style="background:#f0f0f0;padding:16px 32px;font-size:12px;
+                    color:#888;text-align:center;">
+          MSM_Pro — Dashboard de Inteligencia de Vendas
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+    sent = await asyncio.to_thread(
+        send_html_email,
+        to=recipient,
+        subject="[MSM_Pro] Teste de configuracao SMTP",
+        html=html,
+    )
+
+    if sent:
+        logger.info("Email de teste enviado para %s por %s", recipient, current_user.email)
+        return {
+            "success": True,
+            "message": f"Email de teste enviado para {recipient}.",
+            "recipient": recipient,
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f"Falha ao enviar email para {recipient}. "
+                "Verifique os logs do backend para detalhes."
+            ),
+        )
