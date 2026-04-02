@@ -106,13 +106,8 @@ async def sync_questions_for_account(
                                 if row:
                                     listing_id, thumbnail = row
 
-                            # Se não encontrou thumbnail local, busca via API ML
-                            if not thumbnail and mlb_id:
-                                try:
-                                    item_data = await client.get_item(mlb_id)
-                                    thumbnail = item_data.get("secure_thumbnail") or item_data.get("thumbnail")
-                                except Exception as e:
-                                    logger.debug("Erro ao buscar thumbnail via API para %s: %s", mlb_id, e)
+                            # Thumbnail vem do Listing local — não fazer chamada API extra
+                            # para evitar rate limit (N perguntas = N chamadas extras)
 
                             # Trata resposta (se houver)
                             answer_text = None
