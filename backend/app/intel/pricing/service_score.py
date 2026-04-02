@@ -143,9 +143,10 @@ def calculate_recommendation_score(
     # 7. Historical trend modifier
     historical = anuncio.get("historical")
     hist_score = 0.0
-    if historical:
+    if historical and historical.get("peak_daily_sales") is not None:
+        # Se historical nao tem pico valido, nao calcular score
         trend = historical.get("trend_180d", "stable")
-        current_vs_peak = historical.get("current_vs_peak_pct", 0)
+        current_vs_peak = historical.get("current_vs_peak_pct")
 
         # Tendencia de 180 dias influencia o score
         if trend == "declining":
@@ -154,7 +155,8 @@ def calculate_recommendation_score(
             hist_score = 0.1  # bonus — produto em ascensao
 
         # Se media atual < 50% do pico, penaliza fortemente
-        if current_vs_peak < -50:
+        # Validar que current_vs_peak nao e None antes de comparar
+        if current_vs_peak is not None and current_vs_peak < -50:
             hist_score = min(hist_score, -0.2)
 
     # Score final ponderado (pesos adaptativos ou default)
@@ -188,9 +190,10 @@ def calculate_recommendation_score(
         pct = 0.0
 
     # REGRA: Se media atual < 50% do pico historico, NAO recomendar aumento
-    if historical:
-        current_vs_peak = historical.get("current_vs_peak_pct", 0)
-        if current_vs_peak < -50 and action == "increase":
+    if historical and historical.get("peak_daily_sales") is not None:
+        current_vs_peak = historical.get("current_vs_peak_pct")
+        # Validar que current_vs_peak nao e None antes de comparar
+        if current_vs_peak is not None and current_vs_peak < -50 and action == "increase":
             action = "hold"
             pct = 0.0
             logger.debug(
@@ -224,7 +227,7 @@ def calculate_recommendation_score(
         confidence = "low"
 
     # REGRA: Se tendencia historica e declining, rebaixar confianca
-    if historical and historical.get("trend_180d") == "declining":
+    if historical and historical.get("peak_daily_sales") is not None and historical.get("trend_180d") == "declining":
         if confidence == "high":
             confidence = "medium"
 

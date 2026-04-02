@@ -480,7 +480,7 @@ function RecommendationCard({
                     <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_15d?.visits, 15)}</td>
                     <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_30d?.visits, 30)}</td>
                     <td className="w-px bg-border"></td>
-                    <td className="text-center px-1.5 py-1"><Sparkline data={visitsSpark} color="#8b5cf6" /></td>
+                    <td className="text-center px-1.5 py-1"><Sparkline data={visitsSpark} color="#22c55e" /></td>
                   </tr>
                   {/* Vendas */}
                   <tr className="border-t">
@@ -496,7 +496,7 @@ function RecommendationCard({
                     <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_15d?.sales, 15)}</td>
                     <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_30d?.sales, 30)}</td>
                     <td className="w-px bg-border"></td>
-                    <td className="text-center px-1.5 py-1"><Sparkline data={salesSpark} color="#10b981" /></td>
+                    <td className="text-center px-1.5 py-1"><Sparkline data={salesSpark} color="#f97316" /></td>
                   </tr>
                 </tbody>
               </table>
@@ -507,6 +507,85 @@ function RecommendationCard({
                   {p.today.conversion > 0 && ` (${p.today.conversion.toFixed(1)}% conv.)`}
                 </div>
               )}
+            </div>
+          );
+        })()}
+
+        {/* Sparklines Summary (visual representation abaixo da tabela) */}
+        {rec.periods_data && (() => {
+          const p = rec.periods_data;
+          const dailyPeriods = [p.d6, p.d5, p.d4, p.d3, p.day_before, p.yesterday];
+          const convSpark = dailyPeriods.map(d => d?.conversion ?? 0);
+          const visitsSpark = dailyPeriods.map(d => d?.visits ?? 0);
+          const salesSpark = dailyPeriods.map(d => d?.sales ?? 0);
+
+          return (
+            <div className="mt-4 grid grid-cols-3 gap-4">
+              {/* Conversao */}
+              <div className="rounded-md bg-blue-50/40 border border-blue-100 p-3">
+                <p className="text-xs font-semibold text-blue-700 mb-2">Conversão (%)</p>
+                <div className="h-12">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={convSpark.map((v, i) => ({ v, i }))}>
+                      <Line
+                        type="monotone"
+                        dataKey="v"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="text-xs text-blue-600 mt-2 font-medium">
+                  {p.yesterday?.conversion != null ? `${p.yesterday.conversion.toFixed(1)}%` : "--"} ontem
+                </p>
+              </div>
+
+              {/* Visitas */}
+              <div className="rounded-md bg-green-50/40 border border-green-100 p-3">
+                <p className="text-xs font-semibold text-green-700 mb-2">Visitas</p>
+                <div className="h-12">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={visitsSpark.map((v, i) => ({ v, i }))}>
+                      <Line
+                        type="monotone"
+                        dataKey="v"
+                        stroke="#22c55e"
+                        strokeWidth={2}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="text-xs text-green-600 mt-2 font-medium">
+                  {p.yesterday?.visits != null ? p.yesterday.visits.toLocaleString("pt-BR") : "--"} ontem
+                </p>
+              </div>
+
+              {/* Vendas */}
+              <div className="rounded-md bg-orange-50/40 border border-orange-100 p-3">
+                <p className="text-xs font-semibold text-orange-700 mb-2">Vendas</p>
+                <div className="h-12">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={salesSpark.map((v, i) => ({ v, i }))}>
+                      <Line
+                        type="monotone"
+                        dataKey="v"
+                        stroke="#f97316"
+                        strokeWidth={2}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="text-xs text-orange-600 mt-2 font-medium">
+                  {p.yesterday?.sales != null ? p.yesterday.sales : "--"} ontem
+                </p>
+              </div>
             </div>
           );
         })()}

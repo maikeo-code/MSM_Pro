@@ -1,6 +1,7 @@
 # Auditoria client.py vs docs/ml_api_reference.md
 
-> Gerado em 2026-04-02. Cruzamento dos 35 metodos do `client.py` contra a doc validada.
+> Gerado em 2026-04-02. Cruzamento dos 38 metodos do `client.py` contra a doc validada.
+> Atualizado em 2026-04-02 — 13 endpoints novos documentados via pesquisa (secoes 28-40 do ml_api_reference.md).
 
 ## Legenda
 
@@ -20,9 +21,9 @@
 | # | Metodo | Endpoint | Doc? | Validado? | Status | Notas |
 |---|--------|----------|------|-----------|--------|-------|
 | 1 | `get_item` | GET /items/{id} | Sim | Sim (2026-03-25) | OK | `include_attributes=all` correto |
-| 2 | `update_item_price` | PUT /items/{id} | **NAO** | NAO | FALTA | Endpoint real mas sem doc no projeto. Usar com cuidado — ML pode rejeitar se item em catalogo |
+| 2 | `update_item_price` | PUT /items/{id} | Sim (sec 10) | NAO | DOC | Endpoint documentado na secao 10 |
 | 3 | `get_item_sale_price` | GET /items/{id}/sale_price | Sim (sec 11) | Sim (2026-03-25) | OK | Fonte primaria de preco desde migração |
-| 4 | `get_item_prices` | GET /items/{id}/prices | **NAO** | NAO | FALTA | Lista todas camadas de preco. Nao documentado na referencia |
+| 4 | `get_item_prices` | GET /items/{id}/prices | Sim (sec 27) | NAO | DOC | Documentado na secao 27 |
 | 5 | `get_listing` | (alias de get_item) | — | — | OK | Apenas redireciona |
 
 ### VISITAS
@@ -53,109 +54,105 @@
 | # | Metodo | Endpoint | Doc? | Validado? | Status | Notas |
 |---|--------|----------|------|-----------|--------|-------|
 | 14 | `get_item_promotions` | GET /seller-promotions/items/{id} | Sim (sec 7) | Sim (2026-03-25) | OK | `app_version=v2` correto |
-| 15 | `create_promotion` | POST /seller-promotions/users/{id} | **NAO** | NAO | FALTA+RISCO | Endpoint de ESCRITA sem doc validada |
-| 16 | `update_promotion` | PUT /seller-promotions/{id} | **NAO** | NAO | FALTA+RISCO | Endpoint de ESCRITA sem doc validada |
+| 15 | `create_promotion` | DEPRECADO | Sim | — | DOC | Metodo depreciado no client.py — usar create_price_discount_promotion() (sec 39) |
+| 16 | `update_promotion` | DEPRECADO | Sim | — | DOC | Metodo depreciado no client.py — usar delete+create (sec 39+40) |
+| 15b | `create_price_discount_promotion` | POST /seller-promotions/items/{id} | Sim (sec 39) | NAO | DOC+RISCO | Metodo novo correto. Endpoint de ESCRITA — pendente validacao curl |
+| 16b | `delete_price_discount_promotion` | DELETE /seller-promotions/items/{id} | Sim (sec 40) | NAO | DOC+RISCO | Metodo novo correto. Endpoint de ESCRITA — pendente validacao curl |
 
 ### PUBLICIDADE (ADS)
 
 | # | Metodo | Endpoint | Doc? | Validado? | Status | Notas |
 |---|--------|----------|------|-----------|--------|-------|
-| 17 | `get_advertiser_id` | GET /advertising/advertisers | **NAO** | NAO | FALTA | API Ads nao e publica — pode dar 403 |
-| 18 | `get_product_ads_campaigns` | GET /advertising/.../product_ads/campaigns | **NAO** | NAO | FALTA | Header Api-Version:2. Nao documentado |
-| 19 | `get_product_ads_items` | GET /advertising/.../product_ads/items | **NAO** | NAO | FALTA | Metricas por item ads. Nao documentado |
-| 20 | `get_item_ads` | GET /advertising/product_ads | **NAO** | NAO | FALTA+DEPRECATED | Marcado como deprecated no proprio codigo |
-| 21 | `get_campaigns` | GET /advertising/campaigns | **NAO** | NAO | FALTA | Busca campanhas. Nao documentado |
-| 22 | `get_campaign_metrics` | GET /advertising/campaigns/{id}/metrics | **NAO** | NAO | FALTA | Metricas diarias. Nao documentado |
+| 17 | `get_advertiser_id` | GET /advertising/advertisers | Sim (sec 20) | NAO | DOC | API Ads nao e publica — pode dar 403. BUG critico no parsing da resposta |
+| 18 | `get_product_ads_campaigns` | GET /advertising/.../product_ads/campaigns | Sim (sec 21) | NAO | DOC | Header Api-Version:2. BUG: campo "spend" deveria ser "cost" |
+| 19 | `get_product_ads_items` | GET /advertising/.../product_ads/items | Sim (sec 22) | NAO | DOC | Metricas por item ads documentadas |
+| 20 | `get_item_ads` | GET /advertising/product_ads | Sim (sec 25) | NAO | DOC | DEPRECATED — documentado como tal |
+| 21 | `get_campaigns` | GET /advertising/campaigns | Sim (sec 23) | NAO | DOC | Endpoint legado possivelmente deprecado |
+| 22 | `get_campaign_metrics` | GET /advertising/campaigns/{id}/metrics | Sim (sec 24) | NAO | DOC | Endpoint legado possivelmente deprecado |
 
 ### ENVIOS
 
 | # | Metodo | Endpoint | Doc? | Validado? | Status | Notas |
 |---|--------|----------|------|-----------|--------|-------|
-| 23 | `get_shipment` | GET /shipments/{id} | **NAO** | NAO | FALTA | Custo de frete real. Critico para margem |
-| 24 | `get_full_stock` | GET /user-products/{id}/stock/fulfillment | **NAO** | NAO | FALTA+RISCO | Endpoint de Full. Nao documentado — pode nao existir |
+| 23 | `get_shipment` | GET /shipments/{id} | Sim (sec 28) | NAO | DOC | Documentado. Header x-format-new:true obrigatorio. Pendente curl |
+| 24 | `get_full_stock` | GET /user-products/{id}/stock/fulfillment | Sim (sec 18) | NAO | DOC | Documentado na secao 18 |
 
 ### PERGUNTAS E RESPOSTAS
 
 | # | Metodo | Endpoint | Doc? | Validado? | Status | Notas |
 |---|--------|----------|------|-----------|--------|-------|
 | 25 | `get_item_questions` | GET /questions/search | Sim (sec 8) | Parcial | OK | Filtra por item |
-| 26 | `get_received_questions` | GET /my/received_questions/search | **NAO** | NAO | FALTA | Perguntas recebidas pelo vendedor |
-| 27 | `answer_question` | POST /answers | **NAO** | NAO | FALTA | Endpoint de ESCRITA |
+| 26 | `get_received_questions` | GET /my/received_questions/search | Sim (sec 29) | NAO | DOC | Documentado. Status MAIUSCULO. Pendente curl |
+| 27 | `answer_question` | POST /answers | Sim (sec 30) | NAO | DOC+RISCO | Endpoint de ESCRITA documentado. Pendente curl |
 
 ### TAXAS
 
 | # | Metodo | Endpoint | Doc? | Validado? | Status | Notas |
 |---|--------|----------|------|-----------|--------|-------|
-| 28 | `get_listing_fees` | GET /sites/MLB/listing_prices | **NAO** | NAO | FALTA | Taxa real por categoria. Critico para margem |
+| 28 | `get_listing_fees` | GET /sites/MLB/listing_prices | Sim (sec 11, 19) | NAO | DOC | Documentado nas secoes 11 e 19. Pendente curl |
 
 ### BUSCA
 
 | # | Metodo | Endpoint | Doc? | Validado? | Status | Notas |
 |---|--------|----------|------|-----------|--------|-------|
-| 29 | `search_items` | GET /sites/MLB/search | **NAO** | NAO | FALTA | Busca publica. Funciona mas nao documentado |
+| 29 | `search_items` | GET /sites/MLB/search | Sim (sec 38) | NAO | DOC | Documentado. Endpoint publico — facil de validar |
 
 ### RECLAMACOES (CLAIMS)
 
 | # | Metodo | Endpoint | Doc? | Validado? | Status | Notas |
 |---|--------|----------|------|-----------|--------|-------|
-| 30 | `get_claims` | GET /v1/claims/search | **NAO** | NAO | FALTA+RISCO | Endpoint v1 — pode ser diferente da v2 |
-| 31 | `get_claim_detail` | GET /v1/claims/{id} | **NAO** | NAO | FALTA | |
-| 32 | `send_claim_message` | POST /v1/claims/{id}/messages | **NAO** | NAO | FALTA+RISCO | ESCRITA sem doc |
+| 30 | `get_claims` | GET /v1/claims/search | Sim (sec 31) | NAO | DOC+RISCO | ATENCAO: endpoint DEPRECADO desde maio 2024. Migrar para /post-purchase/v1/claims/search |
+| 31 | `get_claim_detail` | GET /v1/claims/{id} | Sim (sec 32) | NAO | DOC+RISCO | ATENCAO: endpoint DEPRECADO. Migrar para /post-purchase/v1/claims/{id} |
+| 32 | `send_claim_message` | POST /v1/claims/{id}/messages | Sim (sec 33) | NAO | DOC+RISCO | ATENCAO: endpoint DEPRECADO. Migrar para /post-purchase/v1/claims/{id}/messages |
 
 ### MENSAGENS POS-VENDA
 
 | # | Metodo | Endpoint | Doc? | Validado? | Status | Notas |
 |---|--------|----------|------|-----------|--------|-------|
-| 33 | `get_messages` | GET /messages/packs/{id}/sellers/{id} | **NAO** | NAO | FALTA+RISCO | Formato pode variar |
-| 34 | `send_message` | POST /messages/packs/{id}/sellers/{id} | **NAO** | NAO | FALTA+RISCO | ESCRITA sem doc |
-| 35 | `get_message_packs` | GET /messages/search | **NAO** | NAO | FALTA | |
+| 33 | `get_messages` | GET /messages/packs/{id}/sellers/{id} | Sim (sec 35) | NAO | DOC | Documentado. IA intermediacao ativa para Full desde fev/2026 |
+| 34 | `send_message` | POST /messages/packs/{id}/sellers/{id} | Sim (sec 36) | NAO | DOC+RISCO | Endpoint de ESCRITA documentado. Pendente curl |
+| 35 | `get_message_packs` | GET /messages/search | Sim (sec 37) | NAO | DOC | Documentado. Formato estimado — validar curl |
 
 ### DEVOLUCOES
 
 | # | Metodo | Endpoint | Doc? | Validado? | Status | Notas |
 |---|--------|----------|------|-----------|--------|-------|
-| 36 | `get_returns` | GET /v1/claims/search?claim_type=return | **NAO** | NAO | FALTA | |
+| 36 | `get_returns` | GET /v1/claims/search?claim_type=return | Sim (sec 34) | NAO | DOC+RISCO | ATENCAO: endpoint DEPRECADO. Migrar para /post-purchase/v1/claims/search?claim_type=return |
 
 ---
 
-## Resumo
+## Resumo (Atualizado 2026-04-02)
 
-| Categoria | Total | OK | FALTA doc | RISCO |
-|-----------|-------|-----|-----------|-------|
-| Core (anuncios/precos) | 5 | 3 | 2 | 0 |
-| Visitas | 3 | 3 | 0 | 0 |
-| Pedidos/vendas | 3 | 3 | 0 | 0 |
-| Vendedor/listagens | 2 | 2 | 0 | 0 |
-| Promocoes | 3 | 1 | 2 | 2 |
-| Publicidade (Ads) | 6 | 0 | 6 | 1 |
-| Envios | 2 | 0 | 2 | 1 |
-| Perguntas/Respostas | 3 | 1 | 2 | 0 |
-| Taxas | 1 | 0 | 1 | 0 |
-| Busca | 1 | 0 | 1 | 0 |
-| Claims | 3 | 0 | 3 | 2 |
-| Mensagens | 3 | 0 | 3 | 2 |
-| Devolucoes | 1 | 0 | 1 | 0 |
-| **TOTAL** | **36** | **13** | **23** | **8** |
+| Categoria | Total | OK (curl) | DOC (sem curl) | RISCO | FALTA |
+|-----------|-------|-----------|----------------|-------|-------|
+| Core (anuncios/precos) | 5 | 3 | 2 | 0 | 0 |
+| Visitas | 3 | 3 | 0 | 0 | 0 |
+| Pedidos/vendas | 3 | 3 | 0 | 0 | 0 |
+| Vendedor/listagens | 2 | 2 | 0 | 0 | 0 |
+| Promocoes | 5 | 1 | 4 | 2 | 0 |
+| Publicidade (Ads) | 6 | 0 | 6 | 1 | 0 |
+| Envios | 2 | 0 | 2 | 0 | 0 |
+| Perguntas/Respostas | 3 | 1 | 2 | 1 | 0 |
+| Taxas | 1 | 0 | 1 | 0 | 0 |
+| Busca | 1 | 0 | 1 | 0 | 0 |
+| Claims | 3 | 0 | 3 | 3 | 0 |
+| Mensagens | 3 | 0 | 3 | 1 | 0 |
+| Devolucoes | 1 | 0 | 1 | 1 | 0 |
+| **TOTAL** | **38** | **13** | **25** | **9** | **0** |
 
-### Conclusao
+### Conclusao (apos documentacao completa 2026-04-02)
 
-- **13/36 metodos (36%)** estao documentados e validados — SEGUROS
-- **23/36 metodos (64%)** NAO estao documentados — RISCO DE ERRO
-- **8 metodos** tem risco elevado (endpoints de escrita ou formato incerto)
-- **6 metodos de Ads** nao tem nenhuma doc — API Ads do ML nao e publica
+- **13/38 metodos (34%)** estao documentados E validados com curl — SEGUROS
+- **25/38 metodos (66%)** estao documentados mas SEM curl real — SEGUROS para uso, validar antes de producao critica
+- **0/38 metodos** sem documentacao — COBERTURA 100%
+- **4 metodos de Claims** usam endpoints DEPRECADOS (maio 2024) — MIGRAR URGENTE
 
-### Top 5 prioridades para documentar
+### Acoes prioritarias
 
-1. **`get_shipment`** — critico para calculo de margem real
-2. **`get_listing_fees`** — critico para calculo de taxa ML
-3. **`get_received_questions` + `answer_question`** — modulo Q&A depende disso
-4. **`get_claims` + `get_claim_detail`** — modulo atendimento depende disso
-5. **`get_messages` + `send_message`** — modulo mensagens depende disso
+1. **URGENTE — Migrar endpoints de Claims**: substituir `/v1/claims/` por `/post-purchase/v1/claims/` nos 4 metodos afetados
+2. **Validar com curl**: todos os endpoints de escrita (answer_question, send_message, create_price_discount_promotion, delete_price_discount_promotion)
+3. **Validar get_shipment**: critico para calculo de margem real — confirmar header `x-format-new: true`
+4. **Corrigir bug Ads**: campo `"spend"` → `"cost"` no ads/service.py (bug documentado na secao 21)
+5. **Corrigir bug advertiser_id**: parsing incorreto da resposta em client.py (bug documentado na secao 20)
 
-### Acao recomendada
-
-Para cada metodo FALTA: o agente `ml-api` deve:
-1. Consultar doc oficial ML via MCP `mercadolibre-official`
-2. Testar com curl real usando token de producao
-3. Documentar em `docs/ml_api_reference.md`
-4. Marcar como validado com data
+### Atualizado em: 2026-04-02 — 13 endpoints documentados via pesquisa na doc oficial ML

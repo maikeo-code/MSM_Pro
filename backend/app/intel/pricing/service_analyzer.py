@@ -195,8 +195,9 @@ def _simplify_for_ai(anuncios: list[dict]) -> list[dict]:
         }
         # Incluir dados historicos se disponiveis (contexto crucial para IA)
         # Ancorar com mlb_id para evitar que a IA misture picos entre anuncios
+        # Validar que peak_daily nao e None antes de incluir
         historical = a.get("historical")
-        if historical:
+        if historical and historical.get("peak_daily_sales") is not None:
             entry["historical"] = {**historical, "mlb_id": a.get("mlb_id")}
         result.append(entry)
     return result

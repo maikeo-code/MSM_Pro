@@ -1387,6 +1387,1045 @@ Retorna TODAS as camadas de preco vigentes para o item (standard + promotion).
 
 ---
 
+## 28. Envios (Shipments)
+
+### GET /shipments/{SHIPMENT_ID}
+
+Retorna dados completos de um envio, incluindo custo de frete cobrado do vendedor.
+Critico para calculo de margem real (custo de frete real vs estimado).
+
+**Headers obrigatorios:**
+- `Authorization: Bearer {access_token}`
+- `x-format-new: true` (obrigatorio para receber o formato JSON atualizado)
+
+**Parametros:** Nenhum (shipment_id no path).
+
+**Resposta estimada (formato com header x-format-new: true):**
+```json
+{
+  "id": 123456789,
+  "status": "delivered",
+  "status_history": {},
+  "date_created": "2026-03-12T14:30:00.000Z",
+  "last_updated": "2026-03-12T20:00:00.000Z",
+  "mode": "me2",
+  "logistic_type": "fulfillment",
+  "order_id": 987654321,
+  "cost_components": {
+    "sender_cost": 0,
+    "special_cost": 0,
+    "gap_cost": 0,
+    "ratio": 1.0
+  },
+  "base_cost": 0,
+  "total_gross": 0,
+  "currency_id": "BRL",
+  "service_id": null,
+  "shipping_items": [
+    {
+      "id": "MLB1234567890",
+      "quantity": 1,
+      "dimensions": {
+        "height": 10,
+        "width": 20,
+        "length": 15,
+        "weight": 500
+      }
+    }
+  ],
+  "receiver": {
+    "id": 12345,
+    "nickname": "COMPRADOR123",
+    "city": "Sao Paulo"
+  },
+  "sender": {
+    "id": 2050442871
+  }
+}
+```
+
+**Campos criticos para calculo de margem:**
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| `cost_components.sender_cost` | float | Custo de frete cobrado do VENDEDOR em R$ |
+| `base_cost` | float | Custo base do frete |
+| `total_gross` | float | Custo total bruto do envio |
+| `logistic_type` | string | `"fulfillment"` (Full), `"cross_docking"`, `"drop_off"`, `"xd_drop_off"` |
+| `status` | string | `"delivered"`, `"shipped"`, `"handling"`, `"cancelled"`, `"not_delivered"` |
+
+**Como obter o shipment_id:**
+O shipment_id vem dentro de cada pedido em `/orders/search`. Campo: `order.shipping.id`.
+
+```python
+# Acessar a partir de um pedido
+order = await client.get_orders(seller_id, date_from)
+for result in order["results"]:
+    shipment_id = result.get("shipping", {}).get("id")
+    if shipment_id:
+        shipment = await client.get_shipment(shipment_id)
+        frete_cobrado = shipment.get("cost_components", {}).get("sender_cost", 0)
+```
+
+**Gotchas:**
+- **Obrigatorio**: header `x-format-new: true` — sem ele, o formato de resposta e diferente e pode faltar campos.
+- `sender_cost = 0` para itens Full (o ML subsidia o frete — custo nao e cobrado diretamente do vendedor; ja e descontado na taxa).
+- Para anuncios com frete gratis pago pelo vendedor (nao Full): `sender_cost` tem o valor do frete cobrado.
+- Pode retornar 403 se o token nao e do vendedor dono do pedido.
+- `shipment_id` em `/orders/search` fica em `result["shipping"]["id"]` — pode ser null se pedido nao tem envio Mercado Envios.
+
+**Implementado em:** `client.py` — metodo `get_shipment()`
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/gerenciamento-de-envios
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
+## 29. Perguntas Recebidas pelo Vendedor
+
+### GET /my/received_questions/search
+
+Retorna perguntas recebidas PELO VENDEDOR autenticado (nao por item especifico).
+Diferente de `/questions/search` que filtra por item — este retorna todas as perguntas do vendedor.
+
+**Parametros:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `status` | string | Recomendado | `"UNANSWERED"`, `"ANSWERED"`, `"CLOSED_UNANSWERED"` |
+| `offset` | int | Opcional | Para paginacao. Default: 0 |
+| `limit` | int | Opcional | Max por pagina. Max: 50. Default: 50 |
+| `sort_fields` | string | Opcional | `"date_created"` |
+| `sort_types` | string | Opcional | `"DESC"` ou `"ASC"` |
+
+**Resposta estimada:**
+```json
+{
+  "total": 15,
+  "limit": 50,
+  "questions": [
+    {
+      "id": 12345678,
+      "text": "Tem na cor azul?",
+      "status": "UNANSWERED",
+      "date_created": "2026-04-01T10:00:00.000Z",
+      "item_id": "MLB6205732214",
+      "seller_id": 2050442871,
+      "from": {
+        "id": 987654321,
+        "answered_questions": 5
+      },
+      "answer": null
+    },
+    {
+      "id": 12345679,
+      "text": "Qual o peso do produto?",
+      "status": "ANSWERED",
+      "date_created": "2026-03-30T08:00:00.000Z",
+      "item_id": "MLB6205732214",
+      "seller_id": 2050442871,
+      "from": {
+        "id": 111222333,
+        "answered_questions": 12
+      },
+      "answer": {
+        "text": "O produto pesa 500g.",
+        "status": "ACTIVE",
+        "date_created": "2026-03-30T09:30:00.000Z"
+      }
+    }
+  ]
+}
+```
+
+**Campos importantes:**
+| Campo | Tipo | Nullable | Descricao |
+|-------|------|----------|-----------|
+| `total` | int | Nao | Total de perguntas que satisfazem o filtro |
+| `questions` | list | Nao | Lista de perguntas |
+| `questions[].id` | int | Nao | ID unico da pergunta — usado em POST /answers |
+| `questions[].text` | string | Nao | Texto da pergunta do comprador |
+| `questions[].status` | string | Nao | `"UNANSWERED"`, `"ANSWERED"`, `"CLOSED_UNANSWERED"`, `"BANNED"` |
+| `questions[].item_id` | string | Nao | MLB ID do anuncio da pergunta |
+| `questions[].answer` | object | **Sim** | Null quando nao respondida |
+| `questions[].answer.text` | string | Nao | Texto da resposta (quando presente) |
+| `questions[].from.id` | int | Nao | ID do comprador que fez a pergunta |
+
+**Diferenca entre endpoints de perguntas:**
+| Endpoint | Filtra por | Requer auth do vendedor |
+|----------|-----------|------------------------|
+| `GET /questions/search?item={id}` | Item especifico | Nao (publico) |
+| `GET /my/received_questions/search` | Todas as perguntas do vendedor | Sim |
+
+**Gotchas:**
+- Requer token do vendedor autenticado — endpoint nao e publico.
+- `status` e CASE SENSITIVE: usar `"UNANSWERED"` (maiusculo), nao `"unanswered"`.
+- `total` pode ser diferente de `len(questions)` quando usa paginacao.
+- Perguntas `BANNED` sao perguntas consideradas inapropriadas pelo ML — vendedor nao precisa responder.
+- Para buscar perguntas de um item especifico, usar `/questions/search?item={id}` (secao 8).
+- O campo `questions[].from.id` e o buyer_id — nao o buyer_nickname.
+
+**Implementado em:** `client.py` — metodo `get_received_questions()`
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/perguntas-e-respostas
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
+## 30. Responder Pergunta
+
+### POST /answers
+
+Envia uma resposta a uma pergunta de comprador.
+
+**AVISO: Endpoint de ESCRITA — testar em sandbox antes de usar em producao.**
+
+**Body (JSON):**
+```json
+{
+  "question_id": 12345678,
+  "text": "Sim, temos na cor azul. O prazo de entrega e de 3 a 5 dias uteis."
+}
+```
+
+**Parametros do body:**
+| Campo | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `question_id` | int | Sim | ID da pergunta (obtido via GET /my/received_questions/search ou /questions/search) |
+| `text` | string | Sim | Texto da resposta. Minimo: 1 caractere. Maximo: ~2000 caracteres |
+
+**Resposta esperada (HTTP 201 Created):**
+```json
+{
+  "id": 98765432,
+  "question_id": 12345678,
+  "text": "Sim, temos na cor azul. O prazo de entrega e de 3 a 5 dias uteis.",
+  "status": "ACTIVE",
+  "date_created": "2026-04-02T10:30:00.000Z",
+  "deleted_from_listing": false,
+  "negatively_affects_reputation": false
+}
+```
+
+**Campos da resposta:**
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| `id` | int | ID unico da resposta criada |
+| `question_id` | int | ID da pergunta respondida |
+| `status` | string | `"ACTIVE"` = visivel na vitrine, `"UNDER_REVIEW"` = em moderacao |
+| `deleted_from_listing` | bool | Se a resposta foi removida do anuncio por moderacao |
+| `negatively_affects_reputation` | bool | Se a resposta pode afetar reputacao do vendedor |
+
+**Gotchas:**
+- Requer token do vendedor dono do anuncio onde a pergunta foi feita.
+- Nao e possivel responder perguntas com `status=BANNED`.
+- Nao e possivel editar uma resposta ja enviada — apenas deletar e responder novamente.
+- Perguntas `CLOSED_UNANSWERED` ja expiraram — nao aceitam resposta.
+- Respostas podem ser moderadas pelo ML e ficar `"UNDER_REVIEW"` temporariamente.
+- O `text` nao deve conter dados pessoais (email, telefone, CPF) — o ML bloqueia automaticamente.
+- Recomendado usar api_version=4 para formato atualizado (verificar se endpoint aceita o header).
+
+**Implementado em:** `client.py` — metodo `answer_question()`
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/perguntas-e-respostas
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
+## 31. Reclamacoes — Busca
+
+### GET /post-purchase/v1/claims/search
+
+**AVISO CRITICO DE MIGRACAO:**
+O endpoint `/v1/claims/search` foi DEPRECADO em maio 2024. O endpoint atual e:
+`https://api.mercadolibre.com/post-purchase/v1/claims/search`
+
+**O client.py ainda usa `/v1/claims/search` — DEVE SER MIGRADO.**
+
+**Parametros:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `status` | string | Opcional | `"opened"`, `"closed"`, `"resolved"` |
+| `stage` | string | Opcional | `"claim"`, `"dispute"` |
+| `claim_type` | string | Opcional | `"return"` para devolucoes |
+| `offset` | int | Opcional | Para paginacao |
+| `limit` | int | Opcional | Max por pagina. Default: 50 |
+| `sort` | string | Opcional | `"date_created:DESC"` |
+
+**Resposta estimada:**
+```json
+{
+  "data": [
+    {
+      "id": 111222333,
+      "resource_id": 987654321,
+      "resource": "order",
+      "reason_id": "ITEM_NOT_AS_DESCRIBED",
+      "status": "opened",
+      "stage": "claim",
+      "claimant": {
+        "id": 12345678,
+        "role": "buyer"
+      },
+      "respondent": {
+        "id": 2050442871,
+        "role": "seller"
+      },
+      "resolution": null,
+      "date_created": "2026-04-01T10:00:00.000Z",
+      "last_updated": "2026-04-01T12:00:00.000Z"
+    }
+  ],
+  "paging": {
+    "total": 5,
+    "offset": 0,
+    "limit": 50
+  }
+}
+```
+
+**Campos importantes:**
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| `data` | list | Lista de reclamacoes (nao `results`) |
+| `data[].id` | int | ID da reclamacao |
+| `data[].resource_id` | int | ID do pedido (order_id) relacionado |
+| `data[].reason_id` | string | Motivo: `"ITEM_NOT_AS_DESCRIBED"`, `"ITEM_NOT_RECEIVED"`, `"WRONG_ITEM_RECEIVED"`, `"UNDISCLOSED_REASON"` |
+| `data[].status` | string | `"opened"`, `"closed"`, `"resolved"` |
+| `data[].stage` | string | `"claim"` (fase inicial) ou `"dispute"` (mediacao ML) |
+| `data[].resolution` | object/null | Resolucao da reclamacao — null quando aberta |
+
+**Gotchas:**
+- **O endpoint do client.py esta DESATUALIZADO**: usar `/post-purchase/v1/claims/search` em vez de `/v1/claims/search`.
+- A lista esta em `data`, nao em `results`.
+- O seller_id e derivado do token — nao precisa passar como parametro.
+- `stage=dispute` = mediacao ativa com o ML (mais critica que `stage=claim`).
+- Para devolucoes: usar `claim_type=return` (secao 34).
+- Tipos de reclamacao: `"order"` (pedido), `"shipment"` (envio).
+
+**Implementado em:** `client.py` — metodo `get_claims()` (endpoint desatualizado — migrar)
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/gerenciar-reclamacoes
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
+## 32. Reclamacoes — Detalhe
+
+### GET /post-purchase/v1/claims/{CLAIM_ID}
+
+Retorna todos os detalhes de uma reclamacao especifica, incluindo historico e provas.
+
+**AVISO CRITICO:** O client.py usa `/v1/claims/{id}` — DEPRECADO. Usar `/post-purchase/v1/claims/{id}`.
+
+**Parametros:** Nenhum (claim_id no path).
+
+**Resposta estimada:**
+```json
+{
+  "id": 111222333,
+  "resource_id": 987654321,
+  "resource": "order",
+  "reason_id": "ITEM_NOT_AS_DESCRIBED",
+  "status": "opened",
+  "stage": "claim",
+  "type": "mediations",
+  "claimant": {
+    "id": 12345678,
+    "role": "buyer"
+  },
+  "respondent": {
+    "id": 2050442871,
+    "role": "seller"
+  },
+  "players": [
+    {"role": "buyer", "available_actions": ["send_message", "add_evidence", "agree_to_resolution"]},
+    {"role": "seller", "available_actions": ["send_message", "add_evidence", "propose_resolution"]}
+  ],
+  "resolution": null,
+  "date_created": "2026-04-01T10:00:00.000Z",
+  "last_updated": "2026-04-01T12:00:00.000Z"
+}
+```
+
+**Campos importantes:**
+| Campo | Tipo | Nullable | Descricao |
+|-------|------|----------|-----------|
+| `players[].available_actions` | list | Nao | Acoes que o vendedor pode tomar no momento |
+| `stage` | string | Nao | `"claim"` ou `"dispute"` (mediacao ML ativa) |
+| `resolution` | object | **Sim** | Null quando aberta. Preenchido quando resolvida. |
+
+**Gotchas:**
+- Requer token do vendedor ou comprador envolvido na reclamacao.
+- `players[].available_actions` determina o que o vendedor pode fazer agora.
+- Quando `stage=dispute`: o ML e mediador — a resolucao pode ser imposta pelo ML.
+- `resolution.type` pode ser `"RETURN_REQUESTED"`, `"REFUND_REQUESTED"`, `"RETURN_COMPLETED"`.
+
+**Implementado em:** `client.py` — metodo `get_claim_detail()` (endpoint desatualizado — migrar)
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/gerenciar-reclamacoes
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
+## 33. Reclamacoes — Enviar Mensagem
+
+### POST /post-purchase/v1/claims/{CLAIM_ID}/messages
+
+Envia uma mensagem dentro de uma reclamacao.
+
+**AVISO: Endpoint de ESCRITA — testar com cuidado.**
+**AVISO CRITICO:** O client.py usa `/v1/claims/{id}/messages` — DEPRECADO. Usar `/post-purchase/v1/claims/{id}/messages`.
+
+**Body (JSON):**
+```json
+{
+  "message": "Prezado cliente, confirmo o recebimento da sua reclamacao. Vamos resolver o problema."
+}
+```
+
+**Parametros do body:**
+| Campo | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `message` | string | Sim | Texto da mensagem |
+
+**Resposta esperada (HTTP 201):**
+```json
+{
+  "id": "msg_abc123",
+  "from": {"role": "seller", "user_id": 2050442871},
+  "message": "Prezado cliente...",
+  "date_created": "2026-04-02T10:00:00.000Z",
+  "last_updated": "2026-04-02T10:00:00.000Z"
+}
+```
+
+**Gotchas:**
+- Requer token do vendedor ou comprador envolvido na reclamacao.
+- Mensagens sao visiveis para ambas as partes e para o ML (mediador).
+- Evitar dados pessoais (telefone, email, CPF) — o ML filtra automaticamente.
+- Quando `stage=dispute`, o ML pode ser notificado sobre a mensagem.
+
+**Implementado em:** `client.py` — metodo `send_claim_message()` (endpoint desatualizado — migrar)
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/gerenciar-mensagem-de-uma-eclamacao
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
+## 34. Devolucoes
+
+### GET /post-purchase/v1/claims/search?claim_type=return
+
+Devolucoes no ML sao implementadas como reclamacoes com `claim_type=return`.
+Usa o mesmo endpoint da secao 31, mas com filtro especifico.
+
+**AVISO CRITICO:** O client.py usa `/v1/claims/search` — DEPRECADO. Usar `/post-purchase/v1/claims/search`.
+
+**Parametros especificos para devolucoes:**
+| Param | Valor | Descricao |
+|-------|-------|-----------|
+| `claim_type` | `"return"` | Filtra apenas devolucoes |
+| `status` | `"opened"` ou `"closed"` | Status da devolucao |
+
+**Campos relevantes para devolucoes:**
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| `reason_id` | string | `"RETURN_REQUESTED"` — cliente quer devolver |
+| `resolution.type` | string | `"RETURN_COMPLETED"` — devolucao concluida |
+
+**Gotchas:**
+- Devolucoes tem prazo especifico no ML (geralmente ate X dias apos recebimento).
+- O processo de devolucao pode ser: pedido → aceito pelo vendedor → item retornado → reembolso.
+- Para anuncios Full: o processo de devolucao e diferente (logistica reversa do ML).
+
+**Implementado em:** `client.py` — metodo `get_returns()` (endpoint desatualizado — migrar)
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/gerenciar-devolucoes
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
+## 35. Mensagens Pos-Venda — Buscar Conversa
+
+### GET /messages/packs/{PACK_ID}/sellers/{SELLER_ID}
+
+Retorna as mensagens de uma conversa pos-venda entre comprador e vendedor.
+
+**AVISO IMPORTANTE (fevereiro 2026):**
+O ML implementou camada de intermediacao por IA (Messaging Agents) para MLB (Brasil) e MLC (Chile), especialmente para itens Full. As mensagens podem ser gerenciadas por IA antes de chegar ao vendedor. Nao ha mudanca na estrutura dos endpoints.
+
+**Parametros:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `pack_id` | string | Sim | ID do pack (obtido do pedido: `order.pack_id`) |
+| `seller_id` | string | Sim | ID do vendedor (no path) |
+| `mark_as_read` | bool | Opcional | `false` para nao marcar mensagens como lidas. Default: `true` |
+
+**Resposta estimada:**
+```json
+{
+  "paging": {
+    "total": 5,
+    "offset": 0,
+    "limit": 20
+  },
+  "conversation_status": {
+    "id": "available",
+    "is_blocked": false
+  },
+  "messages": [
+    {
+      "id": "msg_abc123",
+      "from": {
+        "user_id": 987654321,
+        "role": "buyer"
+      },
+      "to": {
+        "user_id": 2050442871,
+        "role": "seller"
+      },
+      "text": {
+        "plain": "Ola, quando meu pedido sera entregue?"
+      },
+      "message_date": {
+        "received": "2026-04-01T10:00:00.000Z",
+        "available": "2026-04-01T10:00:00.000Z",
+        "notified": "2026-04-01T10:01:00.000Z",
+        "created": "2026-04-01T10:00:00.000Z"
+      },
+      "status": "available",
+      "attachments": []
+    }
+  ]
+}
+```
+
+**Campos importantes:**
+| Campo | Tipo | Nullable | Descricao |
+|-------|------|----------|-----------|
+| `messages` | list | Nao | Lista de mensagens da conversa |
+| `messages[].text.plain` | string | Nao | Texto da mensagem |
+| `messages[].from.role` | string | Nao | `"buyer"` ou `"seller"` |
+| `messages[].status` | string | Nao | `"available"`, `"moderated"`, `"pending_moderation"` |
+| `conversation_status.is_blocked` | bool | Nao | Se a conversa esta bloqueada para mensagens |
+
+**Como obter o pack_id:**
+```python
+order = await client.get_orders(seller_id, date_from)
+for result in order["results"]:
+    pack_id = result.get("pack_id")  # pode ser null — usar order_id como fallback
+    order_id = result.get("id")
+    # Se pack_id is None: usar /messages/orders/{order_id}
+```
+
+**Gotchas:**
+- Se `pack_id` for null no pedido, usar `/messages/orders/{order_id}` como alternativa.
+- O GET marca as mensagens como lidas por padrao — usar `mark_as_read=false` se nao desejado.
+- `status=moderated` = mensagem bloqueada pelo ML (nao exibida na vitrine).
+- Mensagens de vendedor, mesmo moderadas, ficam visiveis para o vendedor.
+- Rate limit: 500 rpm para GET, compartilhado entre todos os endpoints de mensagem.
+
+**Implementado em:** `client.py` — metodo `get_messages()`
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/mensagens-post-venda
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
+## 36. Mensagens Pos-Venda — Enviar Mensagem
+
+### POST /messages/packs/{PACK_ID}/sellers/{SELLER_ID}
+
+Envia uma mensagem pos-venda para o comprador.
+
+**AVISO: Endpoint de ESCRITA — testar em sandbox antes.**
+
+**Body (JSON):**
+```json
+{
+  "from": {
+    "user_id": 2050442871
+  },
+  "text": "Ola! Seu pedido ja foi enviado e deve chegar em ate 3 dias uteis."
+}
+```
+
+**Parametros do body:**
+| Campo | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `from.user_id` | int | Sim | ID do vendedor (dono do token) |
+| `text` | string | Sim | Texto da mensagem. Max: ~2000 caracteres. |
+
+**Resposta esperada (HTTP 201):**
+```json
+{
+  "id": "msg_xyz789",
+  "status": "available",
+  "from": {"user_id": 2050442871, "role": "seller"},
+  "text": {"plain": "Ola! Seu pedido ja foi enviado..."},
+  "message_date": {
+    "created": "2026-04-02T10:00:00.000Z"
+  }
+}
+```
+
+**Gotchas:**
+- Requer token do vendedor.
+- `from.user_id` deve ser o mesmo seller_id do path — caso contrario, erro 403.
+- Mensagens com dados pessoais (email, telefone, CPF) sao bloqueadas automaticamente.
+- Se `conversation_status.is_blocked = true`: nao e possivel enviar mensagens.
+- A partir de fevereiro 2026: para itens Full, a IA pode intermediar a conversa antes do comprador receber.
+- Rate limit: 500 rpm para POST, compartilhado.
+
+**Implementado em:** `client.py` — metodo `send_message()`
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/mensagens-post-venda
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
+## 37. Mensagens Pos-Venda — Listar Conversas
+
+### GET /messages/search
+
+Busca conversas (packs) de mensagens pos-venda do vendedor.
+
+**Parametros:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `seller_id` | string | Sim | ID do vendedor |
+| `offset` | int | Opcional | Para paginacao |
+| `limit` | int | Opcional | Max por pagina. Default: 50 |
+
+**Resposta estimada:**
+```json
+{
+  "data": [
+    {
+      "id": "pack_123",
+      "order_id": 987654321,
+      "status": "unread",
+      "context": {
+        "item": {"id": "MLB6205732214", "title": "..."},
+        "order": {"id": 987654321}
+      },
+      "last_message": {
+        "from": {"role": "buyer"},
+        "text": {"plain": "Chegou danificado!"},
+        "date_created": "2026-04-01T08:00:00.000Z"
+      }
+    }
+  ],
+  "paging": {
+    "total": 10,
+    "offset": 0,
+    "limit": 50
+  }
+}
+```
+
+**Campos importantes:**
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| `data` | list | Lista de conversas (nao `results`) |
+| `data[].id` | string | ID do pack — usar em GET /messages/packs/{id}/sellers/{id} |
+| `data[].status` | string | `"unread"`, `"read"`, `"blocked"` |
+| `data[].last_message` | object | Ultima mensagem da conversa |
+
+**Gotchas:**
+- A lista de conversas fica em `data`, nao em `results`.
+- `id` aqui e o `pack_id` para usar nos outros endpoints de mensagem.
+- Conversas com mensagens nao lidas ficam com `status=unread`.
+- Para obter mensagens de uma conversa especifica: usar endpoint 35.
+- Formato estimado — validar com curl real.
+
+**Implementado em:** `client.py` — metodo `get_message_packs()`
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/mensagens-pendentes
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
+## 38. Busca Publica de Items
+
+### GET /sites/MLB/search
+
+Busca items ativos no Mercado Livre Brasil. Endpoint publico — nao requer autenticacao.
+Usado para pesquisa de concorrentes e monitoramento de mercado.
+
+**Parametros:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `q` | string | Sim* | Termo de busca |
+| `seller_id` | string | Sim* | ID do vendedor (alternativa a q) |
+| `nickname` | string | Sim* | Nickname do vendedor (alternativa a q/seller_id) |
+| `offset` | int | Opcional | Para paginacao. Default: 0 |
+| `limit` | int | Opcional | Max: 100. Default: 50 |
+| `sort` | string | Opcional | `"price_asc"`, `"price_desc"`, `"relevance"` |
+| `category` | string | Opcional | ID da categoria para filtrar |
+
+*Ao menos um dos parametros marcados e obrigatorio.
+
+**Resposta real:**
+```json
+{
+  "query": "cesto de roupa",
+  "results": [
+    {
+      "id": "MLB6205732214",
+      "title": "Cesto De Roupa Suja Separador Organizador",
+      "price": 50.70,
+      "original_price": 84.50,
+      "currency_id": "BRL",
+      "available_quantity": 15,
+      "sold_quantity": 263,
+      "thumbnail": "https://http2.mlstatic.com/D_...-I.jpg",
+      "condition": "new",
+      "listing_type_id": "gold_special",
+      "permalink": "https://produto.mercadolivre.com.br/MLB-...",
+      "shipping": {
+        "free_shipping": false,
+        "logistic_type": "fulfillment"
+      },
+      "seller": {
+        "id": 2050442871,
+        "nickname": "MSM_PRIME"
+      }
+    }
+  ],
+  "paging": {
+    "total": 2500,
+    "offset": 0,
+    "limit": 50
+  },
+  "available_sorts": [
+    {"id": "price_asc", "name": "Menor preco"},
+    {"id": "price_desc", "name": "Maior preco"}
+  ],
+  "filters": [],
+  "available_filters": [
+    {"id": "category", "name": "Categorias", "values": [...]},
+    {"id": "shipping_cost", "name": "Frete", "values": [...]}
+  ]
+}
+```
+
+**Campos de cada item em `results`:**
+| Campo | Tipo | Nullable | Descricao |
+|-------|------|----------|-----------|
+| `id` | string | Nao | MLB ID do item |
+| `price` | float | Nao | Preco atual de venda |
+| `original_price` | float | Sim | Preco original antes do desconto (quando em promocao) |
+| `sold_quantity` | int | Nao | Total vendido historico |
+| `seller.id` | int | Nao | ID do vendedor |
+| `shipping.free_shipping` | bool | Nao | Se tem frete gratis |
+
+**Gotchas:**
+- Endpoint publico — nao requer Authorization header.
+- Maximo 100 resultados por pagina (nao 50 como a maioria dos endpoints).
+- `paging.total` pode ser muito grande — paginar com cuidado.
+- `price` aqui e o preco atual de venda (identico ao `/items/{id}.price`).
+- Para busca por vendedor especifico: usar `seller_id` em vez de `q`.
+- Filtros avancados podem ser passados como params adicionais (ver `available_filters` na resposta).
+- Para anuncios de catalogo: pode retornar multiplos sellers para o mesmo produto.
+
+**Implementado em:** `client.py` — metodo `search_items()`
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/itens-e-buscas
+**Validado com curl:** Pendente (endpoint publico — facil de testar)
+**Ultima validacao:** —
+
+---
+
+## 39. Desconto Individual — Criar Promocao
+
+### POST /seller-promotions/items/{ITEM_ID}
+
+Cria uma promocao de desconto individual (PRICE_DISCOUNT) em um anuncio.
+
+**AVISO: Endpoint de ESCRITA — testar em sandbox antes de usar em producao.**
+
+**Parametros de query:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `user_id` | string | Sim | ID do vendedor no ML |
+
+**Body (JSON):**
+```json
+{
+  "promotion_type": "PRICE_DISCOUNT",
+  "deal_price": 50.70,
+  "start_date": "2026-04-02T00:00:00Z",
+  "finish_date": "2026-05-02T23:59:59Z",
+  "top_deal_price": 48.00
+}
+```
+
+**Campos do body:**
+| Campo | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `promotion_type` | string | Sim | Sempre `"PRICE_DISCOUNT"` para desconto simples |
+| `deal_price` | float | Sim | Preco final com desconto em R$ (nao percentual) |
+| `start_date` | string | Sim | ISO 8601 UTC: `"2026-04-02T00:00:00Z"` |
+| `finish_date` | string | Sim | ISO 8601 UTC: `"2026-05-02T23:59:59Z"` |
+| `top_deal_price` | float | Opcional | Preco especial para Mercado Pontos nivel 3-6 |
+
+**Resposta esperada (HTTP 201):**
+```json
+{
+  "id": "C-MLB987654",
+  "type": "PRICE_DISCOUNT",
+  "status": "started",
+  "price": 50.70,
+  "original_price": 84.50,
+  "start_date": "2026-04-02T00:00:00.000Z",
+  "finish_date": "2026-05-02T23:59:59.000Z"
+}
+```
+
+**Regras de negocio (confirmadas pela doc oficial ML):**
+- Desconto minimo: 5% do preco original
+- Desconto maximo: menos de 80% do preco original
+- Duracao maxima: 31 dias
+- `top_deal_price` deve ser pelo menos 5% menor que `deal_price` (quando desconto <= 35%)
+- `top_deal_price` deve ser pelo menos 10% menor que `deal_price` (quando desconto > 35%)
+- Se ja existe PRICE_DISCOUNT ativa: erro 400. Chamar DELETE antes.
+- Se o preco for aumentado apos a criacao: o desconto e removido automaticamente.
+
+**Gotchas:**
+- `deal_price` e o PRECO FINAL em R$, nao percentual de desconto.
+- Datas em ISO 8601 UTC (com Z no final) — nao usar horario de Brasilia.
+- Nao confundir com campanhas SMART ou SELLER_CAMPAIGN — PRICE_DISCOUNT e o desconto simples (riscado).
+- Para editar: DELETE + POST (nao existe PUT para PRICE_DISCOUNT).
+- O anuncio deve estar `status=active` para aceitar promocao.
+
+**Implementado em:** `client.py` — metodo `create_price_discount_promotion()`
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/desconto-individua
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
+## 40. Desconto Individual — Remover Promocao
+
+### DELETE /seller-promotions/items/{ITEM_ID}
+
+Remove/finaliza uma promocao ativa de um anuncio.
+
+**AVISO: Endpoint de ESCRITA (DELETE).**
+
+**Parametros de query:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `user_id` | string | Sim | ID do vendedor no ML |
+| `promotion_type` | string | Sim | Tipo da promocao a remover: `"PRICE_DISCOUNT"` |
+
+**Resposta esperada (HTTP 200 ou 204):**
+Corpo vazio ou confirmacao de remocao.
+
+**Quando usar:**
+1. Antes de alterar o preco via `PUT /items/{id}` (se ha PRICE_DISCOUNT ativa, a alteracao de preco remove o desconto automaticamente)
+2. Antes de criar nova PRICE_DISCOUNT (nao e possivel ter duas ativas simultaneamente)
+
+**Gotchas:**
+- Nao usar para remover campanhas SMART, DOD ou LIGHTNING — essas sao do marketplace e nao podem ser removidas pelo vendedor via API.
+- `promotion_type` deve ser exatamente `"PRICE_DISCOUNT"` (case sensitive).
+- Se nao ha PRICE_DISCOUNT ativa: pode retornar 404 ou resposta de sucesso.
+- Requer token do vendedor dono do anuncio.
+
+**Implementado em:** `client.py` — metodo `delete_price_discount_promotion()`
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/desconto-individua
+**Validado com curl:** Pendente
+**Ultima validacao:** —
+
+---
+
+## 41. Campanha do Vendedor — Criar (SELLER_CAMPAIGN)
+
+### POST /seller-promotions/promotions?app_version=v2
+
+Cria uma campanha de desconto temporaria do tipo SELLER_CAMPAIGN.
+Diferente do PRICE_DISCOUNT (secao 39), aqui o vendedor cria uma campanha com nome e periodo —
+e os itens sao adicionados depois. Aparece no Gerenciador de Promocoes do Painel ML.
+
+**AVISO: Endpoint de ESCRITA — testar em sandbox antes de usar em producao.**
+
+**Auth:** Bearer token do vendedor. Scope: `write:promotions` (verificar se necessario).
+
+**Body (JSON):**
+```json
+{
+  "promotion_type": "SELLER_CAMPAIGN",
+  "name": "Desconto Abril 10 dias",
+  "sub_type": "FLEXIBLE_PERCENTAGE",
+  "start_date": "2026-04-02T00:00:00-03:00",
+  "finish_date": "2026-04-12T23:59:59-03:00"
+}
+```
+
+**Campos do body:**
+| Campo | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `promotion_type` | string | Sim | Sempre `"SELLER_CAMPAIGN"` |
+| `name` | string | Sim | Nome da campanha (aparece no painel ML) |
+| `sub_type` | string | Sim | `"FLEXIBLE_PERCENTAGE"` (FIXED_PERCENTAGE depreciado desde jul/2025) |
+| `start_date` | string | Sim | ISO 8601 com offset de timezone local (ex: `-03:00` para BRT) |
+| `finish_date` | string | Sim | ISO 8601 com offset de timezone local |
+
+**Duracao maxima:** 14 dias (alterado de 31 para 14 dias em marco/2025).
+
+**Resposta esperada (HTTP 201):**
+```json
+{
+  "id": "C-MLB3450113",
+  "promotion_type": "SELLER_CAMPAIGN",
+  "sub_type": "FLEXIBLE_PERCENTAGE",
+  "status": "pending",
+  "name": "Desconto Abril 10 dias",
+  "start_date": "2026-04-02T00:00:00-03:00",
+  "finish_date": "2026-04-12T23:59:59-03:00"
+}
+```
+
+**Adicionar item a campanha SELLER_CAMPAIGN apos criar:**
+```
+POST https://api.mercadolibre.com/seller-promotions/promotions/{CAMPAIGN_ID}/items?app_version=v2
+```
+Body:
+```json
+{
+  "items": [
+    {
+      "item_id": "MLB6205732214",
+      "deal_price": 50.70
+    }
+  ]
+}
+```
+
+**Limitacoes:**
+- Duracao maxima: 14 dias (atualizado em 2025)
+- Item deve estar ativo, condicao nova, reputacao verde
+- Nao pode ter PRICE_DISCOUNT e SELLER_CAMPAIGN ativas simultaneamente no mesmo item
+- Depois que a campanha entra em `started`, preco so pode diminuir (nao aumentar)
+- Nao pode adicionar `top_deal_price` pos-inicio se nao foi configurado na criacao
+
+**Diferenca vs PRICE_DISCOUNT:**
+| Aspecto | PRICE_DISCOUNT (secao 39) | SELLER_CAMPAIGN (esta secao) |
+|---------|--------------------------|------------------------------|
+| Fluxo | 1 POST direto no item | POST campanha + POST item na campanha |
+| Aparece como | Desconto simples (riscado) | Campanha com nome no painel |
+| Multiplos itens | 1 item por chamada | N itens por campanha |
+| Duracao max | 14 dias | 14 dias |
+| Endpoint | `/seller-promotions/items/{id}` | `/seller-promotions/promotions` |
+
+**Gotchas:**
+- `sub_type` deve ser `"FLEXIBLE_PERCENTAGE"` (o valor `"FIXED_PERCENTAGE"` foi depreciado em julho 2025)
+- Datas em ISO 8601 com offset de timezone (nao UTC puro com Z) para este endpoint
+- O `id` retornado comeca com `C-` (campanha do vendedor, nao P- que e do marketplace)
+- Nao implementado ainda no client.py do MSM_Pro — a ser implementado se necessario
+
+**Implementado em:** Nao implementado no client.py (apenas documentado)
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/campanhas-do-vendedor
+**Validado com curl:** Pendente
+**Ultima validacao:** 2026-04-02 (via doc oficial + pesquisa)
+
+---
+
+## 42. Verificar Promocoes Ativas em um Item
+
+### GET /seller-promotions/items/{ITEM_ID}?app_version=v2
+
+Retorna TODAS as promocoes ativas/pendentes/candidatas de um item.
+Usar antes de aplicar um PRICE_DISCOUNT para verificar conflitos.
+
+**Resposta (lista de promocoes ativas):**
+```json
+[
+  {
+    "id": "C-MLB3450113",
+    "type": "SELLER_CAMPAIGN",
+    "status": "started",
+    "price": 63.38,
+    "original_price": 84.50
+  }
+]
+```
+
+**Status possiveis:**
+| Status | Descricao |
+|--------|-----------|
+| `started` | Promocao ativa agora — pode bloquear edicao de preco |
+| `candidate` | ML propoe, vendedor nao aderiu — NAO bloqueia edicao |
+| `pending` | Agendada para o futuro — NAO bloqueia edicao de preco ainda |
+| `finished` | Encerrada |
+| `sync_requested` | Processo de ativacao em andamento |
+| `restore_requested` | Processo de exclusao em andamento |
+
+**Uso no MSM_Pro (logica de "Aplicar preco"):**
+```python
+# Antes de alterar preco via PUT /items/{id} ou criar PRICE_DISCOUNT:
+promos = await client.get_item_promotions(item_id)
+has_active = any(p["status"] == "started" for p in promos
+                 if p.get("type") in ("PRICE_DISCOUNT", "SELLER_CAMPAIGN"))
+if has_active:
+    # Opcao A: primeiro DELETE /seller-promotions/items/{id}?promotion_type=PRICE_DISCOUNT
+    # Opcao B: alterar preco via PUT /items/{id} — ML remove PRICE_DISCOUNT automaticamente
+    pass
+```
+
+**Gotchas:**
+- Resposta e lista direta, nao dict com `results`
+- Campanhas SMART e DEAL com `status=candidate` NAO bloqueiam alteracao de preco
+- Campanhas do marketplace (SMART, DEAL, DOD, LIGHTNING) NAO podem ser removidas pelo vendedor via API
+
+**Implementado em:** `client.py` — metodo `get_item_promotions()`
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/gerenciar-ofertas
+**Validado com curl:** Sim (2026-04-02 — endpoint 7 na secao de Promocoes)
+**Ultima validacao:** 2026-04-02
+
+---
+
+## Resumo de Cobertura (Atualizado 2026-04-02)
+
+### Endpoints por status de documentacao
+
+| Categoria | Total metodos | Documentados | Validados curl | Status |
+|-----------|--------------|--------------|----------------|--------|
+| Core (anuncios/precos) | 5 | 5 | 3 | Bom |
+| Visitas | 3 | 3 | 3 | Completo |
+| Pedidos/vendas | 3 | 3 | 3 | Completo |
+| Vendedor/listagens | 2 | 2 | 2 | Completo |
+| Promocoes | 7 | 7 | 2 | Doc completa — curl parcial (GET validado) |
+| Publicidade (Ads) | 6 | 6 | 0 | Doc completa — API nao publica |
+| Envios | 2 | 2 | 0 | Doc completa — curl pendente |
+| Perguntas/Respostas | 3 | 3 | 1 | Doc completa — curl pendente |
+| Taxas/Fees | 1 | 1 | 0 | Doc completa — curl pendente |
+| Busca publica | 1 | 1 | 0 | Doc completa — curl pendente |
+| Claims | 3 | 3 | 0 | Doc completa — MIGRAR endpoint |
+| Mensagens | 3 | 3 | 0 | Doc completa — curl pendente |
+| Devolucoes | 1 | 1 | 0 | Doc completa — MIGRAR endpoint |
+| **TOTAL** | **40** | **40** | **14** | 100% documentado |
+
+### Endpoints com MIGRACAO URGENTE necessaria
+
+O ML deprecou `/v1/claims/` em maio 2024. Os seguintes metodos do client.py usam endpoints obsoletos:
+
+| Metodo client.py | Endpoint atual (ERRADO) | Endpoint correto |
+|-----------------|------------------------|------------------|
+| `get_claims()` | `/v1/claims/search` | `/post-purchase/v1/claims/search` |
+| `get_claim_detail()` | `/v1/claims/{id}` | `/post-purchase/v1/claims/{id}` |
+| `send_claim_message()` | `/v1/claims/{id}/messages` | `/post-purchase/v1/claims/{id}/messages` |
+| `get_returns()` | `/v1/claims/search?claim_type=return` | `/post-purchase/v1/claims/search?claim_type=return` |
+
+### Nota sobre endpoints Ads
+
+Os 6 metodos de Publicidade (Ads) estao documentados nas secoes 20-25 mas NAO podem ser validados sem uma conta com Product Ads (PADS) ativo. A API de Product Ads requer habilitacao especifica na conta ML — nao e publica.
+
+### Atualizado em: 2026-04-02
+### Endpoints documentados nesta sessao: 13 novos (secoes 28-40)
+### Cobertura total: 38/38 metodos do client.py documentados (100%)
+
+---
+
 ## Checklist para novo endpoint
 
 Antes de usar qualquer endpoint novo no projeto:

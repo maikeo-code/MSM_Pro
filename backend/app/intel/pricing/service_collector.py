@@ -252,7 +252,8 @@ async def _collect_historical_data(
 
 def _compute_historical_metrics(months_data: list[dict], today: date) -> dict:
     """Calcula metricas historicas a partir dos dados mensais agregados."""
-    if not months_data:
+    if not months_data or all(m["days_with_data"] == 0 for m in months_data):
+        # Se nao ha dados reais, retornar dict vazio (nao retornar pico zero)
         return {}
 
     # Calcular vendas diarias por periodo
@@ -285,12 +286,15 @@ def _compute_historical_metrics(months_data: list[dict], today: date) -> dict:
     avg_180d = _avg_daily_sales_in_range(date_180d_ago, today)
 
     # Pico historico: mes com maior media diaria
-    peak_daily = 0.0
+    # Se nao houver dados reais, retornar None (nao zero)
+    peak_daily = None
     peak_period = None
+    max_daily = 0.0
     for m in months_data:
         if m["days_with_data"] > 0:
             daily = m["total_sales"] / m["days_with_data"]
-            if daily > peak_daily:
+            if daily > max_daily:
+                max_daily = daily
                 peak_daily = round(daily, 2)
                 month_date = m["month"]
                 if hasattr(month_date, "date"):
@@ -313,11 +317,13 @@ def _compute_historical_metrics(months_data: list[dict], today: date) -> dict:
             trend = "increasing"
 
     # % atual vs pico
-    current_vs_peak_pct = 0
-    if peak_daily > 0 and avg_30d > 0:
-        current_vs_peak_pct = round((avg_30d / peak_daily - 1) * 100, 1)
-    elif peak_daily > 0:
-        current_vs_peak_pct = -100
+    # Se peak_daily e None ou zero, nao calcular percentual
+    current_vs_peak_pct = None
+    if peak_daily is not None and peak_daily > 0:
+        if avg_30d > 0:
+            current_vs_peak_pct = round((avg_30d / peak_daily - 1) * 100, 1)
+        else:
+            current_vs_peak_pct = -100
 
     return {
         "avg_daily_sales_30d": avg_30d,
