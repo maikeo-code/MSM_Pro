@@ -67,15 +67,6 @@ async def generate_price_recommendations(db: AsyncSession, user_id: UUID) -> int
         listing_id = anuncio["listing_id"]
         periods = anuncio.get("periods", {})
         p_today = periods.get("today", {})
-
-        # DEBUG: Check if breakdown has sales_trend
-        breakdown = rec.get("breakdown", {})
-        if "sales_trend" not in breakdown and breakdown:
-            logger.warning(
-                "DEBUG: MLB %s breakdown missing sales_trend. Keys: %s",
-                anuncio.get("mlb_id"),
-                list(breakdown.keys()),
-            )
         p_7d = periods.get("last_7d", {})
 
         # Check for existing recommendation (unique constraint)
