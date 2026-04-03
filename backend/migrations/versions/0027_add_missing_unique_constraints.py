@@ -1,6 +1,6 @@
 """Add missing unique constraints to competitors and ml_accounts
 
-Revision ID: 0027_add_missing_unique_constraints
+Revision ID: 0027_unique_constraints
 Revises: 0026_create_questions
 Create Date: 2026-04-02 12:00:00.000000
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "0027_add_missing_unique_constraints"
+revision = "0027_unique_constraints"
 down_revision = "0026_create_questions"
 branch_labels = None
 depends_on = None
