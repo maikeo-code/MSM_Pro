@@ -46,7 +46,10 @@ def _rec_to_out(rec: PriceRecommendation, listing: Listing, product_sku: str | N
     # Prioridade SKU: listing.seller_sku > product.sku (via product_id)
     sku = listing.seller_sku or product_sku
     # Extract conversion_index from score_breakdown JSON (stored together)
+    # BUG 4: Criar copia para nao mutar dict do ORM
     raw_breakdown = rec.score_breakdown or {}
+    if isinstance(raw_breakdown, dict):
+        raw_breakdown = {**raw_breakdown}  # shallow copy
     ci_raw = raw_breakdown.pop("conversion_index", None) if isinstance(raw_breakdown, dict) else None
 
     # has_active_promotion: buscar do listing snapshot mais recente ou null se não disponível
@@ -165,6 +168,7 @@ async def _enrich_with_periods(
                 "sales": sales,
                 "conversion": conversion,
                 "avg_price": 0.0,
+                "revenue": 0.0,  # BUG 2: field missing, default to 0.0
             }
         return out
 
@@ -180,7 +184,7 @@ async def _enrich_with_periods(
     p_15d = await _aggregate(date_15d_ago, today)
     p_30d = await _aggregate(date_30d_ago, today)
 
-    empty = {"visits": 0, "sales": 0, "conversion": 0.0, "avg_price": 0.0}
+    empty = {"visits": 0, "sales": 0, "conversion": 0.0, "avg_price": 0.0, "revenue": 0.0}
 
     for item in items:
         lid = item["listing_id"]

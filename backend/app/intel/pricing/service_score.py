@@ -189,6 +189,21 @@ def calculate_recommendation_score(
         action = "hold"
         pct = 0.0
 
+    # BUG 3: Se nao tem vendas em 7 dias, evitar aumentar preco
+    sales_7d = anuncio["periods"]["last_7d"]["sales"]
+    visits_7d = anuncio["periods"]["last_7d"]["visits"]
+    if sales_7d == 0:
+        if visits_7d > 0:
+            # Tem visitas mas zero vendas = problema de conversao, nao de preco
+            # Diminuir pode ajudar, mas aumentar piora
+            if action == "increase":
+                action = "hold"
+                pct = 0.0
+        else:
+            # Zero visitas e zero vendas = sem dados, manter
+            action = "hold"
+            pct = 0.0
+
     # REGRA: Se media atual < 50% do pico historico, NAO recomendar aumento
     if historical and historical.get("peak_daily_sales") is not None:
         current_vs_peak = historical.get("current_vs_peak_pct")

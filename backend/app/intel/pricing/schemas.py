@@ -14,6 +14,7 @@ class ScoreBreakdown(BaseModel):
     comp_score: float
     stock_score: float
     margem_score: float
+    sales_trend: float  # BUG 1: campo ausente mas calculado no service_score.py (peso 15%)
     hist_score: Optional[float] = None
 
 
