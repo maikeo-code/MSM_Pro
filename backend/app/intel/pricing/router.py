@@ -319,6 +319,7 @@ async def apply_recommendation(
     recommendation_id: Annotated[UUID, Path(description="UUID da recomendacao")],
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    ml_account_id: UUID | None = Query(default=None, description="ID da conta ML (opcional para multi-conta)"),
 ) -> ApplyRecommendationResponse:
     """
     Aplica o preco sugerido de uma recomendacao na API do Mercado Livre.

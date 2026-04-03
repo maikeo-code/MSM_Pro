@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   TrendingUp,
@@ -16,10 +15,10 @@ import {
   Check,
   X,
   Target,
-  BarChart3,
   Loader2,
   Tag,
   Activity,
+  Sliders,
 } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import {
@@ -65,7 +64,7 @@ function Sparkline({
   );
 }
 
-// ─── Confidence Badge ──────────────────────────────────────────────────────────
+// ─── Confidence Badge ──────────────────────────────────────────────────────
 function ConfidenceBadge({ confidence }: { confidence: "high" | "medium" | "low" }) {
   const styles = {
     high: "bg-green-100 text-green-700",
@@ -126,7 +125,7 @@ function HealthScoreBar({ score }: { score: number | null }) {
   );
 }
 
-// ─── Conversion Trend Badge ────────────────────────────────────────────────────
+// ─── Conversion Trend Badge ────────────────────────────────────────────────
 function ConversionTrendBadge({
   convIndex,
   convYesterday,
@@ -165,7 +164,7 @@ function ConversionTrendBadge({
   );
 }
 
-// ─── Price Change Display ──────────────────────────────────────────────────────
+// ─── Price Change Display ──────────────────────────────────────────────────
 function PriceChange({
   current,
   suggested,
@@ -203,7 +202,7 @@ function PriceChange({
   );
 }
 
-// ─── Skeleton Card ─────────────────────────────────────────────────────────────
+// ─── Skeleton Card ─────────────────────────────────────────────────────────
 function SkeletonCard() {
   return (
     <div className="rounded-lg border bg-card shadow-sm p-5 animate-pulse">
@@ -224,7 +223,7 @@ function SkeletonCard() {
   );
 }
 
-// ─── Apply Confirmation Modal ──────────────────────────────────────────────────
+// ─── Apply Confirmation Modal ──────────────────────────────────────────────
 function ApplyModal({
   rec,
   onConfirm,
@@ -236,6 +235,13 @@ function ApplyModal({
   onCancel: () => void;
   isLoading: boolean;
 }) {
+  const isDecrease = rec.suggested_price < rec.current_price;
+  const discount = isDecrease
+    ? ((rec.current_price - rec.suggested_price) / rec.current_price) * 100
+    : 0;
+  const promoEndDate = new Date();
+  promoEndDate.setDate(promoEndDate.getDate() + 14);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-card rounded-lg border shadow-lg max-w-md w-full mx-4 p-6">
@@ -256,44 +262,95 @@ function ApplyModal({
             </div>
           </div>
 
-          <div className="rounded-md bg-muted/50 p-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Preco atual:</span>
-              <span className="font-medium">{formatCurrency(rec.current_price)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Preco sugerido:</span>
-              <span className="font-bold text-foreground">{formatCurrency(rec.suggested_price)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Variacao:</span>
-              <span
-                className={cn(
-                  "font-medium",
-                  rec.action === "increase" ? "text-green-600" : rec.action === "decrease" ? "text-red-600" : "",
-                )}
-              >
-                {rec.price_change_pct > 0 ? "+" : ""}
-                {rec.price_change_pct.toFixed(1)}%
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Confianca:</span>
-              <ConfidenceBadge confidence={rec.confidence} />
-            </div>
-          </div>
+          {isDecrease ? (
+            <>
+              {/* Modo DESCONTO (< atual) */}
+              <div className="rounded-md bg-red-50 border border-red-200 p-4 space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-red-700 uppercase tracking-wide mb-2">Preco Atual</p>
+                  <p className="text-lg font-bold text-foreground">{formatCurrency(rec.current_price)}</p>
+                </div>
 
-          <p className="text-xs text-muted-foreground italic">{rec.reasoning}</p>
+                <div className="flex items-center justify-center">
+                  <TrendingDown className="h-5 w-5 text-red-600 mx-2" />
+                </div>
 
-          {/* Promotion warning */}
-          {rec.has_active_promotion && (
-            <div className="flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
-              <Tag className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
-              <span>
-                <strong>Promocao ativa</strong> — alterar o preco pode desativar a promocao vigente neste anuncio.
-              </span>
-            </div>
+                <div>
+                  <p className="text-xs font-semibold text-red-700 uppercase tracking-wide mb-2">
+                    Novo Preco (Promocao)
+                  </p>
+                  <p className="text-2xl font-bold text-red-600">{formatCurrency(rec.suggested_price)}</p>
+                </div>
+
+                <div className="bg-white/60 rounded p-2.5 text-center border border-red-100">
+                  <p className="text-sm font-bold text-red-600">{discount.toFixed(0)}% OFF</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Selo que aparecera no ML</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Prazo:</strong> 14 dias (ate {promoEndDate.toLocaleDateString("pt-BR")})
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Tipo:</strong> Promocao de desconto do vendedor
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground italic bg-blue-50 border border-blue-100 rounded p-2.5">
+                "{rec.reasoning}"
+              </p>
+
+              {rec.has_active_promotion && (
+                <div className="flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+                  <span>
+                    <strong>Promocao ativa</strong> — a promocao vigente sera substituida por esta nova desconto.
+                  </span>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Modo AUMENTO (> atual) */}
+              <div className="rounded-md bg-green-50 border border-green-200 p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Preco atual:</span>
+                  <span className="font-medium">{formatCurrency(rec.current_price)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Preco sugerido:</span>
+                  <span className="font-bold text-green-600">{formatCurrency(rec.suggested_price)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Variacao:</span>
+                  <span className="font-medium text-green-600">
+                    +{rec.price_change_pct.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 rounded-md bg-orange-50 border border-orange-200 p-3">
+                <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-orange-600" />
+                <div className="text-sm text-orange-800">
+                  <p className="font-semibold mb-1">Nao e possivel aumentar o preco via API</p>
+                  <p className="text-xs mb-2">
+                    Quando ha uma promocao ativa, o ML nao permite alterar o preco base via API.
+                  </p>
+                  <p className="text-xs font-medium">
+                    Acesse o <strong>Seller Center</strong> do Mercado Livre para ajustar o preco base manualmente.
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground italic">{rec.reasoning}</p>
+            </>
           )}
+
+          <div className="flex justify-between text-sm bg-muted/30 rounded p-2">
+            <span className="text-muted-foreground">Confianca:</span>
+            <ConfidenceBadge confidence={rec.confidence} />
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-3">
@@ -306,7 +363,7 @@ function ApplyModal({
           </button>
           <button
             onClick={onConfirm}
-            disabled={isLoading}
+            disabled={isLoading || !isDecrease}
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
           >
             {isLoading ? (
@@ -314,10 +371,15 @@ function ApplyModal({
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Aplicando...
               </>
+            ) : !isDecrease ? (
+              <>
+                <X className="h-4 w-4" />
+                Nao pode aumentar via API
+              </>
             ) : (
               <>
                 <Check className="h-4 w-4" />
-                Confirmar
+                Confirmar Desconto
               </>
             )}
           </button>
@@ -327,7 +389,139 @@ function ApplyModal({
   );
 }
 
-// ─── Recommendation Card ───────────────────────────────────────────────────────
+// ─── Simulation Modal ──────────────────────────────────────────────────────────
+function SimulateModal({
+  rec,
+  onClose,
+  onApply,
+}: {
+  rec: PriceRecommendation;
+  onClose: () => void;
+  onApply: (newPrice: number) => void;
+}) {
+  const [simulatedPrice, setSimulatedPrice] = useState(rec.suggested_price);
+
+  const discount = ((rec.current_price - simulatedPrice) / rec.current_price) * 100;
+  const isDiscount = simulatedPrice < rec.current_price;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-card rounded-lg border shadow-lg max-w-md w-full mx-4 p-6">
+        <h3 className="text-lg font-bold text-foreground mb-4">Simular Alteracao de Preco</h3>
+
+        <div className="space-y-4 mb-6">
+          <div className="flex items-center gap-3">
+            {rec.thumbnail ? (
+              <img src={rec.thumbnail} alt={rec.title} className="h-10 w-10 rounded object-cover border" />
+            ) : (
+              <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
+                <Package className="h-4 w-4 text-muted-foreground/50" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-foreground line-clamp-1">{rec.title}</p>
+              <p className="text-xs text-muted-foreground font-mono">{rec.mlb_id}</p>
+            </div>
+          </div>
+
+          {/* Slider de preco */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Preco
+              </label>
+              <span className="text-sm font-bold text-foreground">{formatCurrency(simulatedPrice)}</span>
+            </div>
+            <input
+              type="range"
+              min={rec.current_price * 0.7}
+              max={rec.current_price * 1.3}
+              step={0.1}
+              value={simulatedPrice}
+              onChange={(e) => setSimulatedPrice(parseFloat(e.target.value))}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{formatCurrency(rec.current_price * 0.7)}</span>
+              <span className="font-medium text-foreground">{formatCurrency(rec.current_price)}</span>
+              <span>{formatCurrency(rec.current_price * 1.3)}</span>
+            </div>
+          </div>
+
+          {/* Campo de preco (edicao manual) */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Ou digitar preco
+            </label>
+            <input
+              type="number"
+              value={simulatedPrice}
+              onChange={(e) => setSimulatedPrice(parseFloat(e.target.value) || 0)}
+              step="0.01"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          {/* Comparacao */}
+          <div className="rounded-md bg-muted/40 border p-3 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Preco base:</span>
+              <span className="font-medium">{formatCurrency(rec.current_price)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Novo preco:</span>
+              <span className={cn("font-bold", isDiscount ? "text-red-600" : "text-green-600")}>
+                {formatCurrency(simulatedPrice)}
+              </span>
+            </div>
+          </div>
+
+          {/* Desconto */}
+          {isDiscount && (
+            <div className="rounded-md bg-red-50 border border-red-200 p-3 space-y-1">
+              <div className="flex justify-between">
+                <span className="text-sm font-semibold text-red-700">Desconto:</span>
+                <span className="text-lg font-bold text-red-600">{discount.toFixed(1)}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-xs text-red-600">Selo:</span>
+                <span className="text-xs font-bold text-red-600">{discount.toFixed(0)}% OFF</span>
+              </div>
+            </div>
+          )}
+
+          {!isDiscount && simulatedPrice > rec.current_price && (
+            <div className="rounded-md bg-green-50 border border-green-200 p-3">
+              <p className="text-sm font-semibold text-green-700">Aumento: +{((simulatedPrice - rec.current_price) / rec.current_price * 100).toFixed(1)}%</p>
+              <p className="text-xs text-green-600 mt-1">Nota: aumentos nao podem ser aplicados via API se houver promocao ativa.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="inline-flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+          >
+            Fechar
+          </button>
+          <button
+            onClick={() => {
+              onApply(simulatedPrice);
+              onClose();
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Check className="h-4 w-4" />
+            Aplicar este Preco
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Recommendation Card ───────────────────────────────────────────────────
 function RecommendationCard({
   rec,
   onApply,
@@ -338,6 +532,7 @@ function RecommendationCard({
   onDismiss: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [showSimulate, setShowSimulate] = useState(false);
 
   const borderColor =
     rec.action === "increase"
@@ -347,370 +542,384 @@ function RecommendationCard({
         : "border-l-4 border-l-gray-400 bg-gray-50/50";
 
   return (
-    <div className={cn("rounded-lg border bg-card shadow-sm hover:shadow-md transition-shadow p-5", borderColor)}>
-      {/* Header: Thumbnail + Info + Price */}
-      <div className="flex items-start gap-4">
-        {/* Thumbnail */}
-        {rec.thumbnail ? (
-          <img src={rec.thumbnail} alt={rec.title} className="h-12 w-12 rounded object-cover shrink-0 border" />
-        ) : (
-          <div className="h-12 w-12 rounded bg-muted flex items-center justify-center shrink-0">
-            <Package className="h-5 w-5 text-muted-foreground/50" />
-          </div>
-        )}
+    <>
+      <div className={cn("rounded-lg border bg-card shadow-sm hover:shadow-md transition-shadow p-5", borderColor)}>
+        {/* Header: Thumbnail + Info + Price */}
+        <div className="flex items-start gap-4">
+          {/* Thumbnail */}
+          {rec.thumbnail ? (
+            <img src={rec.thumbnail} alt={rec.title} className="h-12 w-12 rounded object-cover shrink-0 border" />
+          ) : (
+            <div className="h-12 w-12 rounded bg-muted flex items-center justify-center shrink-0">
+              <Package className="h-5 w-5 text-muted-foreground/50" />
+            </div>
+          )}
 
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            {rec.sku && (
-              <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-xs font-medium">
-                SKU: {rec.sku}
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              {rec.sku && (
+                <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-xs font-medium">
+                  SKU: {rec.sku}
+                </span>
+              )}
+              <span className="text-xs text-muted-foreground font-mono">{rec.mlb_id}</span>
+            </div>
+            <p className="text-sm font-medium text-foreground line-clamp-2 leading-tight">{rec.title}</p>
+
+            {/* Price change */}
+            <div className="mt-2">
+              <PriceChange
+                current={rec.current_price}
+                suggested={rec.suggested_price}
+                pct={rec.price_change_pct}
+                action={rec.action}
+              />
+            </div>
+          </div>
+
+          {/* Badges column */}
+          <div className="flex flex-col gap-1.5 items-end shrink-0">
+            <ConfidenceBadge confidence={rec.confidence} />
+            <RiskBadge risk={rec.risk_level} />
+            <UrgencyBadge urgency={rec.urgency} />
+            {rec.has_active_promotion && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 text-xs font-medium">
+                <Tag className="h-3 w-3" />
+                Promo ativa
               </span>
             )}
-            <span className="text-xs text-muted-foreground font-mono">{rec.mlb_id}</span>
           </div>
-          <p className="text-sm font-medium text-foreground line-clamp-2 leading-tight">{rec.title}</p>
+        </div>
 
-          {/* Price change */}
-          <div className="mt-2">
-            <PriceChange
-              current={rec.current_price}
-              suggested={rec.suggested_price}
-              pct={rec.price_change_pct}
-              action={rec.action}
+        {/* Mini Metrics — Conversion Badge + Periods Table */}
+        <div className="mt-4 space-y-3">
+          {/* Conversion Trend Badge — principal indice */}
+          {rec.periods_data && (
+            <ConversionTrendBadge
+              convIndex={rec.conversion_index}
+              convYesterday={rec.periods_data.yesterday?.conversion ?? 0}
+              conv7d={rec.periods_data.last_7d?.conversion ?? 0}
             />
-          </div>
-        </div>
-
-        {/* Badges column */}
-        <div className="flex flex-col gap-1.5 items-end shrink-0">
-          <ConfidenceBadge confidence={rec.confidence} />
-          <RiskBadge risk={rec.risk_level} />
-          <UrgencyBadge urgency={rec.urgency} />
-          {rec.has_active_promotion && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 text-xs font-medium">
-              <Tag className="h-3 w-3" />
-              Promo ativa
-            </span>
           )}
+
+          {/* Periods comparison table — dias individuais + blocos agregados + sparklines */}
+          {rec.periods_data && (() => {
+            const p = rec.periods_data;
+            // Dias individuais do mais antigo ao mais recente (D-6 → Ontem) para sparkline
+            const dailyPeriods = [p.d6, p.d5, p.d4, p.d3, p.day_before, p.yesterday];
+            const convSpark = dailyPeriods.map(d => d?.conversion ?? 0);
+            const visitsSpark = dailyPeriods.map(d => d?.visits ?? 0);
+            const salesSpark = dailyPeriods.map(d => d?.sales ?? 0);
+
+            const thCls = "text-center px-1.5 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium whitespace-nowrap";
+            const tdCls = "text-center px-1.5 py-1.5 font-semibold whitespace-nowrap";
+            const fmtN = (v: number | undefined | null) => v != null ? v.toLocaleString("pt-BR") : "--";
+            const fmtPct = (v: number | undefined | null) => v != null ? `${v.toFixed(1)}%` : "--";
+            const fmtAgg = (total: number | undefined | null, days: number) => {
+              if (total == null) return "--";
+              return <>{total.toLocaleString("pt-BR")} <span className="text-[9px] text-muted-foreground font-normal">(~{(total / days).toFixed(1)}/d)</span></>;
+            };
+
+            return (
+              <div className="rounded-md border overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-muted/60">
+                      <th className="text-left px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Metrica</th>
+                      {/* Dias individuais */}
+                      <th className={thCls}>D-6</th>
+                      <th className={thCls}>D-5</th>
+                      <th className={thCls}>D-4</th>
+                      <th className={thCls}>D-3</th>
+                      <th className={thCls}>Anteontem</th>
+                      <th className={cn(thCls, "font-bold text-foreground")}>Ontem</th>
+                      {/* Separador visual */}
+                      <th className="w-px bg-border"></th>
+                      {/* Blocos agregados */}
+                      <th className={cn(thCls, "bg-muted/80")}>7d</th>
+                      <th className={cn(thCls, "bg-muted/80")}>15d</th>
+                      <th className={cn(thCls, "bg-muted/80")}>30d</th>
+                      {/* Sparkline */}
+                      <th className="w-px bg-border"></th>
+                      <th className={cn(thCls, "text-center")}><Activity className="h-3 w-3 mx-auto" /></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Conversão */}
+                    <tr className="border-t bg-blue-50/30">
+                      <td className="px-2 py-1.5 text-muted-foreground font-bold whitespace-nowrap">Conversao</td>
+                      <td className={tdCls}>{fmtPct(p.d6?.conversion)}</td>
+                      <td className={tdCls}>{fmtPct(p.d5?.conversion)}</td>
+                      <td className={tdCls}>{fmtPct(p.d4?.conversion)}</td>
+                      <td className={tdCls}>{fmtPct(p.d3?.conversion)}</td>
+                      <td className={tdCls}>{fmtPct(p.day_before?.conversion)}</td>
+                      <td className={cn(tdCls, "font-bold")}>{fmtPct(p.yesterday?.conversion)}</td>
+                      <td className="w-px bg-border"></td>
+                      <td className={cn(tdCls, "bg-muted/30")}>{fmtPct(p.last_7d?.conversion)}</td>
+                      <td className={cn(tdCls, "bg-muted/30")}>{fmtPct(p.last_15d?.conversion)}</td>
+                      <td className={cn(tdCls, "bg-muted/30")}>{fmtPct(p.last_30d?.conversion)}</td>
+                      <td className="w-px bg-border"></td>
+                      <td className="text-center px-1.5 py-1"><Sparkline data={convSpark} color="#3b82f6" /></td>
+                    </tr>
+                    {/* Visitas */}
+                    <tr className="border-t">
+                      <td className="px-2 py-1.5 text-muted-foreground font-medium flex items-center gap-1 whitespace-nowrap"><Eye className="h-3 w-3" />Visitas</td>
+                      <td className={tdCls}>{fmtN(p.d6?.visits)}</td>
+                      <td className={tdCls}>{fmtN(p.d5?.visits)}</td>
+                      <td className={tdCls}>{fmtN(p.d4?.visits)}</td>
+                      <td className={tdCls}>{fmtN(p.d3?.visits)}</td>
+                      <td className={tdCls}>{fmtN(p.day_before?.visits)}</td>
+                      <td className={cn(tdCls, "font-bold")}>{fmtN(p.yesterday?.visits)}</td>
+                      <td className="w-px bg-border"></td>
+                      <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_7d?.visits, 7)}</td>
+                      <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_15d?.visits, 15)}</td>
+                      <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_30d?.visits, 30)}</td>
+                      <td className="w-px bg-border"></td>
+                      <td className="text-center px-1.5 py-1"><Sparkline data={visitsSpark} color="#22c55e" /></td>
+                    </tr>
+                    {/* Vendas */}
+                    <tr className="border-t">
+                      <td className="px-2 py-1.5 text-muted-foreground font-medium flex items-center gap-1 whitespace-nowrap"><ShoppingCart className="h-3 w-3" />Vendas</td>
+                      <td className={tdCls}>{fmtN(p.d6?.sales)}</td>
+                      <td className={tdCls}>{fmtN(p.d5?.sales)}</td>
+                      <td className={tdCls}>{fmtN(p.d4?.sales)}</td>
+                      <td className={tdCls}>{fmtN(p.d3?.sales)}</td>
+                      <td className={tdCls}>{fmtN(p.day_before?.sales)}</td>
+                      <td className={cn(tdCls, "font-bold")}>{fmtN(p.yesterday?.sales)}</td>
+                      <td className="w-px bg-border"></td>
+                      <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_7d?.sales, 7)}</td>
+                      <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_15d?.sales, 15)}</td>
+                      <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_30d?.sales, 30)}</td>
+                      <td className="w-px bg-border"></td>
+                      <td className="text-center px-1.5 py-1"><Sparkline data={salesSpark} color="#f97316" /></td>
+                    </tr>
+                  </tbody>
+                </table>
+                {/* Tempo real (hoje) — separado, nao comparacao */}
+                {p.today && (p.today.visits > 0 || p.today.sales > 0) && (
+                  <div className="px-3 py-1.5 bg-muted/30 border-t text-[10px] text-muted-foreground">
+                    Tempo real (hoje): {p.today.visits} visitas, {p.today.sales} vendas
+                    {p.today.conversion > 0 && ` (${p.today.conversion.toFixed(1)}% conv.)`}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Sparklines Summary (visual representation abaixo da tabela) */}
+          {rec.periods_data && (() => {
+            const p = rec.periods_data;
+            const dailyPeriods = [p.d6, p.d5, p.d4, p.d3, p.day_before, p.yesterday];
+            const convSpark = dailyPeriods.map(d => d?.conversion ?? 0);
+            const visitsSpark = dailyPeriods.map(d => d?.visits ?? 0);
+            const salesSpark = dailyPeriods.map(d => d?.sales ?? 0);
+
+            return (
+              <div className="mt-4 grid grid-cols-3 gap-4">
+                {/* Conversao */}
+                <div className="rounded-md bg-blue-50/40 border border-blue-100 p-3">
+                  <p className="text-xs font-semibold text-blue-700 mb-2">Conversão (%)</p>
+                  <div className="h-12">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={convSpark.map((v, i) => ({ v, i }))}>
+                        <Line
+                          type="monotone"
+                          dataKey="v"
+                          stroke="#3b82f6"
+                          strokeWidth={2}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-xs text-blue-600 mt-2 font-medium">
+                    {p.yesterday?.conversion != null ? `${p.yesterday.conversion.toFixed(1)}%` : "--"} ontem
+                  </p>
+                </div>
+
+                {/* Visitas */}
+                <div className="rounded-md bg-green-50/40 border border-green-100 p-3">
+                  <p className="text-xs font-semibold text-green-700 mb-2">Visitas</p>
+                  <div className="h-12">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={visitsSpark.map((v, i) => ({ v, i }))}>
+                        <Line
+                          type="monotone"
+                          dataKey="v"
+                          stroke="#22c55e"
+                          strokeWidth={2}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-xs text-green-600 mt-2 font-medium">
+                    {p.yesterday?.visits != null ? p.yesterday.visits.toLocaleString("pt-BR") : "--"} ontem
+                  </p>
+                </div>
+
+                {/* Vendas */}
+                <div className="rounded-md bg-orange-50/40 border border-orange-100 p-3">
+                  <p className="text-xs font-semibold text-orange-700 mb-2">Vendas</p>
+                  <div className="h-12">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={salesSpark.map((v, i) => ({ v, i }))}>
+                        <Line
+                          type="monotone"
+                          dataKey="v"
+                          stroke="#f97316"
+                          strokeWidth={2}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-xs text-orange-600 mt-2 font-medium">
+                    {p.yesterday?.sales != null ? p.yesterday.sales : "--"} ontem
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Fallback: old-style metrics when periods_data not available */}
+          {!rec.periods_data && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="rounded-md bg-muted/50 px-3 py-2">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Conversao 7d</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {rec.conversion_7d != null ? `${rec.conversion_7d.toFixed(1)}%` : "--"}
+                </p>
+              </div>
+              <div className="rounded-md bg-muted/50 px-3 py-2">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Visitas 7d</p>
+                <p className="text-sm font-semibold text-foreground flex items-center gap-1">
+                  <Eye className="h-3 w-3 text-muted-foreground/50" />
+                  {rec.visits_7d != null ? rec.visits_7d.toLocaleString("pt-BR") : "--"}
+                </p>
+              </div>
+              <div className="rounded-md bg-muted/50 px-3 py-2">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Vendas 7d</p>
+                <p className="text-sm font-semibold text-foreground flex items-center gap-1">
+                  <ShoppingCart className="h-3 w-3 text-muted-foreground/50" />
+                  {rec.sales_7d != null ? rec.sales_7d : "--"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Stock + Health row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-md bg-muted/50 px-3 py-2">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Estoque</p>
+              <p
+                className={cn(
+                  "text-sm font-semibold",
+                  rec.stock != null && rec.stock < 10 ? "text-red-600" : "text-foreground",
+                )}
+              >
+                {rec.stock != null ? rec.stock : "--"}
+                {rec.stock_days_projection != null && (
+                  <span className="text-[10px] text-muted-foreground ml-1">({rec.stock_days_projection}d)</span>
+                )}
+              </p>
+            </div>
+            <div className="rounded-md bg-muted/50 px-3 py-2">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Health Score</p>
+              <HealthScoreBar score={rec.health_score} />
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Mini Metrics — Conversion Badge + Periods Table */}
-      <div className="mt-4 space-y-3">
-        {/* Conversion Trend Badge — principal indice */}
-        {rec.periods_data && (
-          <ConversionTrendBadge
-            convIndex={rec.conversion_index}
-            convYesterday={rec.periods_data.yesterday?.conversion ?? 0}
-            conv7d={rec.periods_data.last_7d?.conversion ?? 0}
-          />
-        )}
-
-        {/* Periods comparison table — dias individuais + blocos agregados + sparklines */}
-        {rec.periods_data && (() => {
-          const p = rec.periods_data;
-          // Dias individuais do mais antigo ao mais recente (D-6 → Ontem) para sparkline
-          const dailyPeriods = [p.d6, p.d5, p.d4, p.d3, p.day_before, p.yesterday];
-          const convSpark = dailyPeriods.map(d => d?.conversion ?? 0);
-          const visitsSpark = dailyPeriods.map(d => d?.visits ?? 0);
-          const salesSpark = dailyPeriods.map(d => d?.sales ?? 0);
-
-          const thCls = "text-center px-1.5 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium whitespace-nowrap";
-          const tdCls = "text-center px-1.5 py-1.5 font-semibold whitespace-nowrap";
-          const fmtN = (v: number | undefined | null) => v != null ? v.toLocaleString("pt-BR") : "--";
-          const fmtPct = (v: number | undefined | null) => v != null ? `${v.toFixed(1)}%` : "--";
-          const fmtAgg = (total: number | undefined | null, days: number) => {
-            if (total == null) return "--";
-            return <>{total.toLocaleString("pt-BR")} <span className="text-[9px] text-muted-foreground font-normal">(~{(total / days).toFixed(1)}/d)</span></>;
-          };
-
-          return (
-            <div className="rounded-md border overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-muted/60">
-                    <th className="text-left px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Metrica</th>
-                    {/* Dias individuais */}
-                    <th className={thCls}>D-6</th>
-                    <th className={thCls}>D-5</th>
-                    <th className={thCls}>D-4</th>
-                    <th className={thCls}>D-3</th>
-                    <th className={thCls}>Anteontem</th>
-                    <th className={cn(thCls, "font-bold text-foreground")}>Ontem</th>
-                    {/* Separador visual */}
-                    <th className="w-px bg-border"></th>
-                    {/* Blocos agregados */}
-                    <th className={cn(thCls, "bg-muted/80")}>7d</th>
-                    <th className={cn(thCls, "bg-muted/80")}>15d</th>
-                    <th className={cn(thCls, "bg-muted/80")}>30d</th>
-                    {/* Sparkline */}
-                    <th className="w-px bg-border"></th>
-                    <th className={cn(thCls, "text-center")}><Activity className="h-3 w-3 mx-auto" /></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Conversão */}
-                  <tr className="border-t bg-blue-50/30">
-                    <td className="px-2 py-1.5 text-muted-foreground font-bold whitespace-nowrap">Conversao</td>
-                    <td className={tdCls}>{fmtPct(p.d6?.conversion)}</td>
-                    <td className={tdCls}>{fmtPct(p.d5?.conversion)}</td>
-                    <td className={tdCls}>{fmtPct(p.d4?.conversion)}</td>
-                    <td className={tdCls}>{fmtPct(p.d3?.conversion)}</td>
-                    <td className={tdCls}>{fmtPct(p.day_before?.conversion)}</td>
-                    <td className={cn(tdCls, "font-bold")}>{fmtPct(p.yesterday?.conversion)}</td>
-                    <td className="w-px bg-border"></td>
-                    <td className={cn(tdCls, "bg-muted/30")}>{fmtPct(p.last_7d?.conversion)}</td>
-                    <td className={cn(tdCls, "bg-muted/30")}>{fmtPct(p.last_15d?.conversion)}</td>
-                    <td className={cn(tdCls, "bg-muted/30")}>{fmtPct(p.last_30d?.conversion)}</td>
-                    <td className="w-px bg-border"></td>
-                    <td className="text-center px-1.5 py-1"><Sparkline data={convSpark} color="#3b82f6" /></td>
-                  </tr>
-                  {/* Visitas */}
-                  <tr className="border-t">
-                    <td className="px-2 py-1.5 text-muted-foreground font-medium flex items-center gap-1 whitespace-nowrap"><Eye className="h-3 w-3" />Visitas</td>
-                    <td className={tdCls}>{fmtN(p.d6?.visits)}</td>
-                    <td className={tdCls}>{fmtN(p.d5?.visits)}</td>
-                    <td className={tdCls}>{fmtN(p.d4?.visits)}</td>
-                    <td className={tdCls}>{fmtN(p.d3?.visits)}</td>
-                    <td className={tdCls}>{fmtN(p.day_before?.visits)}</td>
-                    <td className={cn(tdCls, "font-bold")}>{fmtN(p.yesterday?.visits)}</td>
-                    <td className="w-px bg-border"></td>
-                    <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_7d?.visits, 7)}</td>
-                    <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_15d?.visits, 15)}</td>
-                    <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_30d?.visits, 30)}</td>
-                    <td className="w-px bg-border"></td>
-                    <td className="text-center px-1.5 py-1"><Sparkline data={visitsSpark} color="#22c55e" /></td>
-                  </tr>
-                  {/* Vendas */}
-                  <tr className="border-t">
-                    <td className="px-2 py-1.5 text-muted-foreground font-medium flex items-center gap-1 whitespace-nowrap"><ShoppingCart className="h-3 w-3" />Vendas</td>
-                    <td className={tdCls}>{fmtN(p.d6?.sales)}</td>
-                    <td className={tdCls}>{fmtN(p.d5?.sales)}</td>
-                    <td className={tdCls}>{fmtN(p.d4?.sales)}</td>
-                    <td className={tdCls}>{fmtN(p.d3?.sales)}</td>
-                    <td className={tdCls}>{fmtN(p.day_before?.sales)}</td>
-                    <td className={cn(tdCls, "font-bold")}>{fmtN(p.yesterday?.sales)}</td>
-                    <td className="w-px bg-border"></td>
-                    <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_7d?.sales, 7)}</td>
-                    <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_15d?.sales, 15)}</td>
-                    <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_30d?.sales, 30)}</td>
-                    <td className="w-px bg-border"></td>
-                    <td className="text-center px-1.5 py-1"><Sparkline data={salesSpark} color="#f97316" /></td>
-                  </tr>
-                </tbody>
-              </table>
-              {/* Tempo real (hoje) — separado, nao comparacao */}
-              {p.today && (p.today.visits > 0 || p.today.sales > 0) && (
-                <div className="px-3 py-1.5 bg-muted/30 border-t text-[10px] text-muted-foreground">
-                  Tempo real (hoje): {p.today.visits} visitas, {p.today.sales} vendas
-                  {p.today.conversion > 0 && ` (${p.today.conversion.toFixed(1)}% conv.)`}
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
-        {/* Sparklines Summary (visual representation abaixo da tabela) */}
-        {rec.periods_data && (() => {
-          const p = rec.periods_data;
-          const dailyPeriods = [p.d6, p.d5, p.d4, p.d3, p.day_before, p.yesterday];
-          const convSpark = dailyPeriods.map(d => d?.conversion ?? 0);
-          const visitsSpark = dailyPeriods.map(d => d?.visits ?? 0);
-          const salesSpark = dailyPeriods.map(d => d?.sales ?? 0);
-
-          return (
-            <div className="mt-4 grid grid-cols-3 gap-4">
-              {/* Conversao */}
-              <div className="rounded-md bg-blue-50/40 border border-blue-100 p-3">
-                <p className="text-xs font-semibold text-blue-700 mb-2">Conversão (%)</p>
-                <div className="h-12">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={convSpark.map((v, i) => ({ v, i }))}>
-                      <Line
-                        type="monotone"
-                        dataKey="v"
-                        stroke="#3b82f6"
-                        strokeWidth={2}
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                <p className="text-xs text-blue-600 mt-2 font-medium">
-                  {p.yesterday?.conversion != null ? `${p.yesterday.conversion.toFixed(1)}%` : "--"} ontem
-                </p>
-              </div>
-
-              {/* Visitas */}
-              <div className="rounded-md bg-green-50/40 border border-green-100 p-3">
-                <p className="text-xs font-semibold text-green-700 mb-2">Visitas</p>
-                <div className="h-12">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={visitsSpark.map((v, i) => ({ v, i }))}>
-                      <Line
-                        type="monotone"
-                        dataKey="v"
-                        stroke="#22c55e"
-                        strokeWidth={2}
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                <p className="text-xs text-green-600 mt-2 font-medium">
-                  {p.yesterday?.visits != null ? p.yesterday.visits.toLocaleString("pt-BR") : "--"} ontem
-                </p>
-              </div>
-
-              {/* Vendas */}
-              <div className="rounded-md bg-orange-50/40 border border-orange-100 p-3">
-                <p className="text-xs font-semibold text-orange-700 mb-2">Vendas</p>
-                <div className="h-12">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={salesSpark.map((v, i) => ({ v, i }))}>
-                      <Line
-                        type="monotone"
-                        dataKey="v"
-                        stroke="#f97316"
-                        strokeWidth={2}
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                <p className="text-xs text-orange-600 mt-2 font-medium">
-                  {p.yesterday?.sales != null ? p.yesterday.sales : "--"} ontem
-                </p>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Fallback: old-style metrics when periods_data not available */}
-        {!rec.periods_data && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            <div className="rounded-md bg-muted/50 px-3 py-2">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Conversao 7d</p>
-              <p className="text-sm font-semibold text-foreground">
-                {rec.conversion_7d != null ? `${rec.conversion_7d.toFixed(1)}%` : "--"}
-              </p>
-            </div>
-            <div className="rounded-md bg-muted/50 px-3 py-2">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Visitas 7d</p>
-              <p className="text-sm font-semibold text-foreground flex items-center gap-1">
-                <Eye className="h-3 w-3 text-muted-foreground/50" />
-                {rec.visits_7d != null ? rec.visits_7d.toLocaleString("pt-BR") : "--"}
-              </p>
-            </div>
-            <div className="rounded-md bg-muted/50 px-3 py-2">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Vendas 7d</p>
-              <p className="text-sm font-semibold text-foreground flex items-center gap-1">
-                <ShoppingCart className="h-3 w-3 text-muted-foreground/50" />
-                {rec.sales_7d != null ? rec.sales_7d : "--"}
-              </p>
-            </div>
+        {/* Competitor prices (if available) */}
+        {(rec.competitor_avg_price != null || rec.competitor_min_price != null) && (
+          <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+            {rec.competitor_avg_price != null && (
+              <span>
+                Concorrencia (media): <span className="font-medium text-foreground">{formatCurrency(rec.competitor_avg_price)}</span>
+              </span>
+            )}
+            {rec.competitor_min_price != null && (
+              <span>
+                Menor preco: <span className="font-medium text-foreground">{formatCurrency(rec.competitor_min_price)}</span>
+              </span>
+            )}
           </div>
         )}
 
-        {/* Stock + Health row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-md bg-muted/50 px-3 py-2">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Estoque</p>
-            <p
-              className={cn(
-                "text-sm font-semibold",
-                rec.stock != null && rec.stock < 10 ? "text-red-600" : "text-foreground",
-              )}
-            >
-              {rec.stock != null ? rec.stock : "--"}
-              {rec.stock_days_projection != null && (
-                <span className="text-[10px] text-muted-foreground ml-1">({rec.stock_days_projection}d)</span>
-              )}
+        {/* Reasoning (collapsible) */}
+        <div className="mt-3">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            Analise da IA
+          </button>
+          {expanded && (
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed bg-muted/30 rounded-md p-3 border">
+              {rec.reasoning}
             </p>
-          </div>
-          <div className="rounded-md bg-muted/50 px-3 py-2">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Health Score</p>
-            <HealthScoreBar score={rec.health_score} />
-          </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="mt-4 flex items-center gap-2 border-t pt-3 flex-wrap">
+          {rec.status === "pending" && rec.action !== "hold" && (
+            <button
+              onClick={() => onApply(rec)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Check className="h-3.5 w-3.5" />
+              Aplicar
+            </button>
+          )}
+          <button
+            onClick={() => setShowSimulate(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors"
+          >
+            <Sliders className="h-3.5 w-3.5" />
+            Simular
+          </button>
+          {rec.status === "pending" && (
+            <button
+              onClick={() => onDismiss(rec.id)}
+              className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+              Ignorar
+            </button>
+          )}
+          {rec.status === "applied" && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-700 px-2 py-0.5 text-xs font-medium">
+              <Check className="h-3 w-3" />
+              Aplicado
+            </span>
+          )}
+          {rec.status === "dismissed" && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">
+              Ignorado
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Competitor prices (if available) */}
-      {(rec.competitor_avg_price != null || rec.competitor_min_price != null) && (
-        <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-          {rec.competitor_avg_price != null && (
-            <span>
-              Concorrencia (media): <span className="font-medium text-foreground">{formatCurrency(rec.competitor_avg_price)}</span>
-            </span>
-          )}
-          {rec.competitor_min_price != null && (
-            <span>
-              Menor preco: <span className="font-medium text-foreground">{formatCurrency(rec.competitor_min_price)}</span>
-            </span>
-          )}
-        </div>
+      {/* Simulation Modal */}
+      {showSimulate && (
+        <SimulateModal
+          rec={rec}
+          onClose={() => setShowSimulate(false)}
+          onApply={(newPrice) => {
+            // Cria uma cópia da recomendação com o novo preço para aplicar
+            onApply({ ...rec, suggested_price: newPrice });
+          }}
+        />
       )}
-
-      {/* Reasoning (collapsible) */}
-      <div className="mt-3">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          Analise da IA
-        </button>
-        {expanded && (
-          <p className="mt-2 text-sm text-muted-foreground leading-relaxed bg-muted/30 rounded-md p-3 border">
-            {rec.reasoning}
-          </p>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div className="mt-4 flex items-center gap-2 border-t pt-3">
-        {rec.status === "pending" && rec.action !== "hold" && (
-          <button
-            onClick={() => onApply(rec)}
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <Check className="h-3.5 w-3.5" />
-            Aplicar
-          </button>
-        )}
-        <Link
-          to={`/anuncios/${rec.mlb_id}?simPreco=${rec.suggested_price}`}
-          className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors"
-        >
-          <BarChart3 className="h-3.5 w-3.5" />
-          Simular
-        </Link>
-        {rec.status === "pending" && (
-          <button
-            onClick={() => onDismiss(rec.id)}
-            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-          >
-            <X className="h-3.5 w-3.5" />
-            Ignorar
-          </button>
-        )}
-        {rec.status === "applied" && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-700 px-2 py-0.5 text-xs font-medium">
-            <Check className="h-3 w-3" />
-            Aplicado
-          </span>
-        )}
-        {rec.status === "dismissed" && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">
-            Ignorado
-          </span>
-        )}
-      </div>
-    </div>
+    </>
   );
 }
 

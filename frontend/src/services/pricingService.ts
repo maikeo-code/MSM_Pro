@@ -130,8 +130,16 @@ export const getRecommendations = async (
   return data;
 };
 
-export const applyRecommendation = async (id: string): Promise<ApplyResponse> => {
-  const { data } = await api.post(`/intel/pricing/recommendations/${id}/apply`);
+export const applyRecommendation = async (id: string, mlAccountId?: string | null): Promise<ApplyResponse> => {
+  const params: any = {};
+  if (mlAccountId) {
+    params.ml_account_id = mlAccountId;
+  }
+  const { data } = await api.post(
+    `/intel/pricing/recommendations/${id}/apply`,
+    {},
+    { params: Object.keys(params).length > 0 ? params : undefined },
+  );
   return data;
 };
 
