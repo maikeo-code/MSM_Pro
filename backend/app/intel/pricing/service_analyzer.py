@@ -64,6 +64,11 @@ REGRAS:
    - Se a queda de vendas tem menos de 7 dias, urgencia deve ser "monitor", nao "immediate".
    - Flutuacoes de curto prazo sao normais no ML.
 
+9. RESTRICOES DURAS (NUNCA VIOLAR):
+   - Se sales_7d == 0 E visits_7d > 0: NUNCA recomendar "increase" (problema de conversao, nao preco)
+   - Se sales_7d == 0 E visits_7d == 0: NUNCA recomendar "increase" ou "decrease" (sem dados)
+   - MANTEM "hold" nestes casos — nao ha dados suficientes para decisao
+
 SENSIBILIDADE DO ML A PRECOS:
 - Reducao > 10% pode acionar review automatico do ML
 - Aumento > 5% pode derrubar ranking temporariamente
