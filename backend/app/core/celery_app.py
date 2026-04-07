@@ -129,6 +129,15 @@ celery_app.conf.beat_schedule = {
             "expires": 3600,
         },
     },
+    # Health check independente — verifica se sync rodou nas últimas 24h
+    # Roda às 12:00 BRT (15:00 UTC), depois do sync principal das 06:00 BRT
+    "check-sync-health-daily": {
+        "task": "app.jobs.tasks.check_sync_health",
+        "schedule": crontab(hour=15, minute=0),
+        "options": {
+            "expires": 3600,
+        },
+    },
     # Sincroniza perguntas recebidas a cada 15 minutos
     "sync-questions-every-15min": {
         "task": "app.jobs.tasks.sync_questions",

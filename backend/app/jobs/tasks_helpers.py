@@ -46,10 +46,29 @@ async def _finish_sync_log(
 
 
 def run_async(coro):
-    """Executa coroutine assíncrona dentro de uma task Celery síncrona."""
+    """
+    Executa coroutine assíncrona dentro de uma task Celery síncrona.
+
+    Cada task cria um event loop NOVO. Para evitar 'Future attached to a
+    different loop' do SQLAlchemy async, descartamos o pool de conexões
+    do engine antes e depois da execução. Em contexto Celery, o engine
+    já usa NullPool (ver app/core/database.py), mas o dispose extra é
+    barato e garante que qualquer cliente Redis/HTTPX criado em loops
+    anteriores não vaze.
+    """
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
+        try:
+            from app.core.database import engine
+            loop.run_until_complete(engine.dispose())
+        except Exception:
+            pass
         return loop.run_until_complete(coro)
     finally:
+        try:
+            from app.core.database import engine
+            loop.run_until_complete(engine.dispose())
+        except Exception:
+            pass
         loop.close()

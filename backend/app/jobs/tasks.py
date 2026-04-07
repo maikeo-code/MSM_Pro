@@ -46,6 +46,7 @@ from .tasks_listings import (
     _sync_recent_snapshots_async,
 )
 from .tasks_orders import _sync_orders_async, _backfill_orders_after_reconnect_async
+from .tasks_health import _check_sync_health_async
 from .tasks_questions import _sync_questions_async
 from .tasks_reputation import _sync_reputation_async
 from .tasks_tokens import _refresh_expired_tokens_async
@@ -300,6 +301,23 @@ def sync_questions(self):
 
 
 # --- Task: Backfill de pedidos após reconexão ---
+
+# --- Task: Health check do pipeline de sincronização ---
+
+@celery_app.task(name="app.jobs.tasks.check_sync_health", bind=True)
+def check_sync_health(self):
+    """
+    Verifica se o pipeline de sync está rodando. Cria notificação
+    se nenhum snapshot foi gravado nas últimas 24h.
+    Independe de tokens OAuth — só consulta o banco local.
+    Executado diariamente às 12:00 BRT (15:00 UTC), depois do sync.
+    """
+    try:
+        return run_async(_check_sync_health_async())
+    except Exception as exc:
+        logger.error(f"Erro em check_sync_health: {exc}")
+        raise
+
 
 @celery_app.task(
     name="app.jobs.tasks.backfill_orders_after_reconnect",

@@ -1,7 +1,21 @@
+import sys
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
+
+
+def _is_celery_context() -> bool:
+    """
+    Detecta se o processo atual é um worker/beat do Celery.
+    Em Celery, cada task Celery roda em um event loop NOVO (via run_async),
+    e o pool de conexões do SQLAlchemy async fica preso ao primeiro loop —
+    causando 'Future attached to a different loop'. Usar NullPool elimina o
+    problema porque cada conexão é fresca.
+    """
+    argv0 = (sys.argv[0] if sys.argv else "") or ""
+    return "celery" in argv0.lower()
 
 
 def _build_engine():
@@ -15,6 +29,14 @@ def _build_engine():
             echo=settings.debug,
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
+        )
+    # Em contexto Celery, usar NullPool para evitar reuso de conexões entre loops.
+    if _is_celery_context():
+        from sqlalchemy.pool import NullPool
+        return create_async_engine(
+            url,
+            echo=settings.debug,
+            poolclass=NullPool,
         )
     return create_async_engine(
         url,
