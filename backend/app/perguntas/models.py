@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,7 +19,7 @@ class Question(Base):
         PG_UUID(as_uuid=True), primary_key=True, default=uuid4
     )
     ml_question_id: Mapped[int] = mapped_column(
-        Integer(), nullable=False, unique=True, comment="ID da pergunta no ML"
+        BigInteger(), nullable=False, unique=True, comment="ID da pergunta no ML"
     )
     ml_account_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),

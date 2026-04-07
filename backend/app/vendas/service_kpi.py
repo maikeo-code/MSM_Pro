@@ -605,13 +605,36 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
     row = result.fetchone()
     vendas = int(row.vendas) if row else 0
     visitas = int(row.visitas) if row else 0
-    conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
     pedidos = int(row.pedidos) if row else 0
     receita_total = float(row.receita_total) if row else 0.0
     cancelados = int(row.cancelados) if row else 0
     cancelados_valor = float(row.cancelados_valor) if row else 0.0
     devolucoes_qtd = int(row.devolucoes_qtd) if row else 0
     devolucoes_valor = float(row.devolucoes_valor) if row else 0.0
+
+    # Fallback Orders: se não há snapshot para este dia (ex: Celery worker
+    # ficou offline e os snapshots não foram capturados), agrega das Orders
+    # backfilled. Recupera vendas/pedidos/receita; visitas ficam 0 porque
+    # não há como reconstruir histórico de visitas a partir de Orders.
+    if vendas == 0 and pedidos == 0:
+        orders_fallback = await db.execute(
+            select(
+                func.coalesce(func.sum(Order.quantity), 0).label("vendas"),
+                func.count(Order.id).label("pedidos"),
+                func.coalesce(func.sum(Order.total_amount), 0).label("receita_total"),
+            ).where(
+                Order.listing_id.in_(listing_ids),
+                cast(Order.order_date, Date) == dt,
+                Order.payment_status == "paid",
+            )
+        )
+        ofb = orders_fallback.fetchone()
+        if ofb and (int(ofb.vendas) > 0 or int(ofb.pedidos) > 0):
+            vendas = int(ofb.vendas)
+            pedidos = int(ofb.pedidos)
+            receita_total = float(ofb.receita_total)
+
+    conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
     preco_medio = round(receita_total / vendas, 2) if vendas > 0 else 0.0
     preco_medio_por_venda = round(receita_total / pedidos, 2) if pedidos > 0 else 0.0
     total_pedidos_com_cancelados = pedidos + cancelados
