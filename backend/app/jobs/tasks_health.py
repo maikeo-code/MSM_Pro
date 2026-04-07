@@ -16,7 +16,9 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 
 from app.auth.models import MLAccount, User
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
+from app.core.email import is_smtp_configured, send_alert_email
 from app.notifications.service import create_notification
 from app.vendas.models import ListingSnapshot
 
@@ -66,6 +68,7 @@ async def _check_sync_health_async() -> dict:
 
             # Notificar TODOS os donos de conta ML ativa
             user_ids_seen: set = set()
+            user_emails: list[str] = []
             for acc in accounts:
                 if acc.user_id in user_ids_seen:
                     continue
@@ -87,7 +90,48 @@ async def _check_sync_health_async() -> dict:
                 )
                 result["alerts_created"] += 1
 
+                # Coleta email do dono para notificação por SMTP
+                user_row = await db.execute(
+                    select(User).where(User.id == acc.user_id)
+                )
+                user_obj = user_row.scalar_one_or_none()
+                if user_obj and user_obj.email:
+                    user_emails.append(user_obj.email)
+
             await db.commit()
+
+            # Email fallback independente do frontend
+            if is_smtp_configured() and user_emails:
+                body = (
+                    "MSM_Pro detectou que o pipeline de sincronização com o "
+                    "Mercado Livre NÃO concluiu nenhum snapshot nas últimas "
+                    f"24 horas (contas ativas: {active_count}).\n\n"
+                    "Possíveis causas:\n"
+                    "  • Worker do Celery travado ou crashando silenciosamente\n"
+                    "  • Token OAuth expirado (reconecte a conta)\n"
+                    "  • API do Mercado Livre fora do ar\n\n"
+                    "Ação recomendada: abra o dashboard em "
+                    f"{settings.frontend_url} → Configurações → Contas ML "
+                    "e verifique o status de cada conta. Se tudo parecer OK "
+                    "lá, reinicie o serviço backend no Railway."
+                )
+                for email in user_emails:
+                    try:
+                        sent = send_alert_email(
+                            to=email,
+                            subject="[MSM_Pro] Sincronização não rodou em 24h",
+                            body=body,
+                        )
+                        if sent:
+                            result["alerts_created"] += 0  # já contado
+                            logger.info("Email de health check enviado para %s", email)
+                    except Exception as exc:
+                        logger.error("Falha ao enviar health email para %s: %s", email, exc)
+            elif not is_smtp_configured():
+                logger.warning(
+                    "Health check detectou falha mas SMTP não configurado — "
+                    "apenas notificação in-app criada."
+                )
         else:
             logger.info(
                 "Sync health OK: %d snapshots em 24h para %d contas",

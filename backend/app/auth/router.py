@@ -607,3 +607,49 @@ async def backfill_orders_manual(
         "task_id": task.id,
         "message": f"Backfill de {days} dias agendado. Verifique o status em alguns minutos.",
     }
+
+
+@router.post("/debug/trigger-health-check")
+async def trigger_health_check(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Dispara o health check de sync imediatamente (sem esperar o cron)."""
+    from app.jobs.tasks import check_sync_health
+    task = check_sync_health.apply_async(countdown=2)
+    return {"status": "scheduled", "task_id": task.id}
+
+
+@router.get("/debug/smtp-status")
+async def smtp_status(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Retorna se SMTP está configurado e mostra host/user (sem a senha)."""
+    from app.core.email import is_smtp_configured
+    return {
+        "configured": is_smtp_configured(),
+        "smtp_host": settings.smtp_host,
+        "smtp_port": settings.smtp_port,
+        "smtp_user": settings.smtp_user,
+        "smtp_from": settings.smtp_from,
+        "smtp_to": settings.smtp_to,
+        "has_password": bool(settings.smtp_pass),
+    }
+
+
+@router.post("/debug/send-test-email")
+async def send_test_email(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Envia email de teste para o usuário autenticado."""
+    from app.core.email import is_smtp_configured, send_alert_email
+    if not is_smtp_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SMTP não configurado. Defina SMTP_HOST, SMTP_USER, SMTP_PASS no Railway.",
+        )
+    ok = send_alert_email(
+        to=current_user.email,
+        subject="[MSM_Pro] Teste de configuração SMTP",
+        body="Se você está lendo isso, o SMTP está funcionando.\n\nEste email foi disparado manualmente via POST /auth/debug/send-test-email.",
+    )
+    return {"sent": ok, "to": current_user.email}

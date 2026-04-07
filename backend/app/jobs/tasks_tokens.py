@@ -14,9 +14,13 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import and_, select
 
-from app.auth.models import MLAccount
+from sqlalchemy.orm import selectinload
+
+from app.auth.models import MLAccount, User
 from app.auth.service import refresh_ml_token
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
+from app.core.email import is_smtp_configured, send_alert_email
 from app.core.redis_client import get_redis_client
 from app.notifications.service import create_notification
 
@@ -191,6 +195,38 @@ async def _refresh_expired_tokens_async():
                                 ),
                                 action_url="/configuracoes",
                             )
+
+                            # Email imediato ao dono da conta
+                            if is_smtp_configured():
+                                user_row = await db.execute(
+                                    select(User).where(User.id == account.user_id)
+                                )
+                                user_obj = user_row.scalar_one_or_none()
+                                if user_obj and user_obj.email:
+                                    body = (
+                                        f"A conta '{account.nickname}' do Mercado Livre "
+                                        f"foi desconectada do MSM_Pro após {max_retries} "
+                                        f"tentativas de renovação automática do token OAuth.\n\n"
+                                        f"Erro técnico: {last_error[:200]}\n\n"
+                                        f"Enquanto a conta estiver desconectada, nenhum dado "
+                                        f"novo de vendas, preços ou concorrentes será "
+                                        f"capturado.\n\n"
+                                        f"Ação necessária: acesse "
+                                        f"{settings.frontend_url}/configuracoes e clique em "
+                                        f"Reconectar para a conta '{account.nickname}'."
+                                    )
+                                    try:
+                                        send_alert_email(
+                                            to=user_obj.email,
+                                            subject=f"[MSM_Pro] Conta '{account.nickname}' desconectada",
+                                            body=body,
+                                        )
+                                    except Exception as exc:
+                                        logger.error(
+                                            "Falha ao enviar email de token expirado para %s: %s",
+                                            user_obj.email,
+                                            exc,
+                                        )
 
             finally:
                 # SEMPRE libera o lock, mesmo se houve erro
