@@ -625,7 +625,7 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
             ).where(
                 Order.listing_id.in_(listing_ids),
                 cast(Order.order_date, Date) == dt,
-                Order.payment_status == "paid",
+                Order.payment_status.in_(["approved", "paid"]),
             )
         )
         ofb = orders_fallback.fetchone()
