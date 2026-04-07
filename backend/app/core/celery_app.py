@@ -15,6 +15,33 @@ celery_app = Celery(
     include=["app.jobs.tasks"],
 )
 
+# Garante que TODOS os modelos SQLAlchemy sejam importados antes do worker
+# começar a executar tasks. Sem isso, relacionamentos com strings (ex.:
+# relationship('AlertConfig')) falham com 'failed to locate a name'.
+def _eager_load_models() -> None:
+    import importlib
+    for mod in (
+        "app.auth.models",
+        "app.core.models",
+        "app.vendas.models",
+        "app.produtos.models",
+        "app.concorrencia.models",
+        "app.alertas.models",
+        "app.financeiro.models",
+        "app.ads.models",
+        "app.reputacao.models",
+        "app.intel.models",
+        "app.atendimento.models",
+        "app.perguntas.models",
+        "app.notifications.models",
+    ):
+        try:
+            importlib.import_module(mod)
+        except Exception:
+            pass
+
+_eager_load_models()
+
 # Configurações gerais
 celery_app.conf.update(
     task_serializer="json",
