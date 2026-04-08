@@ -86,3 +86,37 @@ def test_debug_trigger_task_endpoint_exists():
         if hasattr(r, "path") and "trigger-task" in r.path
     ]
     assert len(matching) > 0, "endpoint trigger-task não registrado"
+
+
+def test_openapi_schema_generation_works():
+    """
+    Regressão ciclo 471/472: garante que o schema OpenAPI pode ser gerado.
+    Quebrava com AssertionError quando algum endpoint tinha response_class=None.
+    """
+    from app.main import app
+
+    schema = app.openapi()
+    assert schema is not None
+    assert "paths" in schema
+    assert len(schema["paths"]) > 50, "esperava >50 paths no OpenAPI"
+    assert "info" in schema
+    assert schema["info"]["title"] == "MSM_Pro API"
+
+
+def test_no_endpoint_has_response_class_none():
+    """
+    Garante que nenhum endpoint use response_class=None (que quebra OpenAPI).
+    Verificação via grep no source code dos routers.
+    """
+    import pathlib
+    backend_root = pathlib.Path(__file__).parent.parent
+    routers = list((backend_root / "app").rglob("router*.py"))
+    offenders = []
+    for r in routers:
+        text = r.read_text(encoding="utf-8", errors="ignore")
+        if "response_class=None" in text:
+            offenders.append(str(r.relative_to(backend_root)))
+    assert not offenders, (
+        f"Endpoints com response_class=None detectados: {offenders}. "
+        "Use HTMLResponse, JSONResponse, etc — ou omita o parametro."
+    )
