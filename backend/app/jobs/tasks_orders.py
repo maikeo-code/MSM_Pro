@@ -49,28 +49,32 @@ async def _sync_orders_async():
             total_created, total_updated, total_errors = 0, 0, 0
 
             for account in accounts:
-                if not account.access_token:
-                    logger.warning(
-                        f"Sem token ML para conta {account.nickname} — pulando"
-                    )
+                # Snapshot dos atributos para evitar greenlet_spawn em iterações
+                # subsequentes caso uma das anteriores tenha causado rollback.
+                acc_id = account.id
+                acc_token = account.access_token
+                acc_nickname = account.nickname
+                acc_ml_user_id = account.ml_user_id
+
+                if not acc_token:
+                    logger.warning(f"Sem token ML para conta {acc_nickname} — pulando")
                     continue
 
-                # Passa ml_account_id ao cliente para suportar refresh automático
-                client = MLClient(account.access_token, ml_account_id=str(account.id))
+                client = MLClient(acc_token, ml_account_id=str(acc_id))
                 try:
                     offset = 0
                     limit = 50
                     while True:
                         try:
                             response = await client.get_orders(
-                                seller_id=account.ml_user_id,
+                                seller_id=acc_ml_user_id,
                                 date_from=date_from,
                                 offset=offset,
                                 limit=limit,
                             )
                         except MLClientError as e:
                             logger.warning(
-                                f"Erro ML ao buscar pedidos para {account.nickname}: {e}"
+                                f"Erro ML ao buscar pedidos para {acc_nickname}: {e}"
                             )
                             break
 
@@ -218,7 +222,7 @@ async def _sync_orders_async():
                                 else:
                                     new_order = Order(
                                         ml_order_id=ml_order_id,
-                                        ml_account_id=account.id,
+                                        ml_account_id=acc_id,
                                         listing_id=listing_id,
                                         mlb_id=mlb_id,
                                         buyer_nickname=buyer_nickname,

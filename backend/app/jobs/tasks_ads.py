@@ -34,25 +34,30 @@ async def _sync_ads_async():
         total_campaigns, total_snapshots, total_errors = 0, 0, 0
 
         for account in accounts:
-            if not account.access_token:
-                logger.warning(
-                    f"Sem token ML para conta {account.nickname} — ads pulados"
-                )
+            # Snapshot dos atributos ANTES de qualquer chamada que possa
+            # causar rollback (sync_ads_from_ml faz rollback interno em
+            # alguns paths). Sem isso, próxima iteração lê account.id e
+            # dispara greenlet_spawn por estado expired.
+            acc_id = account.id
+            acc_token = account.access_token
+            acc_nickname = account.nickname
+
+            if not acc_token:
+                logger.warning(f"Sem token ML para conta {acc_nickname} — ads pulados")
                 continue
 
-            # Passa ml_account_id ao cliente para suportar refresh automático
-            client = MLClient(account.access_token, ml_account_id=str(account.id))
+            client = MLClient(acc_token, ml_account_id=str(acc_id))
             try:
                 result = await sync_ads_from_ml(db, client, account)
                 total_campaigns += result.get("synced_campaigns", 0)
                 total_snapshots += result.get("synced_snapshots", 0)
                 logger.info(
-                    f"Ads sync OK para {account.nickname}: "
+                    f"Ads sync OK para {acc_nickname}: "
                     f"{result.get('synced_campaigns', 0)} campanhas, "
                     f"{result.get('synced_snapshots', 0)} snapshots"
                 )
             except Exception as e:
-                logger.error(f"Erro ao sincronizar ads de {account.nickname}: {e}")
+                logger.error(f"Erro ao sincronizar ads de {acc_nickname}: {e}")
                 total_errors += 1
             finally:
                 await client.close()
