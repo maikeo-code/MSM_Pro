@@ -612,10 +612,16 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
     devolucoes_qtd = int(row.devolucoes_qtd) if row else 0
     devolucoes_valor = float(row.devolucoes_valor) if row else 0.0
 
-    # Fallback Orders: se não há snapshot para este dia (ex: Celery worker
-    # ficou offline e os snapshots não foram capturados), agrega das Orders
-    # backfilled. Recupera vendas/pedidos/receita; visitas ficam 0 porque
-    # não há como reconstruir histórico de visitas a partir de Orders.
+    # Fallback Orders: se não há snapshot confiável para este dia, agrega
+    # das Orders backfilled. Recupera vendas/pedidos/receita.
+    #
+    # CRÍTICO (ciclo 558): Quando o fallback aciona, as visitas do snapshot
+    # (se houver) são descartadas. Snapshots parciais/corrompidos podem ter
+    # visits=0,1,2 enquanto Orders reais têm 44 vendas — isso gerava conversão
+    # absurda (4400%). Se estamos usando Orders como fonte de vendas, visitas
+    # e conversão ficam marcadas como indisponíveis (0) para esse dia, em vez
+    # de contaminar o dashboard com dados inconsistentes.
+    orders_fallback_ativo = False
     if vendas == 0 and pedidos == 0:
         orders_fallback = await db.execute(
             select(
@@ -633,8 +639,16 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
             vendas = int(ofb.vendas)
             pedidos = int(ofb.pedidos)
             receita_total = float(ofb.receita_total)
+            orders_fallback_ativo = True
 
-    conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
+    # Proteção extra: se visitas parcial (menor que vendas), significa que
+    # o snapshot do dia está corrompido/incompleto. Descarta visitas e
+    # conversão para evitar cálculos sem sentido.
+    if orders_fallback_ativo or (vendas > 0 and visitas > 0 and visitas < vendas):
+        visitas = 0
+        conversao = 0.0
+    else:
+        conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
     preco_medio = round(receita_total / vendas, 2) if vendas > 0 else 0.0
     preco_medio_por_venda = round(receita_total / pedidos, 2) if pedidos > 0 else 0.0
     total_pedidos_com_cancelados = pedidos + cancelados
