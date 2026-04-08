@@ -284,7 +284,7 @@ export interface SimulatePriceResult {
 
 const listingsService = {
   async list(period: string = "today", mlAccountId?: string | null): Promise<ListingOut[]> {
-    const params: any = period !== "today" ? { period } : {};
+    const params: Record<string, unknown> = period !== "today" ? { period } : {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -300,7 +300,7 @@ const listingsService = {
   },
 
   async getSnapshots(mlbId: string, dias = 30, mlAccountId?: string | null): Promise<SnapshotOut[]> {
-    const params: any = { dias };
+    const params: Record<string, unknown> = { dias };
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -311,7 +311,7 @@ const listingsService = {
   },
 
   async getAnalysis(mlbId: string, days = 30, mlAccountId?: string | null): Promise<ListingAnalysis> {
-    const params: any = { days };
+    const params: Record<string, unknown> = { days };
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -322,7 +322,7 @@ const listingsService = {
   },
 
   async getMargem(mlbId: string, preco: number, mlAccountId?: string | null): Promise<MargemResult> {
-    const params: any = { preco };
+    const params: Record<string, unknown> = { preco };
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -337,7 +337,7 @@ const listingsService = {
     payload: UpdatePricePayload,
     mlAccountId?: string | null
   ): Promise<{ mlb_id: string; new_price: number; updated_at: string }> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -352,7 +352,7 @@ const listingsService = {
     payload: CreatePromotionPayload,
     mlAccountId?: string | null
   ): Promise<Promotion> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -367,7 +367,7 @@ const listingsService = {
   },
 
   async getListingHealth(mlbId: string, mlAccountId?: string | null): Promise<ListingHealth> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -378,7 +378,7 @@ const listingsService = {
   },
 
   async sync(mlAccountId?: string | null): Promise<{ message: string; created: number; updated: number; total: number }> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -389,7 +389,7 @@ const listingsService = {
   },
 
   async getKpiSummary(mlAccountId?: string | null): Promise<KpiSummary> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -400,7 +400,7 @@ const listingsService = {
   },
 
   async getFunnel(period: string = "7d", mlAccountId?: string | null): Promise<FunnelData> {
-    const params: any = { period };
+    const params: Record<string, unknown> = { period };
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -411,7 +411,7 @@ const listingsService = {
   },
 
   async linkSku(mlbId: string, productId: string | null, mlAccountId?: string | null): Promise<ListingOut> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -424,7 +424,7 @@ const listingsService = {
   },
 
   async getHeatmap(period = "30d", mlAccountId?: string | null): Promise<HeatmapData> {
-    const params: any = { period };
+    const params: Record<string, unknown> = { period };
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -435,7 +435,7 @@ const listingsService = {
   },
 
   async getSearchPosition(mlbId: string, keyword: string, mlAccountId?: string | null): Promise<SearchPositionResult> {
-    const params: any = { keyword };
+    const params: Record<string, unknown> = { keyword };
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -446,7 +446,7 @@ const listingsService = {
   },
 
   async getPriceHistory(mlbId: string, limit = 50, mlAccountId?: string | null): Promise<PriceHistoryItem[]> {
-    const params: any = { limit };
+    const params: Record<string, unknown> = { limit };
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -457,7 +457,7 @@ const listingsService = {
   },
 
   async simulatePrice(mlbId: string, targetPrice: number, mlAccountId?: string | null): Promise<SimulatePriceResult> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
