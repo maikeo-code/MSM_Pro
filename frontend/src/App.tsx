@@ -11,7 +11,6 @@ import Reputacao from "@/pages/Reputacao";
 import Produtos from "@/pages/Produtos";
 import Pedidos from "@/pages/Pedidos";
 import Atendimento from "@/pages/Atendimento";
-import Notificacoes from "@/pages/Notificacoes";
 import Login from "@/pages/Login";
 import Layout from "@/components/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";

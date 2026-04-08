@@ -157,15 +157,6 @@ export default function Configuracoes() {
                 const tokenStatus = getTokenStatus(account.token_expires_at);
                   const diagnostic = diagnostics?.accounts.find(d => d.id === account.id);
                   const hasDataGap = diagnostic?.days_since_last_sync && diagnostic.days_since_last_sync > 1;
-                  const lastSyncFormatted = diagnostic?.last_successful_sync
-                    ? new Date(diagnostic.last_successful_sync).toLocaleDateString("pt-BR", {
-                        year: "numeric",
-                        month: "2-digit",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "Nunca sincronizou";
                 const isInactive = !account.is_active;
                 return (
                   <div
