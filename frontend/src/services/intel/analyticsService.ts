@@ -138,7 +138,7 @@ export interface InventoryHealthResponse {
 
 export const analyticsService = {
   async getPareto(days = 30, mlAccountId?: string | null): Promise<ParetoResponse> {
-    const params: any = { days };
+    const params: Record<string, unknown> = { days };
     if (mlAccountId) params.ml_account_id = mlAccountId;
     const { data } = await api.get<ParetoResponse>("/intel/analytics/pareto", { params });
     return data;
@@ -149,7 +149,7 @@ export const analyticsService = {
     daysHistory = 60,
     mlAccountId?: string | null,
   ): Promise<ForecastResponse> {
-    const params: any = { days_history: daysHistory };
+    const params: Record<string, unknown> = { days_history: daysHistory };
     if (mlAccountId) params.ml_account_id = mlAccountId;
     const { data } = await api.get<ForecastResponse>(
       `/intel/analytics/forecast/${mlbId}`,
@@ -159,14 +159,14 @@ export const analyticsService = {
   },
 
   async getDistribution(days = 30, mlAccountId?: string | null): Promise<DistributionResponse> {
-    const params: any = { days };
+    const params: Record<string, unknown> = { days };
     if (mlAccountId) params.ml_account_id = mlAccountId;
     const { data } = await api.get<DistributionResponse>("/intel/analytics/distribution", { params });
     return data;
   },
 
   async getInsights(mlAccountId?: string | null): Promise<InsightsResponse> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) params.ml_account_id = mlAccountId;
     const { data } = await api.get<InsightsResponse>("/intel/analytics/insights", {
       params: Object.keys(params).length > 0 ? params : undefined,
@@ -175,7 +175,7 @@ export const analyticsService = {
   },
 
   async getComparison(period: "7d" | "15d" | "30d" = "30d", mlAccountId?: string | null): Promise<ComparisonResponse> {
-    const params: any = { period };
+    const params: Record<string, unknown> = { period };
     if (mlAccountId) params.ml_account_id = mlAccountId;
     const { data } = await api.get<ComparisonResponse>("/intel/analytics/comparison", { params });
     return data;
@@ -186,14 +186,14 @@ export const analyticsService = {
     metric: "revenue" | "units" | "margin" = "revenue",
     mlAccountId?: string | null,
   ): Promise<ABCResponse> {
-    const params: any = { period, metric };
+    const params: Record<string, unknown> = { period, metric };
     if (mlAccountId) params.ml_account_id = mlAccountId;
     const { data } = await api.get<ABCResponse>("/intel/analytics/abc", { params });
     return data;
   },
 
   async getInventoryHealth(period: "7d" | "15d" | "30d" = "30d", mlAccountId?: string | null): Promise<InventoryHealthResponse> {
-    const params: any = { period };
+    const params: Record<string, unknown> = { period };
     if (mlAccountId) params.ml_account_id = mlAccountId;
     const { data } = await api.get<InventoryHealthResponse>("/intel/analytics/inventory-health", { params });
     return data;
