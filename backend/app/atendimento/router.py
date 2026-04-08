@@ -183,9 +183,10 @@ async def list_response_templates(
 ):
     """Lista todos os templates de resposta do usuário."""
     try:
-        # Importar dentro da função para evitar circular imports
         from app.atendimento.service_templates import list_templates
         return await list_templates(db=db, user=current_user, category=category)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Erro ao listar templates: %s", e)
         raise HTTPException(status_code=500, detail="Erro ao listar templates")
@@ -201,6 +202,8 @@ async def get_response_template(
     try:
         from app.atendimento.service_templates import get_template
         return await get_template(db=db, user=current_user, template_id=template_id)
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -218,6 +221,8 @@ async def create_response_template(
     try:
         from app.atendimento.service_templates import create_template
         return await create_template(db=db, user=current_user, data=body)
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -236,6 +241,8 @@ async def update_response_template(
     try:
         from app.atendimento.service_templates import update_template
         return await update_template(db=db, user=current_user, template_id=template_id, data=body)
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=404 if "not found" in str(e) else 400, detail=str(e))
     except Exception as e:
@@ -254,6 +261,8 @@ async def delete_response_template(
         from app.atendimento.service_templates import delete_template
         await delete_template(db=db, user=current_user, template_id=template_id)
         return {"success": True, "message": "Template deletado com sucesso"}
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
