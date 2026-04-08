@@ -165,6 +165,15 @@ celery_app.conf.beat_schedule = {
             "expires": 3600,
         },
     },
+    # runtime-watcher: verificacao multi-dimensional do pipeline a cada 2h
+    # Cobre: snapshots, orders, tokens, needs_reauth, taxa de falha sync_logs
+    "runtime-watcher-bihourly": {
+        "task": "app.jobs.tasks.runtime_watcher",
+        "schedule": crontab(minute=15, hour="*/2"),  # 00:15, 02:15, 04:15...
+        "options": {
+            "expires": 7200,
+        },
+    },
     # Sincroniza perguntas recebidas a cada 15 minutos
     "sync-questions-every-15min": {
         "task": "app.jobs.tasks.sync_questions",

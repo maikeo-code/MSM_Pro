@@ -638,6 +638,7 @@ async def trigger_celery_task(
         "evaluate_alerts",
         "refresh_expired_tokens",
         "check_sync_health",
+        "runtime_watcher",
         "send_daily_intel_report",
     }
     if task_name not in whitelist:

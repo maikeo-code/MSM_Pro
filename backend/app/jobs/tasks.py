@@ -46,7 +46,7 @@ from .tasks_listings import (
     _sync_recent_snapshots_async,
 )
 from .tasks_orders import _sync_orders_async, _backfill_orders_after_reconnect_async
-from .tasks_health import _check_sync_health_async
+from .tasks_health import _check_sync_health_async, _runtime_watcher_async
 from .tasks_questions import _sync_questions_async
 from .tasks_reputation import _sync_reputation_async
 from .tasks_tokens import _refresh_expired_tokens_async
@@ -309,13 +309,25 @@ def check_sync_health(self):
     """
     Verifica se o pipeline de sync está rodando. Cria notificação
     se nenhum snapshot foi gravado nas últimas 24h.
-    Independe de tokens OAuth — só consulta o banco local.
-    Executado diariamente às 12:00 BRT (15:00 UTC), depois do sync.
     """
     try:
         return run_async(_check_sync_health_async())
     except Exception as exc:
         logger.error(f"Erro em check_sync_health: {exc}")
+        raise
+
+
+@celery_app.task(name="app.jobs.tasks.runtime_watcher", bind=True)
+def runtime_watcher(self):
+    """
+    Verificação multi-dimensional do pipeline (a cada 2h).
+    Detecta: snapshots/orders parados, tokens stale, contas needs_reauth,
+    alta taxa de falha em sync_logs. Notifica por in-app + email.
+    """
+    try:
+        return run_async(_runtime_watcher_async())
+    except Exception as exc:
+        logger.error(f"Erro em runtime_watcher: {exc}")
         raise
 
 
