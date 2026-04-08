@@ -33,11 +33,10 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-asyncio pytest-cov
 
-      - name: Run tests (excluding PostgreSQL-only tests)
+      - name: Run tests
         run: |
           cd backend
           python -m pytest tests/ -q \
-            --ignore=tests/test_financeiro_features.py \
             --tb=short \
             --junitxml=test-results.xml \
             --cov=app --cov-report=xml \
