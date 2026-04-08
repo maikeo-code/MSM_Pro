@@ -132,6 +132,90 @@ async def health_check():
     }
 
 
+@app.get("/health/sync", tags=["health"])
+async def health_sync():
+    """
+    Health check do pipeline de sincronização (publico, sem auth).
+    Retorna last sync de cada pipeline + contagens nas últimas 24h.
+    Útil para Uptime Robot, Pingdom e debug rápido sem precisar de token.
+    """
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import func, select
+    from app.auth.models import MLAccount
+    from app.core.database import AsyncSessionLocal
+    from app.core.models import SyncLog
+    from app.vendas.models import ListingSnapshot, Order
+
+    now = datetime.now(timezone.utc)
+    cutoff_24h = now - timedelta(hours=24)
+
+    try:
+        async with AsyncSessionLocal() as db:
+            # Last sync por task
+            last_sync_q = await db.execute(
+                select(SyncLog.task_name, func.max(SyncLog.started_at))
+                .group_by(SyncLog.task_name)
+            )
+            last_sync_by_task = {
+                row[0]: row[1].isoformat() if row[1] else None
+                for row in last_sync_q.all()
+            }
+
+            # Sucesso/falha últimas 24h
+            status_q = await db.execute(
+                select(SyncLog.task_name, SyncLog.status, func.count(SyncLog.id))
+                .where(SyncLog.started_at >= cutoff_24h)
+                .group_by(SyncLog.task_name, SyncLog.status)
+            )
+            counts_by_task: dict = {}
+            for task_name, status, count in status_q.all():
+                counts_by_task.setdefault(task_name, {})[status] = count
+
+            # Contagens absolutas
+            snaps_q = await db.execute(
+                select(func.count(ListingSnapshot.id)).where(
+                    ListingSnapshot.captured_at >= cutoff_24h
+                )
+            )
+            snapshots_24h = snaps_q.scalar() or 0
+
+            orders_q = await db.execute(
+                select(func.count(Order.id)).where(Order.created_at >= cutoff_24h)
+            )
+            orders_24h = orders_q.scalar() or 0
+
+            accounts_q = await db.execute(
+                select(MLAccount).where(MLAccount.is_active == True)  # noqa: E712
+            )
+            accounts = accounts_q.scalars().all()
+            active_accounts = len(accounts)
+            needs_reauth = sum(1 for a in accounts if a.needs_reauth)
+
+            # Determina status geral
+            healthy = (
+                snapshots_24h > 0
+                and active_accounts > 0
+                and needs_reauth == 0
+            )
+
+            return {
+                "status": "healthy" if healthy else "degraded",
+                "checked_at": now.isoformat(),
+                "active_accounts": active_accounts,
+                "accounts_needs_reauth": needs_reauth,
+                "snapshots_24h": snapshots_24h,
+                "orders_24h": orders_24h,
+                "last_sync_by_task": last_sync_by_task,
+                "counts_by_task_24h": counts_by_task,
+            }
+    except Exception as exc:
+        logger.error("health/sync falhou: %s", exc)
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "detail": str(exc)[:200]},
+        )
+
+
 @app.get("/", tags=["root"])
 async def root():
     """Rota raiz — redireciona para docs."""
