@@ -1,5 +1,4 @@
-version: "3.9"
-
+# version: "3.9"  # deprecated em compose v2 — removido ciclo 497
 services:
   postgres:
     image: postgres:16-alpine
