@@ -212,60 +212,69 @@ async def sync_questions_for_account(
 async def sync_all_questions() -> dict:
     """
     Sincroniza perguntas de TODAS as contas ML ativas.
-    Usado pela Celery task diária.
-
-    Returns:
-        dict com chaves: total_synced, accounts_processed, errors
+    Usa uma sessão SQLAlchemy ISOLADA por conta para evitar
+    'greenlet_spawn has not been called' que ocorre quando rollback
+    em um iteration corrompe o estado da sessão para o próximo.
     """
-    db = AsyncSessionLocal()
     total_synced = 0
     total_new = 0
     total_updated = 0
     total_errors = 0
     accounts_processed = 0
 
+    # Sessão curta só para listar contas ativas
+    account_data: list[tuple] = []
     try:
-        # Busca todas as contas ativas
-        result = await db.execute(
-            select(MLAccount).where(
-                MLAccount.is_active == True,  # noqa: E712
-                MLAccount.access_token.isnot(None),
+        async with AsyncSessionLocal() as discover_db:
+            result = await discover_db.execute(
+                select(MLAccount).where(
+                    MLAccount.is_active == True,  # noqa: E712
+                    MLAccount.access_token.isnot(None),
+                )
             )
-        )
-        accounts = result.scalars().all()
-        logger.info("Sincronizando perguntas de %d contas", len(accounts))
+            for acc in result.scalars().all():
+                # Snapshot dos campos necessários para evitar lazy-load fora da sessão
+                account_data.append(
+                    (acc.id, acc.access_token, acc.nickname)
+                )
+    except Exception as exc:
+        logger.error("Erro ao listar contas para sync de perguntas: %s", exc, exc_info=True)
+        return {"total_synced": 0, "accounts_processed": 0, "errors": 1}
 
-        for account in accounts:
-            try:
+    logger.info("Sincronizando perguntas de %d contas", len(account_data))
+
+    for acc_id, acc_token, acc_nickname in account_data:
+        try:
+            async with AsyncSessionLocal() as db:
+                # Recarrega o objeto MLAccount na sessão local
+                acc_result = await db.execute(
+                    select(MLAccount).where(MLAccount.id == acc_id)
+                )
+                account = acc_result.scalar_one()
                 stats = await sync_questions_for_account(db, account)
                 total_synced += stats.get("synced", 0)
                 total_new += stats.get("new", 0)
                 total_updated += stats.get("updated", 0)
                 total_errors += stats.get("errors", 0)
                 accounts_processed += 1
-            except Exception as exc:
-                logger.error(
-                    "Erro ao sincronizar conta %s: %s",
-                    account.id,
-                    exc,
-                    exc_info=True,
-                )
-                total_errors += 1
+        except Exception as exc:
+            logger.error(
+                "Erro ao sincronizar conta %s (%s): %s",
+                acc_id,
+                acc_nickname,
+                exc,
+                exc_info=True,
+            )
+            total_errors += 1
 
-        logger.info(
-            "Sync concluída: synced=%d, new=%d, updated=%d, errors=%d, accounts=%d",
-            total_synced,
-            total_new,
-            total_updated,
-            total_errors,
-            accounts_processed,
-        )
-
-    except Exception as exc:
-        logger.error("Erro geral no sync de todas as perguntas: %s", exc, exc_info=True)
-        total_errors += 1
-    finally:
-        await db.close()
+    logger.info(
+        "Sync concluida: synced=%d, new=%d, updated=%d, errors=%d, accounts=%d",
+        total_synced,
+        total_new,
+        total_updated,
+        total_errors,
+        accounts_processed,
+    )
 
     return {
         "total_synced": total_synced,
