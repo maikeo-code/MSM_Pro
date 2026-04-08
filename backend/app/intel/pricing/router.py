@@ -719,7 +719,7 @@ async def daily_report_html(
         calculate_recommendation_score,
         calculate_health_score,
     )
-    from app.intel.pricing.service_email import _build_summary, build_daily_report_html
+    from app.intel.pricing.service_report import _build_summary, build_daily_report_html
     from app.intel.pricing.service_weights import get_adaptive_weights
     from app.jobs.tasks_daily_intel import (
         _try_analyze_with_ai,
