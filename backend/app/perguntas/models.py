@@ -48,7 +48,7 @@ class Question(Base):
         comment="UNANSWERED | ANSWERED | CLOSED_UNANSWERED | UNDER_REVIEW",
     )
     buyer_id: Mapped[int | None] = mapped_column(
-        Integer(), nullable=True, comment="ML user ID do comprador"
+        BigInteger(), nullable=True, comment="ML user ID do comprador"
     )
     buyer_nickname: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="Nickname do comprador no ML"
