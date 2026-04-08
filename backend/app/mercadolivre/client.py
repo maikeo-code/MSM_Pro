@@ -16,37 +16,35 @@ _RATE_LIMIT_KEY = "ml:rate_limit:last_request"
 _RATE_LIMIT_DELAY = 1.0  # segundos
 
 
-async def _get_redis():
-    """Retorna conexão Redis (lazy singleton)."""
-    import redis.asyncio as aioredis
-    if not hasattr(_get_redis, "_pool"):
-        _get_redis._pool = aioredis.from_url(
-            settings.redis_url, decode_responses=True
-        )
-    return _get_redis._pool
-
-
 async def _distributed_rate_limit():
     """
     Rate limiter distribuído usando Redis.
-    Usa um key com TTL de 1s — se o SETNX falhar, espera o TTL restante.
+    Cria conexão fresca por chamada para evitar loop-binding entre tasks Celery
+    (cada task Celery cria event loop novo via run_async; um singleton de pool
+    aioredis ficaria preso ao primeiro loop e quebraria com 'Event loop is closed').
     """
-    redis = await _get_redis()
-    max_attempts = 10
-    for _ in range(max_attempts):
-        # Tenta adquirir o slot: SET NX com TTL de 1 segundo
-        acquired = await redis.set(
-            _RATE_LIMIT_KEY, "1", nx=True, px=int(_RATE_LIMIT_DELAY * 1000)
-        )
-        if acquired:
-            return  # Slot adquirido — pode fazer a request
+    import redis.asyncio as aioredis
 
-        # Slot ocupado — espera o TTL restante + pequena margem
-        ttl_ms = await redis.pttl(_RATE_LIMIT_KEY)
-        if ttl_ms > 0:
-            await asyncio.sleep(ttl_ms / 1000 + 0.05)
-        else:
-            await asyncio.sleep(0.1)
+    redis = aioredis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        max_attempts = 10
+        for _ in range(max_attempts):
+            acquired = await redis.set(
+                _RATE_LIMIT_KEY, "1", nx=True, px=int(_RATE_LIMIT_DELAY * 1000)
+            )
+            if acquired:
+                return  # Slot adquirido — pode fazer a request
+
+            ttl_ms = await redis.pttl(_RATE_LIMIT_KEY)
+            if ttl_ms > 0:
+                await asyncio.sleep(ttl_ms / 1000 + 0.05)
+            else:
+                await asyncio.sleep(0.1)
+    finally:
+        try:
+            await redis.aclose()
+        except Exception:
+            pass
 
 
 class MLClientError(Exception):
