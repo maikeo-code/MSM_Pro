@@ -67,7 +67,7 @@ export const atendimentoService = {
     },
     mlAccountId?: string | null,
   ) => {
-    const queryParams: any = { ...params };
+    const queryParams: Record<string, unknown> = { ...params };
     if (mlAccountId) {
       queryParams.ml_account_id = mlAccountId;
     }
@@ -79,7 +79,7 @@ export const atendimentoService = {
   },
 
   getStats: (mlAccountId?: string | null) => {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }

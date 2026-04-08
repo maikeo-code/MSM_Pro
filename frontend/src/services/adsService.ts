@@ -201,7 +201,7 @@ const adsService = {
   // Backend: GET /ads/ → AdsDashboardOut
   // Retorna { resumo, campanhas } para o componente
   async list(mlAccountId?: string | null): Promise<{ resumo: AdsResumo; campanhas: AdsCampanha[] }> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -227,7 +227,7 @@ const adsService = {
     };
     const days = daysMap[period] ?? 30;
 
-    const params: any = { days };
+    const params: Record<string, unknown> = { days };
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -240,7 +240,7 @@ const adsService = {
 
   // Backend: POST /ads/sync → { results: [...], accounts_synced: number }
   async sync(mlAccountId?: string | null): Promise<{ message: string; synced: number }> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }

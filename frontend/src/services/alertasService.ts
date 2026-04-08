@@ -54,7 +54,7 @@ export interface AlertEventOut {
 
 const alertasService = {
   async list(params?: { listing_id?: string; is_active?: boolean }, mlAccountId?: string | null): Promise<AlertConfigOut[]> {
-    const queryParams: any = { ...params };
+    const queryParams: Record<string, unknown> = { ...params };
     if (mlAccountId) {
       queryParams.ml_account_id = mlAccountId;
     }
@@ -84,7 +84,7 @@ const alertasService = {
   },
 
   async listEvents(days = 30, mlAccountId?: string | null): Promise<AlertEventOut[]> {
-    const params: any = { days };
+    const params: Record<string, unknown> = { days };
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }

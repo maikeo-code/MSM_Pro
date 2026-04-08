@@ -87,7 +87,7 @@ interface FinanceiroDetalhadoOut {
 
 const financeiroService = {
   async getResumo(period: string = "30d", mlAccountId?: string | null): Promise<FinanceiroResumo> {
-    const params: any = { period };
+    const params: Record<string, unknown> = { period };
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -100,7 +100,7 @@ const financeiroService = {
   // Backend retorna { periodo, data_inicio, data_fim, points: [...] }
   // Extraímos o array .points para o consumidor
   async getTimeline(period: string = "30d", mlAccountId?: string | null): Promise<FinanceiroTimelinePoint[]> {
-    const params: any = { period };
+    const params: Record<string, unknown> = { period };
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -113,7 +113,7 @@ const financeiroService = {
   // Backend retorna { periodo, data_inicio, data_fim, items: [...] }
   // Extraímos o array .items para o consumidor
   async getDetalhado(period: string = "30d", mlAccountId?: string | null): Promise<FinanceiroDetalhado[]> {
-    const params: any = { period };
+    const params: Record<string, unknown> = { period };
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -124,7 +124,7 @@ const financeiroService = {
   },
 
   async getCashflow(mlAccountId?: string | null): Promise<CashFlow> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }

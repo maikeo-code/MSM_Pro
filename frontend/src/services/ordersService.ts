@@ -31,7 +31,7 @@ export async function listOrders(period: string = "7d", mlAccountId?: string | n
   };
   const finalPeriod = periodMap[period] ?? "7d";
 
-  const params: any = { period: finalPeriod };
+  const params: Record<string, unknown> = { period: finalPeriod };
   if (mlAccountId) {
     params.ml_account_id = mlAccountId;
   }

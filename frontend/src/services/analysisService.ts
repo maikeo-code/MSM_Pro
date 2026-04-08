@@ -38,7 +38,7 @@ export interface AnalysisResponse {
 
 const analysisService = {
   async getListingsAnalysis(mlAccountId?: string | null): Promise<AnalysisResponse> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }

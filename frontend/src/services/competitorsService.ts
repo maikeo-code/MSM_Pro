@@ -33,7 +33,7 @@ export interface CompetitorHistory {
 
 const competitorsService = {
   async list(mlAccountId?: string | null): Promise<CompetitorOut[]> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }
@@ -44,7 +44,7 @@ const competitorsService = {
   },
 
   async listByListing(listingId: string, mlAccountId?: string | null): Promise<CompetitorOut[]> {
-    const params: any = {};
+    const params: Record<string, unknown> = {};
     if (mlAccountId) {
       params.ml_account_id = mlAccountId;
     }

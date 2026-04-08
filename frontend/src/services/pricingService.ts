@@ -120,7 +120,7 @@ export const getRecommendations = async (
   },
   mlAccountId?: string | null,
 ): Promise<RecommendationListResponse> => {
-  const queryParams: any = { ...params };
+  const queryParams: Record<string, unknown> = { ...params };
   if (mlAccountId) {
     queryParams.ml_account_id = mlAccountId;
   }
@@ -131,7 +131,7 @@ export const getRecommendations = async (
 };
 
 export const applyRecommendation = async (id: string, mlAccountId?: string | null): Promise<ApplyResponse> => {
-  const params: any = {};
+  const params: Record<string, unknown> = {};
   if (mlAccountId) {
     params.ml_account_id = mlAccountId;
   }
@@ -172,7 +172,7 @@ export const generateRecommendations = async (mlAccountId?: string | null): Prom
   processing_time_ms: number;
   message: string;
 }> => {
-  const params: any = {};
+  const params: Record<string, unknown> = {};
   if (mlAccountId) {
     params.ml_account_id = mlAccountId;
   }
