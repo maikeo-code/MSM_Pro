@@ -115,15 +115,15 @@ celery_app.conf.beat_schedule = {
             "expires": 3600,
         },
     },
-    # Avalia condições de alerta a cada 2 horas
+    # Avalia condições de alerta a cada 2 horas (offset 5min p/ evitar colisao)
     "evaluate-alerts-bihourly": {
         "task": "app.jobs.tasks.evaluate_alerts",
-        "schedule": crontab(minute=0, hour="*/2"),
+        "schedule": crontab(minute=5, hour="*/2"),
         "options": {
             "expires": 7200,
         },
     },
-    # Sincroniza pedidos individuais a cada 2 horas
+    # Sincroniza pedidos individuais a cada 2 horas (minuto 0 — primeiro)
     "sync-orders-every-2h": {
         "task": "app.jobs.tasks.sync_orders",
         "schedule": crontab(minute=0, hour="*/2"),
