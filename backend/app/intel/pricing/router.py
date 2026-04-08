@@ -702,3 +702,74 @@ async def test_email(
                 "Verifique os logs do backend para detalhes."
             ),
         )
+
+
+@router.get("/daily-report", response_class=None)
+async def daily_report_html(
+    current_user: Annotated[User, Depends(get_current_user)],
+    report_date: str | None = Query(None, description="YYYY-MM-DD (default: hoje BRT)"),
+):
+    """
+    Renderiza o Daily Intel Report em HTML diretamente no navegador,
+    sem precisar de SMTP. Usa o mesmo pipeline da task agendada.
+    """
+    from fastapi.responses import HTMLResponse
+    from app.intel.pricing.service_collector import collect_daily_data
+    from app.intel.pricing.service_score import (
+        calculate_recommendation_score,
+        calculate_health_score,
+    )
+    from app.intel.pricing.service_email import _build_summary, build_daily_report_html
+    from app.intel.pricing.service_weights import get_adaptive_weights
+    from app.jobs.tasks_daily_intel import (
+        _try_analyze_with_ai,
+        _get_daily_conversion_sparkline,
+    )
+    from app.core.database import AsyncSessionLocal
+
+    if report_date:
+        try:
+            target_date = datetime.strptime(report_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="report_date deve ser YYYY-MM-DD",
+            )
+    else:
+        target_date = datetime.now(BRT).date()
+
+    anuncios = await collect_daily_data(current_user.id)
+    if not anuncios:
+        return HTMLResponse(
+            content=(
+                "<html><body style='font-family:sans-serif;padding:40px'>"
+                "<h2>Daily Intel Report</h2>"
+                "<p>Sem anuncios ativos para gerar relatorio.</p>"
+                "</body></html>"
+            ),
+            status_code=200,
+        )
+
+    async with AsyncSessionLocal() as db_w:
+        weights = await get_adaptive_weights(db_w, current_user.id)
+
+    for anuncio in anuncios:
+        rec_score = calculate_recommendation_score(anuncio, weights=weights)
+        anuncio["recommendation"] = rec_score
+        anuncio["health_score"] = calculate_health_score(anuncio)
+
+    try:
+        anuncios = await _try_analyze_with_ai(anuncios)
+    except Exception as exc:
+        logger.warning("AI analyzer falhou no daily-report HTML: %s", exc)
+
+    sparkline_cache: dict = {}
+    async with AsyncSessionLocal() as db_s:
+        for anuncio in anuncios:
+            anuncio["sparkline_values"] = await _get_daily_conversion_sparkline(
+                anuncio["listing_id"], sparkline_cache, db_s
+            )
+
+    summary = _build_summary(anuncios)
+    html = build_daily_report_html(anuncios, summary, target_date)
+    return HTMLResponse(content=html, status_code=200)
