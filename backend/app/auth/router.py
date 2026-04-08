@@ -619,6 +619,45 @@ async def trigger_health_check(
     return {"status": "scheduled", "task_id": task.id}
 
 
+@router.post("/debug/trigger-task/{task_name}")
+async def trigger_celery_task(
+    task_name: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """
+    Dispara qualquer Celery task agendada por nome (sem esperar o cron).
+    Apenas tasks da whitelist podem ser disparadas.
+    """
+    whitelist = {
+        "sync_orders",
+        "sync_questions",
+        "sync_all_snapshots",
+        "sync_competitor_snapshots",
+        "sync_reputation",
+        "sync_ads",
+        "evaluate_alerts",
+        "refresh_expired_tokens",
+        "check_sync_health",
+        "send_daily_intel_report",
+    }
+    if task_name not in whitelist:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Task não permitida. Whitelist: {sorted(whitelist)}",
+        )
+
+    from app.jobs import tasks as tasks_module
+    task_func = getattr(tasks_module, task_name, None)
+    if task_func is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task '{task_name}' não encontrada no módulo tasks.",
+        )
+
+    result = task_func.apply_async(countdown=1)
+    return {"status": "scheduled", "task_name": task_name, "task_id": result.id}
+
+
 @router.get("/debug/smtp-status")
 async def smtp_status(
     current_user: Annotated[User, Depends(get_current_user)],
