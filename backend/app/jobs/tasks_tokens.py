@@ -44,7 +44,6 @@ async def _acquire_token_refresh_lock(account_id: str, timeout: int = 60) -> boo
 
     try:
         # SETNX = SET if NOT eXists (atomic)
-        # Retorna 1 se conseguiu settar (lock adquirido), 0 se já existia
         acquired = await redis.set(lock_key, "1", nx=True, ex=timeout)
         if acquired:
             logger.debug(f"Lock adquirido para refresh de {account_id}")
@@ -53,14 +52,17 @@ async def _acquire_token_refresh_lock(account_id: str, timeout: int = 60) -> boo
             logger.debug(f"Lock já existe para {account_id} — outro worker está refreshing")
             return False
     except Exception as e:
-        # BUG 3: fail-closed — refresh_token do ML é single-use.
-        # Se dois workers tentam refresh simultaneamente, o segundo invalida o token do primeiro.
-        # Melhor não fazer refresh do que corromper o token por race condition.
+        # fail-closed — refresh_token do ML é single-use.
         logger.warning(
             f"Erro ao adquirir lock Redis para {account_id}: {e} — "
-            f"abortando refresh por segurança (fail-closed para evitar invalidar refresh_token single-use)"
+            f"abortando refresh por segurança (fail-closed)"
         )
         return False
+    finally:
+        try:
+            await redis.aclose()
+        except Exception:
+            pass
 
 
 async def _release_token_refresh_lock(account_id: str) -> None:
@@ -73,6 +75,11 @@ async def _release_token_refresh_lock(account_id: str) -> None:
         logger.debug(f"Lock liberado para {account_id}")
     except Exception as e:
         logger.warning(f"Erro ao liberar lock Redis para {account_id}: {e}")
+    finally:
+        try:
+            await redis.aclose()
+        except Exception:
+            pass
 
 
 async def _refresh_expired_tokens_async():

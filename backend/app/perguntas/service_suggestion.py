@@ -292,15 +292,18 @@ async def _get_from_cache(key: str) -> str | None:
     Returns:
         Texto da sugestão se encontrada, None caso contrário
     """
-    try:
-        import redis.asyncio as aioredis
+    import redis.asyncio as aioredis
 
-        r = aioredis.from_url(settings.redis_url, decode_responses=True)
-        val = await r.get(key)
-        await r.aclose()
-        return val
+    r = aioredis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        return await r.get(key)
     except Exception:
         return None
+    finally:
+        try:
+            await r.aclose()
+        except Exception:
+            pass
 
 
 async def _set_cache(key: str, value: str) -> None:
@@ -311,11 +314,15 @@ async def _set_cache(key: str, value: str) -> None:
         key: Chave de cache gerada por _cache_key()
         value: Texto da sugestão
     """
-    try:
-        import redis.asyncio as aioredis
+    import redis.asyncio as aioredis
 
-        r = aioredis.from_url(settings.redis_url, decode_responses=True)
+    r = aioredis.from_url(settings.redis_url, decode_responses=True)
+    try:
         await r.set(key, value, ex=CACHE_TTL)
-        await r.aclose()
     except Exception as exc:
         logger.debug("Falha ao salvar cache: %s", exc)
+    finally:
+        try:
+            await r.aclose()
+        except Exception:
+            pass

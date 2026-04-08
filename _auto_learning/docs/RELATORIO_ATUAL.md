@@ -1,12 +1,12 @@
 # SWARM GENESIS v6.0 — RELATORIO COMPLETO
-Gerado em: 26/03/2026 05:51
+Gerado em: 07/04/2026 21:09
 
 ## SAUDE DO SISTEMA
   Ciclos completos: 454
   Regras: 10 ativas | 0 deprecadas
   Feedbacks: 12 | Sucessos: 9 | Falhas abertas: 0
   Agentes: 20 ativos | 0 elite | 0 aposentados
-  Memoria: 5 episodios | 19 fatos | 8 padroes
+  Memoria: 5 episodios | 21 fatos | 8 padroes
 
 ## CHECKPOINT DA SESSAO (v6)
 
