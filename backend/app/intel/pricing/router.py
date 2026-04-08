@@ -704,7 +704,9 @@ async def test_email(
         )
 
 
-@router.get("/daily-report", response_class=None)
+from fastapi.responses import HTMLResponse as _HTMLResponse  # noqa: E402
+
+@router.get("/daily-report", response_class=_HTMLResponse)
 async def daily_report_html(
     current_user: Annotated[User, Depends(get_current_user)],
     report_date: str | None = Query(None, description="YYYY-MM-DD (default: hoje BRT)"),
