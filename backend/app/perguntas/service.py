@@ -53,8 +53,16 @@ async def sync_questions_for_account(
         logger.warning("Conta %s sem token de acesso", account.id)
         return {"synced": 0, "new": 0, "updated": 0, "errors": 1}
 
+    # IMPORTANTE: copiar atributos do account para variaveis locais ANTES do loop.
+    # Apos um db.rollback() interno, o objeto SQLAlchemy entra em estado expired
+    # e qualquer leitura subsequente de account.id/account.access_token dispara
+    # um refresh assincrono, que falha com 'greenlet_spawn has not been called'
+    # quando ocorre dentro de um bloco try/except sem contexto greenlet adequado.
+    account_id_local = account.id
+    account_token_local = account.access_token
+
     try:
-        async with MLClient(account.access_token) as client:
+        async with MLClient(account_token_local) as client:
             for status in statuses:
                 try:
                     # Busca perguntas da API ML
@@ -66,7 +74,7 @@ async def sync_questions_for_account(
                         "Sincronizando %d perguntas status=%s da conta %s",
                         len(questions_api),
                         status,
-                        account.id,
+                        account_id_local,
                     )
 
                     for q in questions_api:
@@ -142,7 +150,7 @@ async def sync_questions_for_account(
                                 # CREATE
                                 question = Question(
                                     ml_question_id=ml_question_id,
-                                    ml_account_id=account.id,
+                                    ml_account_id=account_id_local,
                                     listing_id=listing_id,
                                     mlb_id=mlb_id,
                                     item_title=item_title,
@@ -178,7 +186,7 @@ async def sync_questions_for_account(
                     logger.error(
                         "Erro ML ao sincronizar status=%s da conta %s: %s",
                         status,
-                        account.id,
+                        account_id_local,
                         exc,
                         exc_info=True,
                     )
@@ -190,7 +198,7 @@ async def sync_questions_for_account(
         logger.info(
             "Sincronização concluída para conta %s: "
             "synced=%d, new=%d, updated=%d, errors=%d",
-            account.id,
+            account_id_local,
             synced,
             new,
             updated,
@@ -200,7 +208,7 @@ async def sync_questions_for_account(
     except Exception as exc:
         logger.error(
             "Erro geral ao sincronizar conta %s: %s",
-            account.id,
+            account_id_local,
             exc,
             exc_info=True,
         )
