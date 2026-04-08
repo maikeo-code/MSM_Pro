@@ -27,3 +27,22 @@ import app.intel.models  # noqa: F401, E402
 import app.financeiro.models  # noqa: F401, E402
 import app.atendimento.models  # noqa: F401, E402
 import app.notifications.models  # noqa: F401, E402
+import app.perguntas.models  # noqa: F401, E402
+
+import pytest_asyncio  # noqa: E402
+
+from app.core.database import AsyncSessionLocal, Base, engine  # noqa: E402
+
+
+@pytest_asyncio.fixture
+async def db():
+    """
+    Fixture global de sessão SQLAlchemy async em SQLite in-memory.
+    Cria todas as tabelas, entrega a sessão, faz teardown ao final.
+    """
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSessionLocal() as session:
+        yield session
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
