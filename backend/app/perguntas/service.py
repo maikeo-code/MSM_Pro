@@ -349,9 +349,12 @@ async def list_questions_from_db(
     # Aplica filtros
     query = base_query.where(and_(*filters))
 
-    # Count total (sem offset/limit)
+    # Count total (sem offset/limit) — JOIN é necessário para filtrar por user_id via MLAccount
     count_result = await db.execute(
-        select(func.count(Question.id)).where(and_(*filters)).select_from(Question)
+        select(func.count(Question.id))
+        .select_from(Question)
+        .join(MLAccount, Question.ml_account_id == MLAccount.id)
+        .where(and_(*filters))
     )
     total = count_result.scalar() or 0
 

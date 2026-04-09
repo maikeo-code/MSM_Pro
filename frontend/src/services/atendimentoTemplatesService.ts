@@ -32,8 +32,8 @@ export async function listTemplates(
 
   const url =
     params.toString() === ""
-      ? "/api/v1/atendimento/templates"
-      : `/api/v1/atendimento/templates?${params}`;
+      ? "/atendimento/templates"
+      : `/atendimento/templates?${params}`;
 
   const response = await api.get(url);
   return response.data;
@@ -43,7 +43,7 @@ export async function listTemplates(
  * Obtém um template específico.
  */
 export async function getTemplate(templateId: string): Promise<ResponseTemplate> {
-  const response = await api.get(`/api/v1/atendimento/templates/${templateId}`);
+  const response = await api.get(`/atendimento/templates/${templateId}`);
   return response.data;
 }
 
@@ -53,7 +53,7 @@ export async function getTemplate(templateId: string): Promise<ResponseTemplate>
 export async function createTemplate(
   data: ResponseTemplateInput
 ): Promise<ResponseTemplate> {
-  const response = await api.post("/api/v1/atendimento/templates", data);
+  const response = await api.post("/atendimento/templates", data);
   return response.data;
 }
 
@@ -65,7 +65,7 @@ export async function updateTemplate(
   data: ResponseTemplateInput
 ): Promise<ResponseTemplate> {
   const response = await api.put(
-    `/api/v1/atendimento/templates/${templateId}`,
+    `/atendimento/templates/${templateId}`,
     data
   );
   return response.data;
@@ -75,7 +75,7 @@ export async function updateTemplate(
  * Deleta um template.
  */
 export async function deleteTemplate(templateId: string): Promise<void> {
-  await api.delete(`/api/v1/atendimento/templates/${templateId}`);
+  await api.delete(`/atendimento/templates/${templateId}`);
 }
 
 /**

@@ -35,14 +35,17 @@ async def get_inventory_health(
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=period_days)
 
-    # ─ Subquery to get latest stock per listing ────────────────────────────────────
+    # ─ Subquery to get latest stock per listing (ROW_NUMBER window) ──────────────
+    rn = func.row_number().over(
+        partition_by=ListingSnapshot.listing_id,
+        order_by=desc(ListingSnapshot.captured_at),
+    ).label("rn")
+    ranked = (
+        select(ListingSnapshot.listing_id, ListingSnapshot.stock, rn)
+    ).subquery()
     latest_stock_subq = (
-        select(
-            ListingSnapshot.listing_id,
-            ListingSnapshot.stock,
-        )
-        .order_by(ListingSnapshot.listing_id, desc(ListingSnapshot.captured_at))
-        .distinct(ListingSnapshot.listing_id)
+        select(ranked.c.listing_id, ranked.c.stock)
+        .where(ranked.c.rn == 1)
     ).subquery()
 
     # ─ Fetch aggregated data per listing ────────────────────────────────────────

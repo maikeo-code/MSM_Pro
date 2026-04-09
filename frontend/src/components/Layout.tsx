@@ -18,6 +18,7 @@ import {
   PieChart,
   Lightbulb,
   Sparkles,
+  MessageCircleQuestion,
   Menu,
   X,
   Moon,
@@ -44,6 +45,7 @@ const menuSections = [
     items: [
       { to: "/pedidos", label: "Pedidos", icon: ShoppingCart },
       { to: "/atendimento", label: "Atendimento", icon: Headphones },
+      { to: "/perguntas", label: "Perguntas", icon: MessageCircleQuestion },
     ],
   },
   {

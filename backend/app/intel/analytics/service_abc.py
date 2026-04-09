@@ -35,14 +35,17 @@ async def get_abc_analysis(
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=period_days)
 
-    # ─ Subquery to get latest stock per listing ────────────────────────────────────
+    # ─ Subquery to get latest stock per listing (ROW_NUMBER window) ──────────────
+    rn = func.row_number().over(
+        partition_by=ListingSnapshot.listing_id,
+        order_by=desc(ListingSnapshot.captured_at),
+    ).label("rn")
+    ranked = (
+        select(ListingSnapshot.listing_id, ListingSnapshot.stock, rn)
+    ).subquery()
     latest_stock_subq = (
-        select(
-            ListingSnapshot.listing_id,
-            ListingSnapshot.stock,
-        )
-        .order_by(ListingSnapshot.listing_id, desc(ListingSnapshot.captured_at))
-        .distinct(ListingSnapshot.listing_id)
+        select(ranked.c.listing_id, ranked.c.stock)
+        .where(ranked.c.rn == 1)
     ).subquery()
 
     # ─ Fetch data from snapshots and current stock ────────────────────────────────
@@ -132,7 +135,7 @@ async def get_abc_analysis(
         # Classify: A (0-80%), B (80-95%), C (95-100%)
         if prev_cumulative < 80.0:
             classification = "A"
-        elif cumulative <= 95.0:
+        elif prev_cumulative < 95.0:
             classification = "B"
         else:
             classification = "C"

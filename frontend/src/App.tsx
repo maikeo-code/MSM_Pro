@@ -11,12 +11,14 @@ import Reputacao from "@/pages/Reputacao";
 import Produtos from "@/pages/Produtos";
 import Pedidos from "@/pages/Pedidos";
 import Atendimento from "@/pages/Atendimento";
+import Perguntas from "@/pages/Perguntas";
 import Login from "@/pages/Login";
 import Layout from "@/components/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const PriceSuggestions = lazy(() => import("@/pages/PriceSuggestions"));
+const Notificacoes = lazy(() => import("@/pages/Notificacoes"));
 const Financeiro = lazy(() => import("@/pages/Financeiro"));
 const Publicidade = lazy(() => import("@/pages/Publicidade"));
 const Intel = lazy(() => import("@/pages/Intel"));
@@ -41,6 +43,15 @@ function App() {
             <Route path="/anuncios/:mlbId" element={<AnuncioDetalhe />} />
             <Route path="/pedidos" element={<Pedidos />} />
             <Route path="/atendimento" element={<Atendimento />} />
+            <Route path="/perguntas" element={<Perguntas />} />
+            <Route
+              path="/notificacoes"
+              element={
+                <Suspense fallback={<div className="p-8 text-gray-400">Carregando...</div>}>
+                  <Notificacoes />
+                </Suspense>
+              }
+            />
             <Route
               path="/precos"
               element={

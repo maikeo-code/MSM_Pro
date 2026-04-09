@@ -21,7 +21,7 @@ async def _get_first_ml_account(db: AsyncSession, user_id: UUID) -> MLAccount | 
         .where(MLAccount.user_id == user_id, MLAccount.is_active == True)
         .order_by(MLAccount.created_at)
     )
-    return result.scalar_one_or_none()
+    return result.scalars().first()
 
 
 @router.get("/", response_model=AdsDashboardOut)
