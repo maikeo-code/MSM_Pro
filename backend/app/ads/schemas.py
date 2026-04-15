@@ -47,6 +47,8 @@ class AdsDashboardOut(BaseModel):
     roas_geral: Decimal | None
     acos_geral: Decimal | None
     campaigns: list[AdCampaignOut]
+    # Tema 3: expoe o periodo consultado (evita confusao com "acumulado")
+    period_days: int = 30
 
 
 class AdsCampaignDetailOut(BaseModel):

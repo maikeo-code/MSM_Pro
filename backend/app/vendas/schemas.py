@@ -174,6 +174,15 @@ class KpiPeriodOut(BaseModel):
     receita_variacao: float | None = None
     visitas_variacao: float | None = None
     conversao_variacao: float | None = None
+    # ── Medias diarias (Tema 2) ─────────────────────────────────────────
+    # Para periodos > 1 dia, expoe os valores como MEDIA/dia para que
+    # o dashboard possa comparar contra valores diarios (hoje/ontem).
+    # Para "hoje"/"ontem"/"anteontem" estes campos sao iguais aos totais.
+    dias_no_periodo: int = 1
+    vendas_media_dia: float = 0.0
+    visitas_media_dia: float = 0.0
+    pedidos_media_dia: float = 0.0
+    receita_media_dia: float = 0.0
 
 
 class MargemResult(BaseModel):

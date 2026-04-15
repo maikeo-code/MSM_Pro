@@ -9,6 +9,7 @@ export interface QuestionDB {
   mlb_id: string;
   item_title: string | null;
   item_thumbnail: string | null;
+  item_permalink: string | null;  // Tema 4: link para abrir anuncio no ML
   text: string;
   status: string;
   buyer_id: number | null;

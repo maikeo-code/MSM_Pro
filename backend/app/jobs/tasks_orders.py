@@ -211,13 +211,19 @@ async def _sync_orders_async():
                                 existing_order = existing_result.scalar_one_or_none()
 
                                 if existing_order:
-                                    # Atualiza apenas campos mutaveis
+                                    # Atualiza status + valores financeiros (frete/taxa
+                                    # podem mudar ate o envio ser finalizado). Isso
+                                    # garante que net_amount sempre reflete o estado
+                                    # atual do ML.
                                     existing_order.shipping_status = shipping_status
                                     existing_order.payment_status = payment_status
                                     if payment_date:
                                         existing_order.payment_date = payment_date
                                     if delivery_date:
                                         existing_order.delivery_date = delivery_date
+                                    existing_order.sale_fee = sale_fee
+                                    existing_order.shipping_cost = shipping_cost
+                                    existing_order.net_amount = net_amount
                                     total_updated += 1
                                 else:
                                     new_order = Order(

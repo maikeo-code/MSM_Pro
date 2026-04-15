@@ -260,6 +260,8 @@ export default function Dashboard() {
   const [funnelPeriod, setFunnelPeriod] = useState<string>("7d");
   const [searchTerm, setSearchTerm] = useState("");
   const [tablePeriod, setTablePeriod] = useState<string>("today");
+  // Tema 2: toggle Total / Media diaria para periodos > 1 dia
+  const [kpiDisplayMode, setKpiDisplayMode] = useState<"total" | "media">("media");
 
   // ─── Consultor IA ────────────────────────────────────────────────────────────
   const [consultorAberto, setConsultorAberto] = useState(false);
@@ -505,8 +507,28 @@ export default function Dashboard() {
 
         {/* Tabela KPI por periodo */}
         <div className="rounded-lg border bg-card shadow-sm lg:col-span-2">
-          <div className="px-4 py-2 border-b">
+          <div className="px-4 py-2 border-b flex items-center justify-between">
             <h2 className="text-sm font-semibold text-foreground">Resumo por Periodo</h2>
+            {/* Tema 2: toggle Total / Media diaria */}
+            <div className="flex gap-1" title="Escolha como exibir periodos > 1 dia">
+              {([
+                { k: "total", l: "Total" },
+                { k: "media", l: "Media/dia" },
+              ] as const).map(({ k, l }) => (
+                <button
+                  key={k}
+                  onClick={() => setKpiDisplayMode(k)}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-xs font-medium transition-colors",
+                    kpiDisplayMode === k
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -528,23 +550,54 @@ export default function Dashboard() {
                   { label: "Anteontem", data: kpi?.anteontem },
                   { label: "7 dias", data: kpi?.["7dias"] },
                   { label: "30 dias", data: kpi?.["30dias"] },
-                ].map(({ label, data }) => (
+                ].map(({ label, data }) => {
+                  // Tema 2: quando periodo > 1 dia e modo = "media",
+                  // usa as medias diarias do backend em vez dos totais.
+                  const dias = data?.dias_no_periodo ?? 1;
+                  const useMedia = kpiDisplayMode === "media" && dias > 1;
+                  const vendasShow = useMedia
+                    ? data?.vendas_media_dia
+                    : data?.vendas;
+                  const visitasShow = useMedia
+                    ? data?.visitas_media_dia
+                    : data?.visitas;
+                  const receitaShow = useMedia
+                    ? data?.receita_media_dia
+                    : data?.receita;
+                  const suffix = useMedia ? " /dia" : "";
+                  return (
                   <tr key={label} className="border-b hover:bg-muted/50">
-                    <td className="px-4 py-2 font-medium text-foreground">{label}</td>
+                    <td className="px-4 py-2 font-medium text-foreground">
+                      {label}
+                      {useMedia && (
+                        <span className="ml-1 text-[10px] text-muted-foreground">(media)</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2 text-right text-foreground">{data?.anuncios ?? "-"}</td>
-                    <td className="px-4 py-2 text-right font-medium text-foreground">{data?.vendas ?? "-"}</td>
-                    <td className="px-4 py-2 text-right text-foreground">{data?.visitas?.toLocaleString("pt-BR") ?? "-"}</td>
+                    <td className="px-4 py-2 text-right font-medium text-foreground">
+                      {vendasShow != null
+                        ? `${typeof vendasShow === "number" && !Number.isInteger(vendasShow) ? vendasShow.toFixed(1) : vendasShow}${suffix}`
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-2 text-right text-foreground">
+                      {visitasShow != null
+                        ? `${(typeof visitasShow === "number" ? visitasShow : Number(visitasShow)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}${suffix}`
+                        : "-"}
+                    </td>
                     <td className="px-4 py-2 text-right text-foreground">
                       {data?.conversao != null ? `${data.conversao.toFixed(2)}%` : "-"}
                     </td>
                     <td className="px-4 py-2 text-right font-medium text-green-600">
-                      {data?.receita != null && data.receita > 0 ? formatCurrency(data.receita) : "-"}
+                      {receitaShow != null && receitaShow > 0
+                        ? `${formatCurrency(receitaShow)}${suffix}`
+                        : "-"}
                     </td>
                     <td className="px-4 py-2 text-right font-medium text-foreground">
                       {data?.valor_estoque != null ? formatCurrency(data.valor_estoque) : "-"}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

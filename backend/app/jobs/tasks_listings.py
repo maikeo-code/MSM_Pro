@@ -185,6 +185,15 @@ async def _sync_listing_snapshot_async(
                     logger.debug(f"Não conseguiu buscar visitas para {listing.mlb_id}")
 
             # Busca pedidos PAGOS (unidades vendidas + receita + frete)
+            # IMPORTANTE: frete correto = custo pago pelo VENDEDOR (sender_cost).
+            # O campo `shipping.cost` retornado por /orders nao eh confiavel:
+            # pode trazer o frete do comprador, zero em frete gratis, ou
+            # ate mesmo campos divergentes. Por isso buscamos /shipments/{id}
+            # para cada pedido (mesma logica que tasks_orders.py usa).
+            # Otimizacao: se o Order ja foi sincronizado pelo job de orders,
+            # reaproveita o shipping_cost persistido (ja contem sender_cost).
+            from app.vendas.models import Order as OrderModel
+
             sales_today = 0
             orders_count = 0
             revenue = Decimal("0")
@@ -210,11 +219,41 @@ async def _sync_listing_snapshot_async(
                             order_matched = True
                     if order_matched:
                         orders_count += 1
-                        # Extrai shipping cost do pedido
-                        shipping_data = order.get("shipping", {})
-                        ship_cost = shipping_data.get("cost") or 0
-                        if ship_cost:
-                            total_shipping_cost += Decimal(str(ship_cost))
+                        # Frete real: prioridade 1 Order persistida, 2 /shipments, 3 skip
+                        ml_order_id = str(order.get("id") or "")
+                        ship_cost_real: Decimal | None = None
+                        if ml_order_id:
+                            persisted = await db.execute(
+                                select(OrderModel).where(
+                                    OrderModel.ml_order_id == ml_order_id
+                                )
+                            )
+                            persisted_order = persisted.scalar_one_or_none()
+                            if persisted_order and persisted_order.shipping_cost:
+                                ship_cost_real = persisted_order.shipping_cost
+                        if ship_cost_real is None:
+                            shipment_id = order.get("shipping", {}).get("id")
+                            if shipment_id:
+                                try:
+                                    shipment_detail = await client.get_shipment(
+                                        shipment_id
+                                    )
+                                    cost_comps = shipment_detail.get(
+                                        "cost_components", {}
+                                    ) or {}
+                                    sender_cost = (
+                                        cost_comps.get("sender_cost")
+                                        or cost_comps.get("loyal_discount")
+                                        or shipment_detail.get("base_cost")
+                                        or 0
+                                    )
+                                    ship_cost_real = Decimal(str(sender_cost or 0))
+                                except Exception:
+                                    logger.debug(
+                                        f"Nao conseguiu frete do shipment {shipment_id}"
+                                    )
+                        if ship_cost_real and ship_cost_real > 0:
+                            total_shipping_cost += ship_cost_real
                             shipping_orders_count += 1
             except MLClientError:
                 logger.debug(f"Nao conseguiu buscar pedidos pagos para {listing.mlb_id}")

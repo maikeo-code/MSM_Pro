@@ -3,10 +3,12 @@ import logging
 from typing import Annotated, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import User
+from app.auth.models import MLAccount, User
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.mercadolivre.client import MLClientError
@@ -24,6 +26,13 @@ from app.atendimento.service import (
     get_atendimento_stats,
     get_ai_suggestion,
     respond_to_item,
+)
+from app.atendimento.service_claims import (
+    find_similar_resolved_claims,
+    get_claim_stats,
+    list_claims_from_db,
+    mark_claim_resolved,
+    sync_claims_for_account,
 )
 # from app.atendimento.service_templates import (
 #     list_templates,
@@ -268,3 +277,132 @@ async def delete_response_template(
     except Exception as e:
         logger.error("Erro ao deletar template: %s", e)
         raise HTTPException(status_code=500, detail="Erro ao deletar template")
+
+
+# ─── Claims persistidos (Tema 5) ─────────────────────────────────────────
+
+
+class ClaimResolveIn(BaseModel):
+    resolution_type: str = Field(
+        pattern=r"^(refund|replace|partial_refund|kept|ml_suggested)$",
+        description="Como a reclamacao foi resolvida",
+    )
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+@router.post("/claims/sync")
+async def sync_claims_endpoint(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    ml_account_id: UUID | None = Query(default=None),
+):
+    """Sincroniza reclamacoes das contas ML ativas para o banco local (Tema 5).
+
+    Se ml_account_id nao for informado, sincroniza todas as contas.
+    """
+    query = select(MLAccount).where(
+        MLAccount.user_id == current_user.id,
+        MLAccount.is_active == True,  # noqa: E712
+    )
+    if ml_account_id is not None:
+        query = query.where(MLAccount.id == ml_account_id)
+
+    result = await db.execute(query)
+    accounts = list(result.scalars().all())
+
+    totals = {"synced": 0, "new": 0, "updated": 0, "errors": 0}
+    for account in accounts:
+        if not account.access_token:
+            continue
+        try:
+            r = await sync_claims_for_account(db, account)
+            for k in totals:
+                totals[k] += r.get(k, 0)
+        except Exception as exc:
+            logger.error(
+                "Erro ao sincronizar claims da conta %s: %s",
+                account.id, exc, exc_info=True,
+            )
+            totals["errors"] += 1
+
+    return {"accounts_synced": len(accounts), **totals}
+
+
+@router.get("/claims")
+async def list_claims_endpoint(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    status: str | None = Query(default=None),
+    mlb_id: str | None = Query(default=None),
+    claim_type: str | None = Query(default=None),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+):
+    """Lista reclamacoes persistidas localmente com filtros (Tema 5).
+
+    Inclui thumbnail/permalink do anuncio vinculado via JOIN com Listing.
+    """
+    items, total = await list_claims_from_db(
+        db, current_user.id,
+        status=status, mlb_id=mlb_id, claim_type=claim_type,
+        offset=offset, limit=limit,
+    )
+    return {
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "items": items,
+    }
+
+
+@router.get("/claims/stats")
+async def claims_stats_endpoint(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Contadores agregados de reclamacoes persistidas (Tema 5)."""
+    return await get_claim_stats(db, current_user.id)
+
+
+@router.get("/claims/similar/{mlb_id}")
+async def similar_resolved_claims_endpoint(
+    mlb_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: int = Query(default=5, ge=1, le=20),
+):
+    """
+    Lista reclamacoes ja resolvidas para o MESMO anuncio (Tema 5).
+
+    Serve como base de conhecimento para sugerir como resolver
+    uma nova reclamacao do mesmo produto.
+    """
+    items = await find_similar_resolved_claims(
+        db, current_user.id, mlb_id, limit=limit
+    )
+    return {"mlb_id": mlb_id, "count": len(items), "items": items}
+
+
+@router.post("/claims/{claim_id}/resolve")
+async def resolve_claim_endpoint(
+    claim_id: UUID,
+    body: ClaimResolveIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Marca um claim como resolvido localmente (aprender com solucao usada)."""
+    try:
+        claim = await mark_claim_resolved(
+            db, current_user.id, claim_id,
+            resolution_type=body.resolution_type,
+            notes=body.notes,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    return {
+        "id": str(claim.id),
+        "ml_claim_id": claim.ml_claim_id,
+        "resolution_type": claim.resolution_type,
+        "resolved_at": claim.resolved_at,
+    }

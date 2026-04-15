@@ -302,29 +302,31 @@ async def list_questions_from_db(
     search: str | None = None,
     offset: int = 0,
     limit: int = 20,
-) -> tuple[list[Question], int]:
+) -> tuple[list[dict], int]:
     """
-    Lista perguntas do banco local com filtros.
+    Lista perguntas do banco local com filtros, enriquecidas com
+    thumbnail e permalink do anuncio vinculado (via JOIN com Listing).
+
+    Tema 4: a listagem de perguntas precisa exibir miniatura do produto,
+    titulo e link direto para o anuncio. Fazemos left outer join com
+    Listing (por mlb_id) e retornamos um dict pronto para serializar no
+    QuestionDB schema.
 
     Args:
-        db: Sessão de banco
-        user_id: UUID do usuário
+        db: Sessao de banco
+        user_id: UUID do usuario
         status: Filtro de status (UNANSWERED, ANSWERED, etc)
         ml_account_id: Filtro de conta ML (opcional)
-        mlb_id: Filtro de anúncio específico (opcional)
+        mlb_id: Filtro de anuncio especifico (opcional)
         search: Busca em text ou buyer_nickname (ILIKE)
-        offset: Paginação
+        offset: Paginacao
         limit: Limite de resultados
 
     Returns:
-        tuple com (lista de Question objects, total de registros)
+        tuple com (lista de dicts, total de registros). Cada dict contem
+        todos os campos de Question + item_thumbnail + item_permalink.
     """
-    # Base query: perguntas das contas do usuário
-    base_query = select(Question).join(
-        MLAccount, Question.ml_account_id == MLAccount.id
-    )
-
-    # Filtro de usuário (obrigatório)
+    # Filtro de usuario (obrigatorio)
     filters = [MLAccount.user_id == user_id]
 
     # Filtros opcionais
@@ -346,10 +348,7 @@ async def list_questions_from_db(
             )
         )
 
-    # Aplica filtros
-    query = base_query.where(and_(*filters))
-
-    # Count total (sem offset/limit) — JOIN é necessário para filtrar por user_id via MLAccount
+    # Count total
     count_result = await db.execute(
         select(func.count(Question.id))
         .select_from(Question)
@@ -358,14 +357,63 @@ async def list_questions_from_db(
     )
     total = count_result.scalar() or 0
 
-    # Busca paginada, ordenada por data mais recente
-    query = query.order_by(desc(Question.date_created))
-    query = query.offset(offset).limit(limit)
+    # Query principal com JOIN de Listing (outer) para buscar thumbnail
+    # e permalink. Usamos mlb_id como chave de juncao porque Question nao
+    # tem listing_id populado em todas as entradas (campo opcional).
+    query = (
+        select(
+            Question,
+            Listing.thumbnail.label("listing_thumbnail"),
+            Listing.permalink.label("listing_permalink"),
+            Listing.title.label("listing_title"),
+        )
+        .join(MLAccount, Question.ml_account_id == MLAccount.id)
+        .outerjoin(
+            Listing,
+            and_(
+                Listing.mlb_id == Question.mlb_id,
+                Listing.ml_account_id == Question.ml_account_id,
+            ),
+        )
+        .where(and_(*filters))
+        .order_by(desc(Question.date_created))
+        .offset(offset)
+        .limit(limit)
+    )
 
     result = await db.execute(query)
-    questions = result.scalars().all()
+    rows = result.all()
 
-    return questions, total
+    enriched: list[dict] = []
+    for row in rows:
+        q: Question = row[0]
+        enriched.append(
+            {
+                "id": q.id,
+                "ml_question_id": q.ml_question_id,
+                "ml_account_id": q.ml_account_id,
+                "mlb_id": q.mlb_id,
+                "item_title": q.item_title or row.listing_title,
+                "item_thumbnail": row.listing_thumbnail,
+                "item_permalink": row.listing_permalink,
+                "text": q.text,
+                "status": q.status,
+                "buyer_id": q.buyer_id,
+                "buyer_nickname": q.buyer_nickname,
+                "date_created": q.date_created,
+                "answer_text": q.answer_text,
+                "answer_date": q.answer_date,
+                "answer_source": q.answer_source,
+                "ai_suggestion_text": q.ai_suggestion_text,
+                "ai_suggestion_confidence": q.ai_suggestion_confidence,
+                "ai_suggested_at": q.ai_suggested_at,
+                "synced_at": q.synced_at,
+                "created_at": q.created_at,
+                "updated_at": q.updated_at,
+            }
+        )
+
+    return enriched, total
 
 
 async def answer_question_and_track(
@@ -643,24 +691,29 @@ async def get_questions_by_listing(
     db: AsyncSession,
     user_id: UUID,
     mlb_id: str,
-) -> list[Question]:
+) -> list[dict]:
     """
-    Retorna histórico de Q&A de um anúncio específico.
-
-    Args:
-        db: Sessão de banco
-        user_id: UUID do usuário
-        mlb_id: ID do anúncio (ex: MLB1234567890)
+    Retorna historico de Q&A de um anuncio especifico, enriquecido com
+    thumbnail e permalink (Tema 4).
 
     Returns:
-        Lista de Question objects ordenadas por data crescente
+        Lista de dicts (um por pergunta) prontos para QuestionDB.
     """
     try:
         result = await db.execute(
-            select(Question)
-            .join(
-                MLAccount,
-                Question.ml_account_id == MLAccount.id,
+            select(
+                Question,
+                Listing.thumbnail.label("listing_thumbnail"),
+                Listing.permalink.label("listing_permalink"),
+                Listing.title.label("listing_title"),
+            )
+            .join(MLAccount, Question.ml_account_id == MLAccount.id)
+            .outerjoin(
+                Listing,
+                and_(
+                    Listing.mlb_id == Question.mlb_id,
+                    Listing.ml_account_id == Question.ml_account_id,
+                ),
             )
             .where(
                 MLAccount.user_id == user_id,
@@ -668,12 +721,38 @@ async def get_questions_by_listing(
             )
             .order_by(Question.date_created)
         )
-        questions = result.scalars().all()
-        return questions
+        rows = result.all()
+
+        return [
+            {
+                "id": row[0].id,
+                "ml_question_id": row[0].ml_question_id,
+                "ml_account_id": row[0].ml_account_id,
+                "mlb_id": row[0].mlb_id,
+                "item_title": row[0].item_title or row.listing_title,
+                "item_thumbnail": row.listing_thumbnail,
+                "item_permalink": row.listing_permalink,
+                "text": row[0].text,
+                "status": row[0].status,
+                "buyer_id": row[0].buyer_id,
+                "buyer_nickname": row[0].buyer_nickname,
+                "date_created": row[0].date_created,
+                "answer_text": row[0].answer_text,
+                "answer_date": row[0].answer_date,
+                "answer_source": row[0].answer_source,
+                "ai_suggestion_text": row[0].ai_suggestion_text,
+                "ai_suggestion_confidence": row[0].ai_suggestion_confidence,
+                "ai_suggested_at": row[0].ai_suggested_at,
+                "synced_at": row[0].synced_at,
+                "created_at": row[0].created_at,
+                "updated_at": row[0].updated_at,
+            }
+            for row in rows
+        ]
 
     except Exception as exc:
         logger.error(
-            "Erro ao buscar perguntas do anúncio %s: %s",
+            "Erro ao buscar perguntas do anuncio %s: %s",
             mlb_id,
             exc,
             exc_info=True,

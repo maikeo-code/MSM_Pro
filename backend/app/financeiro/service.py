@@ -18,7 +18,8 @@ def calcular_taxa_ml(listing_type: str, sale_fee_pct: Decimal | None = None) -> 
     Se sale_fee_pct for fornecido (taxa real obtida via API listing_prices),
     usa esse valor em vez da tabela fixa.
 
-    classico=0.115 (11.5%), premium=0.17 (17%), full=0.17 (17%)
+    Tabela oficial ML:
+    classico = 11% (0.11), premium = 16% (0.16), full = 16% (0.16 + frete gratis)
     """
     if sale_fee_pct is not None and sale_fee_pct > 0:
         return sale_fee_pct

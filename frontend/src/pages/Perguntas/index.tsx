@@ -47,33 +47,10 @@ function tempoRelativo(dateStr: string): string {
   return `${Math.floor(horas / 24)}d atras`;
 }
 
-// ─── Badge de Urgencia ────────────────────────────────────────────────────
-
-function UrgenciaBadge({ dateStr }: { dateStr: string }) {
-  const horas = horasDesde(dateStr);
-  if (horas >= 24) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700">
-        <AlertTriangle className="h-3 w-3" />
-        Urgente
-      </span>
-    );
-  }
-  if (horas >= 12) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700">
-        <Clock className="h-3 w-3" />
-        Atencao
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700">
-      <CheckCircle className="h-3 w-3" />
-      Recente
-    </span>
-  );
-}
+// Tema 4: removido UrgenciaBadge (semaforo/velocidade) por pedido do usuario.
+// A listagem agora mostra apenas o tempo relativo absoluto (ex: "3h atras").
+// Se no futuro for necessario destacar perguntas antigas, usar cor sutil na
+// propria data — mas sem icones de velocidade nem semaforos.
 
 // ─── Confianca Badge ──────────────────────────────────────────────────────
 
@@ -202,13 +179,19 @@ function QuestionList({
 
                 {/* Conteúdo */}
                 <div className="flex-1 min-w-0">
-                  {/* Buyer + Urgencia */}
+                  {/* Buyer (Tema 4: sem semaforo/velocidade) */}
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="text-xs font-medium text-gray-600 truncate">
                       {q.buyer_nickname || `Comprador #${q.buyer_id}`}
                     </span>
-                    {tab === "pendentes" && <UrgenciaBadge dateStr={q.date_created} />}
                   </div>
+
+                  {/* Titulo do anuncio (Tema 4) */}
+                  {q.item_title && (
+                    <p className="text-[11px] text-gray-500 line-clamp-1 mb-1 italic">
+                      {q.item_title}
+                    </p>
+                  )}
 
                   {/* Texto truncado */}
                   <p className="text-sm text-gray-700 line-clamp-2 mb-1">{q.text}</p>
@@ -299,7 +282,7 @@ function QuestionDetail({ question, tab, accountId }: QuestionDetailProps) {
 
   return (
     <div className="flex flex-col h-full space-y-4">
-      {/* Cabeçalho com Thumbnail */}
+      {/* Cabecalho com Thumbnail, titulo e link para o anuncio (Tema 4) */}
       <div className="border-b border-gray-200 pb-4 space-y-2">
         <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
           {question.item_thumbnail ? (
@@ -313,10 +296,23 @@ function QuestionDetail({ question, tab, accountId }: QuestionDetailProps) {
               <MessageCircle className="h-6 w-6 text-gray-300" />
             </div>
           )}
-          <div className="min-w-0">
-            <span className="font-mono text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-              {question.mlb_id}
-            </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                {question.mlb_id}
+              </span>
+              {question.item_permalink && (
+                <a
+                  href={question.item_permalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                  title="Abrir anuncio no Mercado Livre"
+                >
+                  Abrir no ML →
+                </a>
+              )}
+            </div>
             {question.item_title && (
               <p className="text-sm font-medium text-gray-900 truncate mt-1">
                 {question.item_title}
@@ -336,7 +332,7 @@ function QuestionDetail({ question, tab, accountId }: QuestionDetailProps) {
           <p className="text-sm text-gray-600">
             De: <span className="font-medium">{question.buyer_nickname || `#${question.buyer_id}`}</span>
           </p>
-          {tab === "pendentes" && <UrgenciaBadge dateStr={question.date_created} />}
+          {/* Tema 4: sem UrgenciaBadge — a data ja e suficiente */}
         </div>
       </div>
 

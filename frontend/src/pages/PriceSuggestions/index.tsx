@@ -606,8 +606,9 @@ function RecommendationCard({
           {/* Periods comparison table — dias individuais + blocos agregados + sparklines */}
           {rec.periods_data && (() => {
             const p = rec.periods_data;
-            // Dias individuais do mais antigo ao mais recente (D-6 → Ontem) para sparkline
-            const dailyPeriods = [p.d6, p.d5, p.d4, p.d3, p.day_before, p.yesterday];
+            // Tema 2: ordem do mais recente ao mais antigo (Ontem → D-6).
+            // Sparkline respeita a mesma ordem da tabela.
+            const dailyPeriods = [p.yesterday, p.day_before, p.d3, p.d4, p.d5, p.d6];
             const convSpark = dailyPeriods.map(d => d?.conversion ?? 0);
             const visitsSpark = dailyPeriods.map(d => d?.visits ?? 0);
             const salesSpark = dailyPeriods.map(d => d?.sales ?? 0);
@@ -627,16 +628,16 @@ function RecommendationCard({
                   <thead>
                     <tr className="bg-muted/60">
                       <th className="text-left px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Metrica</th>
-                      {/* Dias individuais */}
-                      <th className={thCls}>D-6</th>
-                      <th className={thCls}>D-5</th>
-                      <th className={thCls}>D-4</th>
-                      <th className={thCls}>D-3</th>
-                      <th className={thCls}>Anteontem</th>
+                      {/* Dias individuais — Tema 2: ordem NOVO → ANTIGO */}
                       <th className={cn(thCls, "font-bold text-foreground")}>Ontem</th>
+                      <th className={thCls}>Anteontem</th>
+                      <th className={thCls}>D-3</th>
+                      <th className={thCls}>D-4</th>
+                      <th className={thCls}>D-5</th>
+                      <th className={thCls}>D-6</th>
                       {/* Separador visual */}
                       <th className="w-px bg-border"></th>
-                      {/* Blocos agregados */}
+                      {/* Blocos agregados (novo → antigo) */}
                       <th className={cn(thCls, "bg-muted/80")}>7d</th>
                       <th className={cn(thCls, "bg-muted/80")}>15d</th>
                       <th className={cn(thCls, "bg-muted/80")}>30d</th>
@@ -649,12 +650,12 @@ function RecommendationCard({
                     {/* Conversão */}
                     <tr className="border-t bg-blue-50/30">
                       <td className="px-2 py-1.5 text-muted-foreground font-bold whitespace-nowrap">Conversao</td>
-                      <td className={tdCls}>{fmtPct(p.d6?.conversion)}</td>
-                      <td className={tdCls}>{fmtPct(p.d5?.conversion)}</td>
-                      <td className={tdCls}>{fmtPct(p.d4?.conversion)}</td>
-                      <td className={tdCls}>{fmtPct(p.d3?.conversion)}</td>
-                      <td className={tdCls}>{fmtPct(p.day_before?.conversion)}</td>
                       <td className={cn(tdCls, "font-bold")}>{fmtPct(p.yesterday?.conversion)}</td>
+                      <td className={tdCls}>{fmtPct(p.day_before?.conversion)}</td>
+                      <td className={tdCls}>{fmtPct(p.d3?.conversion)}</td>
+                      <td className={tdCls}>{fmtPct(p.d4?.conversion)}</td>
+                      <td className={tdCls}>{fmtPct(p.d5?.conversion)}</td>
+                      <td className={tdCls}>{fmtPct(p.d6?.conversion)}</td>
                       <td className="w-px bg-border"></td>
                       <td className={cn(tdCls, "bg-muted/30")}>{fmtPct(p.last_7d?.conversion)}</td>
                       <td className={cn(tdCls, "bg-muted/30")}>{fmtPct(p.last_15d?.conversion)}</td>
@@ -665,12 +666,12 @@ function RecommendationCard({
                     {/* Visitas */}
                     <tr className="border-t">
                       <td className="px-2 py-1.5 text-muted-foreground font-medium flex items-center gap-1 whitespace-nowrap"><Eye className="h-3 w-3" />Visitas</td>
-                      <td className={tdCls}>{fmtN(p.d6?.visits)}</td>
-                      <td className={tdCls}>{fmtN(p.d5?.visits)}</td>
-                      <td className={tdCls}>{fmtN(p.d4?.visits)}</td>
-                      <td className={tdCls}>{fmtN(p.d3?.visits)}</td>
-                      <td className={tdCls}>{fmtN(p.day_before?.visits)}</td>
                       <td className={cn(tdCls, "font-bold")}>{fmtN(p.yesterday?.visits)}</td>
+                      <td className={tdCls}>{fmtN(p.day_before?.visits)}</td>
+                      <td className={tdCls}>{fmtN(p.d3?.visits)}</td>
+                      <td className={tdCls}>{fmtN(p.d4?.visits)}</td>
+                      <td className={tdCls}>{fmtN(p.d5?.visits)}</td>
+                      <td className={tdCls}>{fmtN(p.d6?.visits)}</td>
                       <td className="w-px bg-border"></td>
                       <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_7d?.visits, 7)}</td>
                       <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_15d?.visits, 15)}</td>
@@ -681,12 +682,12 @@ function RecommendationCard({
                     {/* Vendas */}
                     <tr className="border-t">
                       <td className="px-2 py-1.5 text-muted-foreground font-medium flex items-center gap-1 whitespace-nowrap"><ShoppingCart className="h-3 w-3" />Vendas</td>
-                      <td className={tdCls}>{fmtN(p.d6?.sales)}</td>
-                      <td className={tdCls}>{fmtN(p.d5?.sales)}</td>
-                      <td className={tdCls}>{fmtN(p.d4?.sales)}</td>
-                      <td className={tdCls}>{fmtN(p.d3?.sales)}</td>
-                      <td className={tdCls}>{fmtN(p.day_before?.sales)}</td>
                       <td className={cn(tdCls, "font-bold")}>{fmtN(p.yesterday?.sales)}</td>
+                      <td className={tdCls}>{fmtN(p.day_before?.sales)}</td>
+                      <td className={tdCls}>{fmtN(p.d3?.sales)}</td>
+                      <td className={tdCls}>{fmtN(p.d4?.sales)}</td>
+                      <td className={tdCls}>{fmtN(p.d5?.sales)}</td>
+                      <td className={tdCls}>{fmtN(p.d6?.sales)}</td>
                       <td className="w-px bg-border"></td>
                       <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_7d?.sales, 7)}</td>
                       <td className={cn(tdCls, "bg-muted/30")}>{fmtAgg(p.last_15d?.sales, 15)}</td>
@@ -710,7 +711,8 @@ function RecommendationCard({
           {/* Sparklines Summary (visual representation abaixo da tabela) */}
           {rec.periods_data && (() => {
             const p = rec.periods_data;
-            const dailyPeriods = [p.d6, p.d5, p.d4, p.d3, p.day_before, p.yesterday];
+            // Tema 2: ordem do mais recente ao mais antigo (Ontem → D-6)
+            const dailyPeriods = [p.yesterday, p.day_before, p.d3, p.d4, p.d5, p.d6];
             const convSpark = dailyPeriods.map(d => d?.conversion ?? 0);
             const visitsSpark = dailyPeriods.map(d => d?.visits ?? 0);
             const salesSpark = dailyPeriods.map(d => d?.sales ?? 0);

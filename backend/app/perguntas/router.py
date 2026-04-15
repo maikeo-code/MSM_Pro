@@ -92,11 +92,13 @@ async def list_questions(
         limit=limit,
     )
 
+    # list_questions_from_db agora retorna dicts ja enriquecidos com
+    # item_thumbnail e item_permalink (Tema 4).
     return QuestionDBListOut(
         total=total,
         page=offset // limit + 1,
         limit=limit,
-        questions=[QuestionDB.model_validate(q) for q in questions],
+        questions=[QuestionDB(**q) for q in questions],
     )
 
 
@@ -252,5 +254,5 @@ async def questions_by_listing(
     questions = await get_questions_by_listing(db, current_user.id, mlb_id)
     return {
         "total": len(questions),
-        "questions": [QuestionDB.model_validate(q) for q in questions],
+        "questions": [QuestionDB(**q) for q in questions],
     }

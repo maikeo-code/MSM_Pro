@@ -430,18 +430,23 @@ async def list_listings(
             returns_rev = float(getattr(eff_snap, "returns_revenue", 0) or 0)
             vendas_concluidas = round(float(getattr(eff_snap, "revenue", 0)) - cancelled_rev - returns_rev, 2)
 
-        # voce_recebe — usar dados reais de Orders quando disponível
+        # voce_recebe — usar dados reais de Orders quando disponivel
+        # Prioridade: (1) media real de net_amount/quantity dos pedidos do
+        # periodo, (2) calculo estimado usando taxa_real do listing + frete
+        # medio real ja salvo no listing, (3) fallback por tabela fixa.
+        # Importante: fallback usa 11% (classico, taxa mais comum), nao 17%.
         voce_recebe: float | None = None
         order_agg = orders_agg_by_listing.get(listing.id)
         if order_agg and order_agg.avg_net_per_unit:
             voce_recebe = round(float(order_agg.avg_net_per_unit), 2)
         elif listing.price and float(listing.price) > 0:
-            # Fallback: cálculo estimado
             preco = float(listing.price)
             if listing.sale_fee_pct and float(listing.sale_fee_pct) > 0:
                 taxa_pct = float(listing.sale_fee_pct)
             else:
-                taxa_pct = ML_FEES_FLOAT.get(listing.listing_type, 0.17)
+                taxa_pct = ML_FEES_FLOAT.get(
+                    (listing.listing_type or "").lower(), 0.11
+                )
             taxa_valor = preco * taxa_pct
             frete = float(listing.avg_shipping_cost or 0)
             voce_recebe = round(preco - taxa_valor - frete, 2)
@@ -671,6 +676,12 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
         "cancelamentos_valor": cancelados_valor,
         "devolucoes_valor": devolucoes_valor,
         "devolucoes_qtd": devolucoes_qtd,
+        # Single-day: media = total (1 dia unico)
+        "dias_no_periodo": 1,
+        "vendas_media_dia": float(vendas),
+        "visitas_media_dia": float(visitas),
+        "pedidos_media_dia": float(pedidos),
+        "receita_media_dia": round(receita_total, 2),
     }
 
 
@@ -730,6 +741,18 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
     taxa_cancelamento = round(cancelados / total_pedidos_com_cancelados * 100, 2) if total_pedidos_com_cancelados > 0 else 0.0
     vendas_concluidas = round(receita_total - cancelados_valor - devolucoes_valor, 2)
 
+    # ─── Medias diarias (Tema 2) ──────────────────────────────────────────
+    # Quando o periodo e > 1 dia, "vendas" e "visitas" sao SOMATORIOS do
+    # intervalo. Para comparar com dias individuais (hoje/ontem) o dashboard
+    # precisa de medias diarias. Calculamos aqui e devolvemos no payload.
+    dias_no_periodo = (date_to - date_from).days + 1
+    if dias_no_periodo < 1:
+        dias_no_periodo = 1
+    vendas_media_dia = round(vendas / dias_no_periodo, 2)
+    visitas_media_dia = round(visitas / dias_no_periodo, 2)
+    pedidos_media_dia = round(pedidos / dias_no_periodo, 2)
+    receita_media_dia = round(receita_total / dias_no_periodo, 2)
+
     # Valor estoque = snapshot mais recente disponível no intervalo (ponto no tempo, não acumulado)
     # BUG 4 FIX: usar a data mais recente com snapshot, não date_to que pode estar sem dados
     latest_date_result = await db.execute(
@@ -763,6 +786,12 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
         "cancelamentos_valor": cancelados_valor,
         "devolucoes_valor": devolucoes_valor,
         "devolucoes_qtd": devolucoes_qtd,
+        # Medias diarias (Tema 2) — usadas para comparacao dia a dia
+        "dias_no_periodo": dias_no_periodo,
+        "vendas_media_dia": vendas_media_dia,
+        "visitas_media_dia": visitas_media_dia,
+        "pedidos_media_dia": pedidos_media_dia,
+        "receita_media_dia": receita_media_dia,
     }
 
 

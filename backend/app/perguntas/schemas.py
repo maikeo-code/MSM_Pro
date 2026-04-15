@@ -38,7 +38,11 @@ class AnswerQuestionOut(BaseModel):
 
 
 class QuestionDB(BaseModel):
-    """Pergunta persistida no banco local."""
+    """Pergunta persistida no banco local.
+
+    Tema 4: inclui thumbnail e permalink do Listing vinculado (via JOIN),
+    para a listagem ter preview visual + link direto para o anuncio no ML.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -47,6 +51,9 @@ class QuestionDB(BaseModel):
     ml_account_id: UUID
     mlb_id: str
     item_title: str | None = None
+    # Tema 4: dados do anuncio para exibicao (vindos de Listing.thumbnail/permalink)
+    item_thumbnail: str | None = None
+    item_permalink: str | None = None
     text: str
     status: str
     buyer_id: int | None = None

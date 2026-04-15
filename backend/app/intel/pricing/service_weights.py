@@ -24,13 +24,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 DEFAULT_WEIGHTS = {
-    "sales_trend": 0.30,  # VENDAS é o fator dominante
-    "conv_trend": 0.20,   # Conversão em segundo lugar
-    "visit_trend": 0.10,  # Terceiro lugar
-    "comp_score": 0.15,   # Competição reduzida
-    "stock_score": 0.10,  # Pressão de estoque
-    "margem_score": 0.05,  # Margem (menor importância)
-    "hist_score": 0.10,   # Histórico (reduzido de 0.15)
+    # Tema 7 — hierarquia de prioridade do usuario:
+    # 1) VENDAS (35%) e o fator mais importante
+    # 2) VISITAS (25%) e o segundo — antes estava em 10%, foi aumentado
+    # 3) CONVERSAO (15%) e o terceiro
+    # Demais fatores (competicao, estoque, historico, margem) somam 25%.
+    # Total: 35+25+15+10+5+5+5 = 100%.
+    "sales_trend": 0.35,  # VENDAS: prioridade maxima
+    "visit_trend": 0.25,  # VISITAS: segunda prioridade (antes 0.10)
+    "conv_trend": 0.15,   # CONVERSAO: terceira prioridade (antes 0.20)
+    "comp_score": 0.10,   # Competicao
+    "stock_score": 0.05,  # Pressao de estoque
+    "margem_score": 0.05,  # Margem
+    "hist_score": 0.05,   # Historico
 }
 
 MIN_APPLIED_FOR_CALIBRATION = 10  # minimo de recomendacoes aplicadas para calibrar

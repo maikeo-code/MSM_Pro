@@ -160,22 +160,36 @@ def calculate_recommendation_score(
             hist_score = min(hist_score, -0.2)
 
     # Score final ponderado (pesos adaptativos ou default)
-    w_conv = w.get("conv_trend", 0.25)
-    w_visit = w.get("visit_trend", 0.10)
-    w_comp = w.get("comp_score", 0.20)
-    w_stock = w.get("stock_score", 0.10)
+    w_conv = w.get("conv_trend", 0.15)
+    w_visit = w.get("visit_trend", 0.25)
+    w_comp = w.get("comp_score", 0.10)
+    w_stock = w.get("stock_score", 0.05)
     w_margem = w.get("margem_score", 0.05)
-    w_hist = w.get("hist_score", 0.15)
-    w_sales = w.get("sales_trend", 0.15)
+    w_hist = w.get("hist_score", 0.05)
+    w_sales = w.get("sales_trend", 0.35)
+
+    # ── Tema 7: regra especial "venda vale mais que visita" ────────────────
+    # Se a visita esta caindo (visit_trend < 0) MAS a venda esta subindo
+    # (sales_trend > 0), a venda sobrepoe a visita: aplicamos um bonus
+    # amplificando sales_trend em +50% e zeramos o impacto negativo das
+    # visitas. Motivo: neste caso o conversao esta melhor, e baixar visitas
+    # pode ser efeito de sazonalidade/algoritmo, nao de problema de preco.
+    sales_overrides_visits = sales_trend > 0 and visit_trend < 0
+    if sales_overrides_visits:
+        sales_component = sales_trend * w_sales * 1.5
+        visit_component = 0.0
+    else:
+        sales_component = sales_trend * w_sales
+        visit_component = visit_trend * w_visit
 
     score = (
         conv_trend * w_conv
-        + visit_trend * w_visit
+        + visit_component
         + comp_score * w_comp
         + stock_score * w_stock
         + margem_score * w_margem
         + hist_score * w_hist
-        + sales_trend * w_sales
+        + sales_component
     )
 
     # Acao e magnitude (max 5% por dia)

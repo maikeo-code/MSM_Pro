@@ -23,6 +23,12 @@ export interface KpiPeriod {
   receita_variacao?: number | null;
   visitas_variacao?: number | null;
   conversao_variacao?: number | null;
+  // Medias diarias (Tema 2) — usadas para comparar periodos > 1 dia com dias individuais
+  dias_no_periodo?: number;
+  vendas_media_dia?: number;
+  visitas_media_dia?: number;
+  pedidos_media_dia?: number;
+  receita_media_dia?: number;
 }
 
 export interface KpiSummary {

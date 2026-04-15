@@ -45,7 +45,12 @@ async def get_campaign_detail(
     campaign_id: UUID,
     days: int = 30,
 ) -> AdsCampaignDetailOut | None:
-    """Busca campanha + snapshots dos últimos N dias."""
+    """Busca campanha + snapshots dos ultimos N dias.
+
+    Tema 3: summary usa APENAS o snapshot mais recente (dados ja sao
+    acumulados pelo sync_ads_from_ml). A lista completa de snapshots
+    continua no response para possivel timeline visual.
+    """
     result = await db.execute(
         select(AdCampaign).where(AdCampaign.id == campaign_id)
     )
@@ -53,7 +58,7 @@ async def get_campaign_detail(
     if not campaign:
         return None
 
-    # Filtra snapshots no banco (evita carregar ALL snapshots em memória)
+    # Filtra snapshots no banco (evita carregar ALL snapshots em memoria)
     cutoff = datetime.now(BRT).date() - timedelta(days=days)
     snaps_result = await db.execute(
         select(AdSnapshot)
@@ -65,11 +70,21 @@ async def get_campaign_detail(
     )
     snapshots = list(snaps_result.scalars().all())
 
-    # Calcula resumo agregado
-    total_spend = sum(s.spend or Decimal("0") for s in snapshots) or Decimal("0")
-    total_revenue = sum(s.attributed_revenue or Decimal("0") for s in snapshots) or Decimal("0")
-    total_clicks = sum(s.clicks or 0 for s in snapshots)
-    total_impressions = sum(s.impressions or 0 for s in snapshots)
+    # Usa APENAS o snapshot mais recente para o summary
+    # (evita duplicar valores agregados — ver docstring acima).
+    latest = snapshots[-1] if snapshots else None
+
+    if latest is not None:
+        total_spend = latest.spend or Decimal("0")
+        total_revenue = latest.attributed_revenue or Decimal("0")
+        total_clicks = latest.clicks or 0
+        total_impressions = latest.impressions or 0
+    else:
+        total_spend = Decimal("0")
+        total_revenue = Decimal("0")
+        total_clicks = 0
+        total_impressions = 0
+
     roas_geral = (total_revenue / total_spend) if total_spend > 0 else None
     acos_geral = (total_spend / total_revenue * 100) if total_revenue > 0 else None
 
@@ -81,6 +96,7 @@ async def get_campaign_detail(
         "roas_geral": float(roas_geral) if roas_geral is not None else None,
         "acos_geral": float(acos_geral) if acos_geral is not None else None,
         "days": days,
+        "latest_snapshot_date": latest.date.isoformat() if latest else None,
     }
 
     return AdsCampaignDetailOut(
@@ -98,8 +114,20 @@ async def get_ads_dashboard(
 ) -> AdsDashboardOut:
     """Resumo agregado de todas as campanhas de uma conta ML.
 
-    user_id garante isolamento multi-tenant: só retorna campanhas do owner.
-    Usa batch query para evitar N+1.
+    Tema 3 — CORRECAO DO BUG DE DADOS ACUMULADOS:
+
+    A API ML de Product Ads v2 retorna metricas JA AGREGADAS por periodo
+    (nao por dia). O sync_ads_from_ml armazena uma linha em AdSnapshot com
+    date=hoje contendo os totais do periodo inteiro.
+
+    Codigo antigo: somava TODOS os snapshots dos ultimos N dias, o que
+    multiplica o valor (cada snapshot ja era 30d acumulado, somar 7 deles
+    = 210d de dados fantasmas). Isso causava valores absurdos no dashboard.
+
+    Correcao: usar o snapshot MAIS RECENTE por campanha. Cada snapshot
+    ja representa as metricas do periodo solicitado no sync.
+
+    user_id garante isolamento multi-tenant: so retorna campanhas do owner.
     """
     campaigns = await list_campaigns(db, ml_account_id, user_id=user_id)
 
@@ -112,25 +140,42 @@ async def get_ads_dashboard(
             roas_geral=None,
             acos_geral=None,
             campaigns=[],
+            period_days=period,
         )
 
-    cutoff = date.today() - timedelta(days=period)
     campaign_ids = [c.id for c in campaigns]
 
-    # Batch query: busca todos os snapshots de uma vez (evita N+1)
+    # Busca o snapshot MAIS RECENTE de cada campanha (dentro do periodo).
+    # Cada snapshot ja contem os valores agregados do periodo sincronizado,
+    # portanto nao devemos somar multiplos snapshots da mesma campanha.
+    cutoff = date.today() - timedelta(days=period)
     snaps_result = await db.execute(
         select(AdSnapshot)
         .where(
             AdSnapshot.campaign_id.in_(campaign_ids),
             AdSnapshot.date >= cutoff,
         )
+        .order_by(AdSnapshot.campaign_id, desc(AdSnapshot.date))
     )
-    all_snapshots = list(snaps_result.scalars().all())
+    all_snaps = list(snaps_result.scalars().all())
 
-    total_spend = sum((s.spend or Decimal("0") for s in all_snapshots), Decimal("0"))
-    total_revenue = sum((s.attributed_revenue or Decimal("0") for s in all_snapshots), Decimal("0"))
-    total_clicks = sum(s.clicks or 0 for s in all_snapshots)
-    total_impressions = sum(s.impressions or 0 for s in all_snapshots)
+    # Dedupe: fica so o mais recente por campanha
+    latest_by_campaign: dict = {}
+    for s in all_snaps:
+        if s.campaign_id not in latest_by_campaign:
+            latest_by_campaign[s.campaign_id] = s
+
+    latest_snapshots = list(latest_by_campaign.values())
+
+    total_spend = sum(
+        (s.spend or Decimal("0") for s in latest_snapshots), Decimal("0")
+    )
+    total_revenue = sum(
+        (s.attributed_revenue or Decimal("0") for s in latest_snapshots),
+        Decimal("0"),
+    )
+    total_clicks = sum(s.clicks or 0 for s in latest_snapshots)
+    total_impressions = sum(s.impressions or 0 for s in latest_snapshots)
 
     roas_geral = (total_revenue / total_spend) if total_spend > 0 else None
     acos_geral = (total_spend / total_revenue * 100) if total_revenue > 0 else None
@@ -143,6 +188,7 @@ async def get_ads_dashboard(
         roas_geral=roas_geral,
         acos_geral=acos_geral,
         campaigns=[AdCampaignOut.model_validate(c) for c in campaigns],
+        period_days=period,
     )
 
 
