@@ -10,6 +10,11 @@ import {
   Send,
   X,
   Clock,
+  RefreshCw,
+  Database,
+  CheckCircle2,
+  ExternalLink,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -17,6 +22,12 @@ import {
   type AtendimentoItem,
   type AtendimentoStats,
 } from "@/services/atendimentoService";
+import {
+  claimsService,
+  type Claim,
+  type ResolutionType,
+  RESOLUTION_LABELS,
+} from "@/services/claimsService";
 import { SLABadge, calculateHoursRemaining } from "./components";
 import { TemplatesModal } from "./components/TemplatesModal";
 import { useActiveAccount } from "@/hooks/useActiveAccount";
@@ -400,9 +411,580 @@ function AtendimentoCard({
   );
 }
 
+// ─── Claims DB Components ─────────────────────────────────────────────────────
+
+const STATUS_CLAIM_LABELS: Record<string, { label: string; cls: string }> = {
+  open: { label: "Aberta", cls: "bg-red-100 text-red-700" },
+  opened: { label: "Aberta", cls: "bg-red-100 text-red-700" },
+  waiting_for_seller_response: {
+    label: "Aguardando resposta",
+    cls: "bg-amber-100 text-amber-700",
+  },
+  closed: { label: "Encerrada", cls: "bg-gray-100 text-gray-600" },
+};
+
+function claimStatusBadge(status: string) {
+  const cfg = STATUS_CLAIM_LABELS[status] ?? {
+    label: status,
+    cls: "bg-gray-100 text-gray-600",
+  };
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center text-xs font-medium rounded-full px-2 py-0.5",
+        cfg.cls,
+      )}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
+// ─── Modal de resolucao de claim ──────────────────────────────────────────────
+
+function ResolveClaimModal({
+  claim,
+  onClose,
+}: {
+  claim: Claim;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [resolutionType, setResolutionType] =
+    useState<ResolutionType>("refund");
+  const [notes, setNotes] = useState("");
+  const [showSimilar, setShowSimilar] = useState(false);
+
+  const { data: similarData, isLoading: similarLoading } = useQuery({
+    queryKey: ["claims-similar", claim.mlb_id],
+    queryFn: () =>
+      claim.mlb_id ? claimsService.getSimilar(claim.mlb_id) : null,
+    enabled: showSimilar && !!claim.mlb_id,
+  });
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      claimsService.resolve(claim.id, {
+        resolution_type: resolutionType,
+        notes: notes.trim() || undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["claims"] });
+      queryClient.invalidateQueries({ queryKey: ["claims-stats"] });
+      onClose();
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+            <h2 className="font-semibold text-gray-900">Resolver Reclamacao</h2>
+            <span className="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded">
+              #{claim.ml_claim_id}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Corpo */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {/* Info do anuncio */}
+          {(claim.item_title || claim.mlb_id) && (
+            <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
+              {claim.item_thumbnail && (
+                <img
+                  src={claim.item_thumbnail}
+                  alt=""
+                  className="h-10 w-10 rounded object-cover flex-shrink-0"
+                />
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-800 truncate">
+                  {claim.item_title ?? claim.mlb_id}
+                </p>
+                {claim.mlb_id && (
+                  <p className="text-xs text-gray-400 font-mono">
+                    {claim.mlb_id}
+                  </p>
+                )}
+              </div>
+              {claim.item_permalink && (
+                <a
+                  href={claim.item_permalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto text-blue-500 hover:text-blue-700 flex-shrink-0"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Motivo */}
+          {claim.reason && (
+            <div>
+              <p className="text-xs text-gray-500 font-medium mb-1">Motivo</p>
+              <p className="text-sm text-gray-800 bg-red-50 rounded px-3 py-2 border border-red-100">
+                {claim.reason}
+              </p>
+            </div>
+          )}
+
+          {/* Descricao */}
+          {claim.description && (
+            <div>
+              <p className="text-xs text-gray-500 font-medium mb-1">
+                Descricao
+              </p>
+              <p className="text-sm text-gray-700 bg-gray-50 rounded px-3 py-2 leading-relaxed">
+                {claim.description}
+              </p>
+            </div>
+          )}
+
+          {/* Sugestao do ML */}
+          {claim.ml_suggestion && (
+            <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+              <Sparkles className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-blue-700 font-medium">
+                  Sugestao do Mercado Livre
+                </p>
+                <p className="text-sm text-blue-800">{claim.ml_suggestion}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Historico de similares */}
+          {claim.mlb_id && (
+            <div>
+              <button
+                onClick={() => setShowSimilar((v) => !v)}
+                className="inline-flex items-center gap-1.5 text-xs text-violet-600 hover:text-violet-800 font-medium transition-colors"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                {showSimilar ? "Ocultar historico" : "Ver como resolvi antes"}
+              </button>
+              {showSimilar && (
+                <div className="mt-2 space-y-2">
+                  {similarLoading && (
+                    <p className="text-xs text-gray-400">Carregando...</p>
+                  )}
+                  {similarData?.items.length === 0 && (
+                    <p className="text-xs text-gray-400 italic">
+                      Nenhuma resolucao anterior para este anuncio.
+                    </p>
+                  )}
+                  {similarData?.items.map((s) => (
+                    <div
+                      key={s.ml_claim_id}
+                      className="bg-violet-50 border border-violet-100 rounded-lg px-3 py-2 space-y-1"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-violet-700">
+                          {s.resolution_type
+                            ? RESOLUTION_LABELS[
+                                s.resolution_type as ResolutionType
+                              ] ?? s.resolution_type
+                            : "—"}
+                        </span>
+                        {s.resolved_at && (
+                          <span className="text-xs text-gray-400">
+                            {tempoRelativo(s.resolved_at)}
+                          </span>
+                        )}
+                      </div>
+                      {s.reason && (
+                        <p className="text-xs text-gray-600">
+                          Motivo: {s.reason}
+                        </p>
+                      )}
+                      {s.resolution_notes && (
+                        <p className="text-xs text-gray-500 italic">
+                          {s.resolution_notes}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Selecao de resolucao */}
+          <div>
+            <p className="text-xs text-gray-500 font-medium mb-2">
+              Como foi resolvida?
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {(Object.keys(RESOLUTION_LABELS) as ResolutionType[]).map(
+                (key) => (
+                  <button
+                    key={key}
+                    onClick={() => setResolutionType(key)}
+                    className={cn(
+                      "px-3 py-2 rounded-lg text-sm font-medium border transition-colors text-left",
+                      resolutionType === key
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-700 border-gray-200 hover:border-blue-300",
+                    )}
+                  >
+                    {RESOLUTION_LABELS[key]}
+                  </button>
+                ),
+              )}
+            </div>
+          </div>
+
+          {/* Notas opcionais */}
+          <div>
+            <p className="text-xs text-gray-500 font-medium mb-1">
+              Notas (opcional)
+            </p>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Detalhe o que aconteceu para consultar no futuro..."
+              rows={3}
+              maxLength={2000}
+              className="w-full rounded-lg border border-gray-200 text-sm text-gray-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+          </div>
+
+          {mutation.isError && (
+            <p className="text-xs text-red-600">
+              Erro ao salvar resolucao. Tente novamente.
+            </p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            {mutation.isPending ? "Salvando..." : "Salvar resolucao"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Card de claim persistido ──────────────────────────────────────────────────
+
+function ClaimCard({
+  claim,
+  onResolve,
+}: {
+  claim: Claim;
+  onResolve: (c: Claim) => void;
+}) {
+  const isOpen = ["open", "opened", "waiting_for_seller_response"].includes(
+    claim.status,
+  );
+
+  return (
+    <div
+      className={cn(
+        "bg-white rounded-lg border shadow-sm p-4 space-y-3",
+        isOpen ? "border-red-200" : "border-gray-100",
+      )}
+    >
+      {/* Cabecalho */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {claimStatusBadge(claim.status)}
+          {claim.resolution_type && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium bg-green-100 text-green-700 rounded-full px-2 py-0.5">
+              <CheckCircle2 className="h-3 w-3" />
+              {RESOLUTION_LABELS[claim.resolution_type as ResolutionType] ??
+                claim.resolution_type}
+            </span>
+          )}
+          {claim.buyer_nickname && (
+            <span className="text-xs text-gray-500">
+              {claim.buyer_nickname}
+            </span>
+          )}
+        </div>
+        <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">
+          {tempoRelativo(claim.date_created)}
+        </span>
+      </div>
+
+      {/* Anuncio */}
+      {(claim.item_title || claim.mlb_id || claim.item_thumbnail) && (
+        <div className="flex items-center gap-2 text-xs text-gray-500">
+          {claim.item_thumbnail && (
+            <img
+              src={claim.item_thumbnail}
+              alt=""
+              className="h-8 w-8 rounded object-cover flex-shrink-0"
+            />
+          )}
+          {claim.mlb_id && (
+            <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">
+              {claim.mlb_id}
+            </span>
+          )}
+          {claim.item_title && (
+            <span className="truncate">{claim.item_title}</span>
+          )}
+          {claim.item_permalink && (
+            <a
+              href={claim.item_permalink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:text-blue-700 ml-auto"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Motivo */}
+      {claim.reason && (
+        <p className="text-sm text-gray-700 bg-red-50 rounded px-3 py-2 border border-red-100">
+          {claim.reason}
+        </p>
+      )}
+
+      {/* Descricao resumida */}
+      {claim.description && (
+        <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">
+          {claim.description}
+        </p>
+      )}
+
+      {/* Sugestao ML */}
+      {claim.ml_suggestion && (
+        <div className="flex items-start gap-1.5 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1.5">
+          <Sparkles className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-blue-500" />
+          <span>{claim.ml_suggestion}</span>
+        </div>
+      )}
+
+      {/* Notas de resolucao */}
+      {claim.resolution_notes && (
+        <p className="text-xs text-gray-500 italic">
+          Nota: {claim.resolution_notes}
+        </p>
+      )}
+
+      {/* Acao */}
+      {isOpen && !claim.resolution_type && (
+        <button
+          onClick={() => onResolve(claim)}
+          className="inline-flex items-center gap-1.5 rounded-md bg-green-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-green-700 transition-colors"
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          Marcar como resolvida
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Painel Claims DB ─────────────────────────────────────────────────────────
+
+function ClaimsDBPanel({ accountId }: { accountId: string | null }) {
+  const queryClient = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<string>("open");
+  const [resolveTarget, setResolveTarget] = useState<Claim | null>(null);
+
+  const { data: stats } = useQuery({
+    queryKey: ["claims-stats", accountId],
+    queryFn: () => claimsService.getStats(accountId),
+    staleTime: 60 * 1000,
+  });
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["claims", accountId, statusFilter],
+    queryFn: () =>
+      claimsService.list({
+        status: statusFilter === "todos" ? undefined : statusFilter,
+        ml_account_id: accountId,
+        limit: 50,
+      }),
+    staleTime: 60 * 1000,
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: () => claimsService.sync(accountId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["claims"] });
+      queryClient.invalidateQueries({ queryKey: ["claims-stats"] });
+    },
+  });
+
+  const claims = data?.items ?? [];
+
+  const STATUS_TABS_CLAIMS = [
+    { key: "open", label: "Abertas" },
+    { key: "closed", label: "Encerradas" },
+    { key: "todos", label: "Todas" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Header do painel */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Database className="h-4 w-4 text-violet-600" />
+          <span className="text-sm font-medium text-gray-700">
+            Reclamacoes persistidas localmente
+          </span>
+          <span className="text-xs text-gray-400">
+            (atualiza a cada sync manual ou task diaria)
+          </span>
+        </div>
+        <button
+          onClick={() => syncMutation.mutate()}
+          disabled={syncMutation.isPending}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+        >
+          <RefreshCw
+            className={cn(
+              "h-4 w-4",
+              syncMutation.isPending && "animate-spin",
+            )}
+          />
+          {syncMutation.isPending ? "Sincronizando..." : "Sincronizar do ML"}
+        </button>
+      </div>
+
+      {syncMutation.isSuccess && syncMutation.data && (
+        <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-sm text-green-700">
+          Sincronizado: {syncMutation.data.new} novas,{" "}
+          {syncMutation.data.updated} atualizadas de{" "}
+          {syncMutation.data.accounts_synced} conta(s).
+        </div>
+      )}
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          {
+            label: "Total",
+            value: stats?.total ?? 0,
+            cls: "text-gray-900",
+            bg: "bg-gray-50 border-gray-200",
+          },
+          {
+            label: "Abertas",
+            value: stats?.open ?? 0,
+            cls: "text-red-700",
+            bg: "bg-red-50 border-red-200",
+          },
+          {
+            label: "Resolvidas",
+            value: stats?.resolved ?? 0,
+            cls: "text-green-700",
+            bg: "bg-green-50 border-green-200",
+          },
+          {
+            label: "Pendentes resolucao",
+            value: stats?.unresolved ?? 0,
+            cls: "text-amber-700",
+            bg: "bg-amber-50 border-amber-200",
+          },
+        ].map((item) => (
+          <div
+            key={item.label}
+            className={cn(
+              "rounded-lg border p-3 flex flex-col gap-0.5",
+              item.bg,
+            )}
+          >
+            <p className="text-xs text-gray-500 font-medium">{item.label}</p>
+            <p className={cn("text-2xl font-bold", item.cls)}>{item.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filtro de status */}
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+        {STATUS_TABS_CLAIMS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setStatusFilter(t.key)}
+            className={cn(
+              "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+              statusFilter === t.key
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Lista */}
+      {isLoading ? (
+        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
+          Carregando reclamacoes...
+        </div>
+      ) : isError ? (
+        <div className="flex items-center justify-center h-32 text-red-500 text-sm">
+          Erro ao carregar. Verifique a conexao.
+        </div>
+      ) : claims.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-gray-400 space-y-2">
+          <AlertTriangle className="h-10 w-10 opacity-20" />
+          <p className="text-sm">
+            Nenhuma reclamacao encontrada. Clique em "Sincronizar do ML" para
+            importar.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {claims.map((c) => (
+            <ClaimCard key={c.id} claim={c} onResolve={setResolveTarget} />
+          ))}
+        </div>
+      )}
+
+      {claims.length > 0 && (
+        <p className="text-xs text-gray-400 text-right">
+          {data?.total ?? claims.length} reclamacoes no total
+        </p>
+      )}
+
+      {resolveTarget && (
+        <ResolveClaimModal
+          claim={resolveTarget}
+          onClose={() => setResolveTarget(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type TypeFilter = "todos" | ItemType;
+type TypeFilter = "todos" | ItemType | "claims_db";
 type StatusFilter = "pendentes" | "fechados" | "todos";
 
 const TYPE_TABS: { key: TypeFilter; label: string }[] = [
@@ -411,6 +993,7 @@ const TYPE_TABS: { key: TypeFilter; label: string }[] = [
   { key: "reclamacao", label: "Reclamacoes" },
   { key: "mensagem", label: "Mensagens" },
   { key: "devolucao", label: "Devolucoes" },
+  { key: "claims_db", label: "Reclamacoes DB" },
 ];
 
 const STATUS_TABS: { key: StatusFilter; label: string }[] = [
@@ -438,6 +1021,8 @@ export default function Atendimento() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pendentes");
   const [modalItem, setModalItem] = useState<AtendimentoItem | null>(null);
 
+  const isClaimsDB = typeFilter === "claims_db";
+
   // Stats query
   const { data: stats } = useQuery<AtendimentoStats>({
     queryKey: ["atendimento-stats", accountId],
@@ -459,7 +1044,7 @@ export default function Atendimento() {
   const filtered = useMemo(() => {
     let items = allItems;
 
-    if (typeFilter !== "todos") {
+    if (typeFilter !== "todos" && typeFilter !== "claims_db") {
       items = items.filter((i) => i.type === typeFilter);
     }
 
@@ -501,8 +1086,8 @@ export default function Atendimento() {
   );
 
   const emptyMsg =
-    typeFilter !== "todos"
-      ? getTypeConfig(typeFilter).emptyMsg
+    typeFilter !== "todos" && typeFilter !== "claims_db"
+      ? getTypeConfig(typeFilter as ItemType).emptyMsg
       : statusFilter === "pendentes"
         ? "Nenhum item pendente. Tudo em dia!"
         : "Nenhum item encontrado.";
@@ -613,8 +1198,10 @@ export default function Atendimento() {
       {/* Tabs de tipo */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit overflow-x-auto">
         {TYPE_TABS.map((tab) => {
-          const count =
-            tab.key === "todos"
+          const isSpecial = tab.key === "claims_db";
+          const count = isSpecial
+            ? 0
+            : tab.key === "todos"
               ? allItems.length
               : (byType[tab.key + "s"] ?? byType[tab.key] ?? 0);
           return (
@@ -624,12 +1211,17 @@ export default function Atendimento() {
               className={cn(
                 "px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5",
                 typeFilter === tab.key
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700",
+                  ? isSpecial
+                    ? "bg-violet-600 text-white shadow-sm"
+                    : "bg-white text-gray-900 shadow-sm"
+                  : isSpecial
+                    ? "text-violet-600 hover:text-violet-800 hover:bg-violet-50"
+                    : "text-gray-500 hover:text-gray-700",
               )}
             >
+              {isSpecial && <Database className="h-3.5 w-3.5" />}
               {tab.label}
-              {count > 0 && (
+              {!isSpecial && count > 0 && (
                 <span
                   className={cn(
                     "text-xs rounded-full px-1.5 py-0.5 font-semibold",
@@ -646,60 +1238,70 @@ export default function Atendimento() {
         })}
       </div>
 
-      {/* Sub-tabs de status */}
-      <div className="flex gap-1 bg-gray-50 border border-gray-200 rounded-lg p-1 w-fit">
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setStatusFilter(tab.key)}
-            className={cn(
-              "px-3 py-1 rounded-md text-sm font-medium transition-colors",
-              statusFilter === tab.key
-                ? "bg-white text-gray-900 shadow-sm border border-gray-200"
-                : "text-gray-400 hover:text-gray-600",
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Lista */}
-      {isLoading ? (
-        <div className="flex items-center justify-center h-48 text-gray-400">
-          Carregando atendimentos...
-        </div>
-      ) : isError ? (
-        <div className="flex items-center justify-center h-48 text-red-500">
-          Erro ao carregar. Verifique a conexao.
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-gray-400 space-y-2">
-          <Headphones className="h-12 w-12 opacity-20" />
-          <p className="text-sm">{emptyMsg}</p>
-        </div>
+      {/* Conteudo principal */}
+      {isClaimsDB ? (
+        <ClaimsDBPanel accountId={accountId} />
       ) : (
-        <div className="space-y-3">
-          {filtered.map((item) => (
-            <AtendimentoCard
-              key={`${item.type}-${item.id}`}
-              item={item}
-              onResponder={setModalItem}
+        <>
+          {/* Sub-tabs de status */}
+          <div className="flex gap-1 bg-gray-50 border border-gray-200 rounded-lg p-1 w-fit">
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setStatusFilter(tab.key)}
+                className={cn(
+                  "px-3 py-1 rounded-md text-sm font-medium transition-colors",
+                  statusFilter === tab.key
+                    ? "bg-white text-gray-900 shadow-sm border border-gray-200"
+                    : "text-gray-400 hover:text-gray-600",
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Lista */}
+          {isLoading ? (
+            <div className="flex items-center justify-center h-48 text-gray-400">
+              Carregando atendimentos...
+            </div>
+          ) : isError ? (
+            <div className="flex items-center justify-center h-48 text-red-500">
+              Erro ao carregar. Verifique a conexao.
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400 space-y-2">
+              <Headphones className="h-12 w-12 opacity-20" />
+              <p className="text-sm">{emptyMsg}</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((item) => (
+                <AtendimentoCard
+                  key={`${item.type}-${item.id}`}
+                  item={item}
+                  onResponder={setModalItem}
+                />
+              ))}
+            </div>
+          )}
+
+          {filtered.length > 0 && (
+            <p className="text-xs text-gray-400 text-right">
+              Exibindo {filtered.length}{" "}
+              {filtered.length === 1 ? "item" : "itens"}
+            </p>
+          )}
+
+          {/* Modal */}
+          {modalItem && (
+            <RespostaModal
+              item={modalItem}
+              onClose={() => setModalItem(null)}
             />
-          ))}
-        </div>
-      )}
-
-      {filtered.length > 0 && (
-        <p className="text-xs text-gray-400 text-right">
-          Exibindo {filtered.length}{" "}
-          {filtered.length === 1 ? "item" : "itens"}
-        </p>
-      )}
-
-      {/* Modal */}
-      {modalItem && (
-        <RespostaModal item={modalItem} onClose={() => setModalItem(null)} />
+          )}
+        </>
       )}
     </div>
   );
