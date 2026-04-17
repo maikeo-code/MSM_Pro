@@ -708,7 +708,8 @@ class MLClient:
             return {"data": [], "paging": {"total": 0}}
 
     async def get_unread_messages_count(self, seller_id: str) -> int:
-        """Retorna contagem de mensagens nao lidas pelo vendedor (pos-venda)."""
+        """Retorna contagem de mensagens nao lidas pelo vendedor (pos-venda).
+        GET /messages/unread -> {"user_id": X, "total": N, "results": [...]}"""
         try:
             resp = await self._request(
                 "GET",
@@ -716,7 +717,7 @@ class MLClient:
                 params={"role": "seller", "tag": "post_sale"},
             )
             if isinstance(resp, dict):
-                return int(resp.get("results", {}).get("count", 0) or resp.get("count", 0) or 0)
+                return int(resp.get("total", 0) or 0)
             return 0
         except MLClientError:
             return 0

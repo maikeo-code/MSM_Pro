@@ -254,7 +254,7 @@ async def debug_extra_cards(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """DEBUG: retorna respostas brutas (ou mensagens de erro) dos endpoints ML que alimentam os cards."""
+    """DEBUG: tenta varios paths de Full Stock para descobrir qual funciona."""
     import asyncio
     from app.auth.models import MLAccount
     from app.mercadolivre.client import MLClient
@@ -271,17 +271,19 @@ async def debug_extra_cards(
         item = {"nickname": acc.nickname, "ml_user_id": acc.ml_user_id}
         try:
             async with MLClient(access_token=acc.access_token, ml_account_id=acc.id) as client:
-                tasks = [
-                    client.get_mp_balance(acc.ml_user_id),
-                    client._request("GET", "/messages/unread", params={"role": "seller", "tag": "post_sale"}),
-                    client._request("GET", f"/users/{acc.ml_user_id}/fbm_stock/summary"),
-                    client._request("GET", f"/inventories/stock_locations"),
-                    client._request("GET", f"/users/{acc.ml_user_id}/mercadopago_account"),
+                paths = [
+                    f"/users/{acc.ml_user_id}/projections",
+                    f"/users/{acc.ml_user_id}/fulfillment/stock",
+                    f"/users/{acc.ml_user_id}/storage/summary",
+                    f"/inventories/users/{acc.ml_user_id}/summary",
+                    f"/users/{acc.ml_user_id}/items/capacity",
+                    f"/sites/MLB/fulfillment-stock-users/{acc.ml_user_id}",
+                    f"/users/{acc.ml_user_id}/inventory_summary",
                 ]
+                tasks = [client._request("GET", p) for p in paths]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
-                labels = ["mp_balance", "messages_unread", "fbm_summary", "inventories_locations", "mp_account"]
-                for label, r in zip(labels, results):
-                    item[label] = str(r)[:500] if isinstance(r, Exception) else r
+                for p, r in zip(paths, results):
+                    item[p] = str(r)[:300] if isinstance(r, Exception) else r
         except Exception as e:
             item["error"] = str(e)
         out.append(item)
