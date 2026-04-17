@@ -393,6 +393,7 @@ class OrderOut(BaseModel):
     ml_account_id: UUID
     listing_id: UUID | None = None
     mlb_id: str
+    item_title: str | None = None
     buyer_nickname: str
     quantity: int
     unit_price: Decimal

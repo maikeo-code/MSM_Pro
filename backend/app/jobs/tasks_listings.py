@@ -201,9 +201,16 @@ async def _sync_listing_snapshot_async(
             shipping_orders_count = 0
             mlb_normalized = listing.mlb_id.upper().replace("-", "")
             try:
-                paid_orders = await client.get_item_orders_by_status(
-                    listing.mlb_id, account.ml_user_id, days=1, status="paid"
+                # Busca TODOS os pedidos do dia (sem filtro de status restritivo).
+                # Exclui apenas cancelled/invalid no loop — status "paid",
+                # "confirmed", "payment_in_process", etc. são vendas válidas.
+                all_orders_raw = await client.get_item_orders_by_status(
+                    listing.mlb_id, account.ml_user_id, days=1, status=None
                 )
+                paid_orders = [
+                    o for o in all_orders_raw
+                    if (o.get("status") or "").lower() not in ("cancelled", "invalid")
+                ]
                 for order in paid_orders:
                     # orders_count incrementa 1 por PEDIDO (nao por item).
                     # Um pedido com 2 unidades = 1 pedido, 2 unidades vendidas.

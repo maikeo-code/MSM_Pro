@@ -606,9 +606,7 @@ function RecommendationCard({
           {/* Periods comparison table — dias individuais + blocos agregados + sparklines */}
           {rec.periods_data && (() => {
             const p = rec.periods_data;
-            // Tabela: ordem do mais recente ao mais antigo (Ontem → D-6).
-            const tablePeriods = [p.yesterday, p.day_before, p.d3, p.d4, p.d5, p.d6];
-            // Chart deve ser cronológico (D-6 → Ontem)
+            // Chart deve ser cronológico (D-6 → Ontem); tabela usa p.yesterday, p.day_before... diretamente.
             const chartPeriods = [p.d6, p.d5, p.d4, p.d3, p.day_before, p.yesterday];
             const convSpark = chartPeriods.map(d => d?.conversion ?? 0);
             const visitsSpark = chartPeriods.map(d => d?.visits ?? 0);

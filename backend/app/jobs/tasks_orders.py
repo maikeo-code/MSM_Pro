@@ -101,6 +101,8 @@ async def _sync_orders_async():
                                 if not mlb_id.startswith("MLB"):
                                     mlb_id = f"MLB{mlb_id}"
 
+                                item_title = first_item.get("item", {}).get("title", "")
+
                                 quantity = int(first_item.get("quantity", 1))
                                 unit_price = Decimal(
                                     str(first_item.get("unit_price", 0))
@@ -224,6 +226,8 @@ async def _sync_orders_async():
                                     existing_order.sale_fee = sale_fee
                                     existing_order.shipping_cost = shipping_cost
                                     existing_order.net_amount = net_amount
+                                    if not existing_order.item_title and item_title:
+                                        existing_order.item_title = item_title
                                     total_updated += 1
                                 else:
                                     new_order = Order(
@@ -231,6 +235,7 @@ async def _sync_orders_async():
                                         ml_account_id=acc_id,
                                         listing_id=listing_id,
                                         mlb_id=mlb_id,
+                                        item_title=item_title,
                                         buyer_nickname=buyer_nickname,
                                         quantity=quantity,
                                         unit_price=unit_price,
@@ -405,6 +410,8 @@ async def _backfill_orders_after_reconnect_async(
                             if not mlb_id.startswith("MLB"):
                                 mlb_id = f"MLB{mlb_id}"
 
+                            item_title = first_item.get("item", {}).get("title", "")
+
                             quantity = int(first_item.get("quantity", 1))
                             unit_price = Decimal(
                                 str(first_item.get("unit_price", 0))
@@ -523,13 +530,18 @@ async def _backfill_orders_after_reconnect_async(
                             existing_order = existing_result.scalar_one_or_none()
 
                             if existing_order:
-                                # Atualiza apenas campos mutáveis
+                                # Atualiza status + valores financeiros
                                 existing_order.shipping_status = shipping_status
                                 existing_order.payment_status = payment_status
                                 if payment_date:
                                     existing_order.payment_date = payment_date
                                 if delivery_date:
                                     existing_order.delivery_date = delivery_date
+                                existing_order.sale_fee = sale_fee
+                                existing_order.shipping_cost = shipping_cost
+                                existing_order.net_amount = net_amount
+                                if not existing_order.item_title and item_title:
+                                    existing_order.item_title = item_title
                                 total_updated += 1
                             else:
                                 new_order = Order(
@@ -537,6 +549,7 @@ async def _backfill_orders_after_reconnect_async(
                                     ml_account_id=account.id,
                                     listing_id=listing_id,
                                     mlb_id=mlb_id,
+                                    item_title=item_title,
                                     buyer_nickname=buyer_nickname,
                                     quantity=quantity,
                                     unit_price=unit_price,

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, RefreshCw, WifiOff, ShoppingCart, Package, DollarSign, Target, BarChart2, Sparkles, Download, Eye, Search } from "lucide-react";
+import { AlertCircle, RefreshCw, WifiOff, ShoppingCart, Package, DollarSign, Target, BarChart2, Sparkles, Download, Eye, Search, Shield, MessageSquare, Wallet, Boxes, TrendingUp, TrendingDown, Inbox, Gavel } from "lucide-react";
 import { Link } from "react-router-dom";
-import listingsService, { type FunnelData, type HeatmapData } from "@/services/listingsService";
+import { ResponsiveContainer, AreaChart, Area, Tooltip as RTooltip } from "recharts";
+import listingsService, { type FunnelData, type HeatmapData, type AccountCardData } from "@/services/listingsService";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { ConsultorDrawer } from "@/components/ConsultorDrawer";
 import { DiasBadge } from "@/components/DiasBadge";
@@ -46,6 +47,182 @@ function ConversionFunnel({ data }: { data: FunnelData | undefined }) {
       <div className="pt-2 border-t text-sm flex items-center justify-between">
         <span className="text-muted-foreground">Conversao</span>
         <span className="font-bold text-foreground">{conversao.toFixed(2)}%</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Cards operacionais por conta ML ────────────────────────────────────────
+function AccountCardsRow({ acc }: { acc: AccountCardData }) {
+  const reputacaoLabel = (acc.reputacao?.level_id || "unknown").replace(/_/g, " ");
+  const claimsRate = (acc.reputacao?.claims_rate ?? 0) * 100;
+  const cancelRate = (acc.reputacao?.cancellations_rate ?? 0) * 100;
+  const delayedRate = (acc.reputacao?.delayed_handling_time_rate ?? 0) * 100;
+
+  const smallPct =
+    acc.full_stock.small_medium_total > 0
+      ? (acc.full_stock.small_medium_used / acc.full_stock.small_medium_total) * 100
+      : 0;
+  const largePct =
+    acc.full_stock.large_xlarge_total > 0
+      ? (acc.full_stock.large_xlarge_used / acc.full_stock.large_xlarge_total) * 100
+      : 0;
+
+  const total7d = acc.vendas_7d.reduce((s, p) => s + p.valor, 0);
+  const first = acc.vendas_7d[0]?.valor ?? 0;
+  const last = acc.vendas_7d[acc.vendas_7d.length - 1]?.valor ?? 0;
+  const varPct = first > 0 ? ((last - first) / first) * 100 : 0;
+  const chartData = acc.vendas_7d.map((p) => ({
+    name: p.date.slice(5),
+    valor: p.valor,
+  }));
+
+  return (
+    <div className="rounded-lg border bg-card shadow-sm">
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-slate-50 dark:bg-slate-900 rounded-t-lg">
+        <span className="text-sm font-semibold text-foreground">{acc.nickname || "Conta ML"}</span>
+        <span className="text-xs text-muted-foreground">ID: {acc.ml_user_id}</span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 p-4">
+        {/* Reputacao */}
+        <div className="rounded-md border p-3 flex flex-col">
+          <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+            <Shield className="h-4 w-4 text-emerald-600" />
+            <span className="text-xs font-medium">Reputacao</span>
+          </div>
+          <span className="text-sm font-bold text-foreground capitalize leading-tight">
+            {reputacaoLabel}
+          </span>
+          <div className="mt-1.5 text-[10px] text-muted-foreground space-y-0.5">
+            <div>Reclamacoes: {claimsRate.toFixed(2)}%</div>
+            <div>Canceladas: {cancelRate.toFixed(2)}%</div>
+            <div>Atrasos: {delayedRate.toFixed(2)}%</div>
+          </div>
+        </div>
+
+        {/* Perguntas */}
+        <div className="rounded-md border p-3 flex flex-col">
+          <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+            <MessageSquare className="h-4 w-4 text-blue-600" />
+            <span className="text-xs font-medium">Perguntas</span>
+          </div>
+          <span className="text-xl font-bold text-foreground">{acc.perguntas}</span>
+          <span className="text-[10px] text-muted-foreground">nao respondidas</span>
+        </div>
+
+        {/* Mensagens + Claims + Mediacoes */}
+        <div className="rounded-md border p-3 flex flex-col">
+          <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+            <Inbox className="h-4 w-4 text-amber-600" />
+            <span className="text-xs font-medium">Atendimento</span>
+          </div>
+          <div className="text-[11px] space-y-0.5">
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">Mensagens:</span>
+              <span className="font-semibold text-foreground">{acc.mensagens_nao_lidas}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">Reclamacoes:</span>
+              <span className="font-semibold text-foreground">{acc.claims}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground flex items-center gap-1"><Gavel className="h-3 w-3" />Mediacoes:</span>
+              <span className="font-semibold text-foreground">{acc.mediacoes}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Uso do Full */}
+        <div className="rounded-md border p-3 flex flex-col">
+          <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+            <Boxes className="h-4 w-4 text-purple-600" />
+            <span className="text-xs font-medium">Uso do Full</span>
+          </div>
+          <div className="text-[11px] space-y-1.5">
+            <div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Peq/Med:</span>
+                <span className="font-semibold">{smallPct.toFixed(0)}%</span>
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                {acc.full_stock.small_medium_used} un. de {acc.full_stock.small_medium_total} un.
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Gra/ExtG:</span>
+                <span className="font-semibold">{largePct.toFixed(0)}%</span>
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                {acc.full_stock.large_xlarge_used} un. de {acc.full_stock.large_xlarge_total} un.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sparkline vendas 7d */}
+        <div className="rounded-md border p-3 flex flex-col col-span-2 md:col-span-1">
+          <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+            {varPct >= 0 ? (
+              <TrendingUp className="h-4 w-4 text-green-600" />
+            ) : (
+              <TrendingDown className="h-4 w-4 text-red-600" />
+            )}
+            <span className="text-xs font-medium">Vendas 7d</span>
+          </div>
+          <span className="text-lg font-bold text-foreground leading-none">
+            {formatCurrency(total7d)}
+          </span>
+          <span
+            className={cn(
+              "text-[10px] font-medium",
+              varPct >= 0 ? "text-green-600" : "text-red-600"
+            )}
+          >
+            {varPct >= 0 ? "+" : ""}
+            {varPct.toFixed(1)}%
+          </span>
+          <div className="h-8 mt-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id={`grad-${acc.ml_account_id}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.6} />
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <RTooltip
+                  formatter={(v: number) => formatCurrency(v)}
+                  labelFormatter={(l) => `Dia ${l}`}
+                  contentStyle={{ fontSize: 11, padding: 4 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="valor"
+                  stroke="#2563eb"
+                  strokeWidth={1.5}
+                  fill={`url(#grad-${acc.ml_account_id})`}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Saldo Mercado Pago */}
+        <div className="rounded-md border p-3 flex flex-col">
+          <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+            <Wallet className="h-4 w-4 text-indigo-600" />
+            <span className="text-xs font-medium">Saldo MP</span>
+          </div>
+          <span className="text-lg font-bold text-foreground leading-none">
+            {formatCurrency(acc.saldo_mp)}
+          </span>
+          {acc.saldo_liberar > 0 && (
+            <span className="text-[10px] text-muted-foreground mt-1">
+              A liberar: {formatCurrency(acc.saldo_liberar)}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -292,6 +469,13 @@ export default function Dashboard() {
     retry: 2,
   });
 
+  const { data: extraCards, isLoading: isLoadingExtras } = useQuery({
+    queryKey: ["extra-cards", accountId],
+    queryFn: () => listingsService.getDashboardExtraCards(accountId),
+    refetchInterval: 300000, // atualiza a cada 5 minutos silenciosamente
+    retry: 2,
+  });
+
   const handleSync = async () => {
     setSyncing(true);
     setSyncMsg(null);
@@ -443,7 +627,20 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ─── KPI Cards com variacao (estilo UpSeller) ─────────────────────────── */}
+      {/* ─── Cards Operacionais por Conta (API ML Direto) ─────────────────── */}
+      {isLoadingExtras ? (
+        <div className="mb-4 rounded-lg border bg-card p-6 text-sm text-muted-foreground">
+          Carregando metricas das contas...
+        </div>
+      ) : (
+        <div className="mb-6 space-y-4">
+          {(extraCards?.accounts ?? []).map((acc) => (
+            <AccountCardsRow key={acc.ml_account_id} acc={acc} />
+          ))}
+        </div>
+      )}
+
+      {/* ─── KPI Cards de Vendas ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <KpiCard
           label="Pedidos Validos"

@@ -5,6 +5,7 @@ export interface OrderOut {
   ml_order_id: string;
   listing_id: string | null;
   mlb_id: string;
+  item_title: string | null;
   buyer_nickname: string;
   quantity: number;
   unit_price: number | string; // Backend retorna Decimal (string)

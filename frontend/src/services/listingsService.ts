@@ -288,6 +288,52 @@ export interface SimulatePriceResult {
   elasticity: number | null;
 }
 
+export interface AccountReputation {
+  level_id: string;
+  power_seller_status: string | null;
+  claims_rate: number;
+  cancellations_rate: number;
+  delayed_handling_time_rate: number;
+}
+
+export interface AccountFullStock {
+  small_medium_used: number;
+  small_medium_total: number;
+  large_xlarge_used: number;
+  large_xlarge_total: number;
+}
+
+export interface AccountSparklinePoint {
+  date: string;
+  valor: number;
+}
+
+export interface AccountCardData {
+  ml_account_id: string;
+  nickname: string;
+  ml_user_id: string;
+  reputacao: AccountReputation;
+  perguntas: number;
+  mensagens_nao_lidas: number;
+  claims: number;
+  mediacoes: number;
+  saldo_mp: number;
+  saldo_liberar: number;
+  full_stock: AccountFullStock;
+  vendas_7d: AccountSparklinePoint[];
+}
+
+export interface DashboardExtraCards {
+  accounts: AccountCardData[];
+  reputacao: string;
+  perguntas: number;
+  claims: number;
+  mediacoes: number;
+  mensagens_nao_lidas: number;
+  saldo_mp: number;
+  saldo_liberar: number;
+}
+
 const listingsService = {
   async list(period: string = "today", mlAccountId?: string | null): Promise<ListingOut[]> {
     const params: Record<string, unknown> = period !== "today" ? { period } : {};
@@ -470,6 +516,17 @@ const listingsService = {
     const { data } = await api.post<SimulatePriceResult>(`/listings/${mlbId}/simulate-price`, {
       target_price: targetPrice,
     }, {
+      params: Object.keys(params).length > 0 ? params : undefined,
+    });
+    return data;
+  },
+
+  async getDashboardExtraCards(mlAccountId?: string | null): Promise<DashboardExtraCards> {
+    const params: Record<string, unknown> = {};
+    if (mlAccountId) {
+      params.ml_account_id = mlAccountId;
+    }
+    const { data } = await api.get<DashboardExtraCards>("/listings/dashboard/extra-cards", {
       params: Object.keys(params).length > 0 ? params : undefined,
     });
     return data;

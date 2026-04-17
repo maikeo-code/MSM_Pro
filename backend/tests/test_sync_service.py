@@ -121,7 +121,10 @@ class MockMLClient:
     async def __aexit__(self, *args):
         pass
 
-    async def get_user_listings(self, ml_user_id, offset=0, limit=50):
+    async def get_user_listings(self, ml_user_id, offset=0, limit=50, status="active"):
+        # Retorna itens apenas para status="active"; "paused" fica vazio nos testes.
+        if status != "active":
+            return {"results": []}
         if offset == 0:
             return {"results": self.item_ids[:limit]}
         return {"results": []}  # Segunda página vazia

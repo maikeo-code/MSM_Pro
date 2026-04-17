@@ -152,9 +152,15 @@ def test_kpi_single_day_has_orders_fallback():
     from app.vendas import service_kpi
     src = inspect.getsource(service_kpi._kpi_single_day)
     assert "Order" in src, "deve referenciar Order no fallback"
-    assert "approved" in src, "deve filtrar payment_status approved (não 'paid')"
-    assert "vendas == 0 and pedidos == 0" in src, (
-        "deve ter guarda de fallback quando snapshots = 0"
+    # Filtro de status: exclui cancelled/refunded/rejected (abordagem broad
+    # adotada no fix do bug KPI 3->2). 'approved' sozinho era muito restritivo.
+    assert "cancelled" in src and "refunded" in src, (
+        "deve excluir payment_status cancelled/refunded"
+    )
+    # Fallback Orders aciona sempre que Orders > snapshot (em vendas ou pedidos),
+    # nao apenas quando snapshot == 0. Abordagem mais robusta contra snapshots parciais.
+    assert "orders_fallback_ativo" in src, (
+        "deve marcar fallback Orders quando dados divergem dos snapshots"
     )
 
 

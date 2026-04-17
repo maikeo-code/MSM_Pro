@@ -696,9 +696,48 @@ class MLClient:
         """Busca todas as reclaçmões abertas do seller."""
         return await self._request("GET", "/v1/claims/search", params={"status": "opened"})
 
+    async def get_my_open_mediations(self) -> dict:
+        """Busca mediacoes abertas (claims escaladas para o Mercado Livre)."""
+        try:
+            return await self._request(
+                "GET",
+                "/v1/claims/search",
+                params={"status": "opened", "stage": "dispute"},
+            )
+        except MLClientError:
+            return {"data": [], "paging": {"total": 0}}
+
+    async def get_unread_messages_count(self, seller_id: str) -> int:
+        """Retorna contagem de mensagens nao lidas pelo vendedor (pos-venda)."""
+        try:
+            resp = await self._request(
+                "GET",
+                "/messages/unread",
+                params={"role": "seller", "tag": "post_sale"},
+            )
+            if isinstance(resp, dict):
+                return int(resp.get("results", {}).get("count", 0) or resp.get("count", 0) or 0)
+            return 0
+        except MLClientError:
+            return 0
+
     async def get_mp_balance(self, seller_id: str) -> dict:
         """Busca saldo da conta Mercado Pago do usuário."""
         return await self._request("GET", f"/users/{seller_id}/mercadopago_account/balance")
+
+    async def get_full_inventory_summary(self, seller_id: str) -> dict:
+        """
+        Resumo de uso do Full (Fulfillment) por categoria de tamanho.
+        Endpoint beta/nao publicamente documentado; pode falhar em algumas contas.
+        Retorna dict com chaves SMALL_MEDIUM e LARGE_EXTRA_LARGE se disponivel.
+        """
+        try:
+            return await self._request(
+                "GET",
+                f"/users/{seller_id}/fbm_stock/summary",
+            )
+        except MLClientError:
+            return {}
 
     # Métodos auxiliares/legados mantidos para compatibilidade
 

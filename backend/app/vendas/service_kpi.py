@@ -35,7 +35,10 @@ async def list_listings(
     Quando period é um dia específico (today, yesterday, before_yesterday), usa o último
     snapshot daquele dia.
     """
-    query = select(Listing).where(Listing.user_id == user_id)
+    query = select(Listing).where(
+        Listing.user_id == user_id,
+        Listing.status == "active"
+    )
 
     # Filtro opcional por ml_account_id
     if ml_account_id is not None:
@@ -298,7 +301,7 @@ async def list_listings(
         )
         .where(
             Order.listing_id.in_(listing_ids),
-            Order.payment_status == "approved",
+            Order.payment_status.notin_(["cancelled", "refunded", "rejected"]),
             cast(Order.order_date, Date) >= orders_date_from,
             cast(Order.order_date, Date) <= orders_date_to,
         )
@@ -478,6 +481,11 @@ async def list_listings(
         # Monta o snapshot que será serializado
         snap_for_output = eff_snap if ((is_period_mode or is_single_day) and effective_snap_dict) else last_snap
 
+        # Filtro: Mostrar apenas itens com estoque > 0
+        stock_val = (getattr(snap_for_output, "stock", 0) or 0) if snap_for_output else 0
+        if stock_val <= 0:
+            continue
+
         listing_dict = {
             "id": listing.id,
             "user_id": listing.user_id,
@@ -627,24 +635,23 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
     # e conversão ficam marcadas como indisponíveis (0) para esse dia, em vez
     # de contaminar o dashboard com dados inconsistentes.
     orders_fallback_ativo = False
-    if vendas == 0 and pedidos == 0:
-        orders_fallback = await db.execute(
-            select(
-                func.coalesce(func.sum(Order.quantity), 0).label("vendas"),
-                func.count(Order.id).label("pedidos"),
-                func.coalesce(func.sum(Order.total_amount), 0).label("receita_total"),
-            ).where(
-                Order.listing_id.in_(listing_ids),
-                cast(Order.order_date, Date) == dt,
-                Order.payment_status.in_(["approved", "paid"]),
-            )
+    orders_fallback = await db.execute(
+        select(
+            func.coalesce(func.sum(Order.quantity), 0).label("vendas"),
+            func.count(Order.id).label("pedidos"),
+            func.coalesce(func.sum(Order.total_amount), 0).label("receita_total"),
+        ).where(
+            Order.listing_id.in_(listing_ids),
+            cast(Order.order_date, Date) == dt,
+            Order.payment_status.notin_(["cancelled", "refunded", "rejected"]),
         )
-        ofb = orders_fallback.fetchone()
-        if ofb and (int(ofb.vendas) > 0 or int(ofb.pedidos) > 0):
-            vendas = int(ofb.vendas)
-            pedidos = int(ofb.pedidos)
-            receita_total = float(ofb.receita_total)
-            orders_fallback_ativo = True
+    )
+    ofb = orders_fallback.fetchone()
+    if ofb and (int(ofb.vendas) > vendas or int(ofb.pedidos) > pedidos):
+        vendas = max(vendas, int(ofb.vendas))
+        pedidos = max(pedidos, int(ofb.pedidos))
+        receita_total = max(receita_total, float(ofb.receita_total))
+        orders_fallback_ativo = True
 
     # Proteção extra: se visitas parcial (menor que vendas), significa que
     # o snapshot do dia está corrompido/incompleto. Descarta visitas e
@@ -735,6 +742,26 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
     cancelados_valor = float(row.cancelados_valor) if row else 0.0
     devolucoes_qtd = int(row.devolucoes_qtd) if row else 0
     devolucoes_valor = float(row.devolucoes_valor) if row else 0.0
+
+    # Orders garantem contagem perfeita se snapshots perdem dados
+    orders_query = await db.execute(
+        select(
+            func.coalesce(func.sum(Order.quantity), 0).label("vendas"),
+            func.count(Order.id).label("pedidos"),
+            func.coalesce(func.sum(Order.total_amount), 0).label("receita_total"),
+        ).where(
+            Order.listing_id.in_(listing_ids),
+            cast(Order.order_date, Date) >= date_from,
+            cast(Order.order_date, Date) <= date_to,
+            Order.payment_status.notin_(["cancelled", "refunded", "rejected"]),
+        )
+    )
+    ofb = orders_query.fetchone()
+    if ofb and (int(ofb.vendas) > vendas or int(ofb.pedidos) > pedidos):
+        vendas = max(vendas, int(ofb.vendas))
+        pedidos = max(pedidos, int(ofb.pedidos))
+        receita_total = max(receita_total, float(ofb.receita_total))
+
     preco_medio = round(receita_total / vendas, 2) if vendas > 0 else 0.0
     preco_medio_por_venda = round(receita_total / pedidos, 2) if pedidos > 0 else 0.0
     total_pedidos_com_cancelados = pedidos + cancelados

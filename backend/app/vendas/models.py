@@ -150,6 +150,7 @@ class Order(Base):
         index=True,
     )
     mlb_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    item_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     buyer_nickname: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)

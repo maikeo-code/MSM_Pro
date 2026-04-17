@@ -237,6 +237,18 @@ async def get_kpi_daily_breakdown(
     return await service.get_kpi_daily_breakdown(db, current_user.id, days=days, ml_account_id=ml_account_id)
 
 
+@router.get("/dashboard/extra-cards")
+async def get_dashboard_extra_cards(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
+):
+    """Retorna os cards extras do dashboard agregados chamando a API do Mercado Livre e Mercado Pago em tempo real."""
+    from app.vendas.service_dashboard_cards import get_extra_cards
+    return await get_extra_cards(db, current_user.id, ml_account_id=ml_account_id)
+
+
+
 @router.get("/analytics/funnel", response_model=FunnelOut)
 async def get_funnel(
     current_user: Annotated[User, Depends(get_current_user)],
