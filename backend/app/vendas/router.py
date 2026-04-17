@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
@@ -246,6 +247,45 @@ async def get_dashboard_extra_cards(
     """Retorna os cards extras do dashboard agregados chamando a API do Mercado Livre e Mercado Pago em tempo real."""
     from app.vendas.service_dashboard_cards import get_extra_cards
     return await get_extra_cards(db, current_user.id, ml_account_id=ml_account_id)
+
+
+@router.get("/dashboard/extra-cards/debug")
+async def debug_extra_cards(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """DEBUG: retorna respostas brutas (ou mensagens de erro) dos endpoints ML que alimentam os cards."""
+    import asyncio
+    from app.auth.models import MLAccount
+    from app.mercadolivre.client import MLClient
+
+    result = await db.execute(
+        select(MLAccount).where(
+            MLAccount.user_id == current_user.id,
+            MLAccount.is_active == True,
+        )
+    )
+    accounts = list(result.scalars().all())
+    out = []
+    for acc in accounts:
+        item = {"nickname": acc.nickname, "ml_user_id": acc.ml_user_id}
+        try:
+            async with MLClient(access_token=acc.access_token, ml_account_id=acc.id) as client:
+                tasks = [
+                    client.get_mp_balance(acc.ml_user_id),
+                    client._request("GET", "/messages/unread", params={"role": "seller", "tag": "post_sale"}),
+                    client._request("GET", f"/users/{acc.ml_user_id}/fbm_stock/summary"),
+                    client._request("GET", f"/inventories/stock_locations"),
+                    client._request("GET", f"/users/{acc.ml_user_id}/mercadopago_account"),
+                ]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                labels = ["mp_balance", "messages_unread", "fbm_summary", "inventories_locations", "mp_account"]
+                for label, r in zip(labels, results):
+                    item[label] = str(r)[:500] if isinstance(r, Exception) else r
+        except Exception as e:
+            item["error"] = str(e)
+        out.append(item)
+    return out
 
 
 

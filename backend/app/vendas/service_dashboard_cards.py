@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
@@ -9,6 +10,7 @@ from app.auth.models import MLAccount
 from app.mercadolivre.client import MLClient
 from app.vendas.models import Order
 
+logger = logging.getLogger(__name__)
 BRT = timezone(timedelta(hours=-3))
 
 
@@ -72,29 +74,43 @@ async def _fetch_account_data(db: AsyncSession, acc: MLAccount) -> dict:
                 return_exceptions=True,
             )
 
-            if not isinstance(res_rep, Exception) and isinstance(res_rep, dict):
+            if isinstance(res_rep, Exception):
+                logger.warning("extra-cards.reputacao falhou acc=%s: %s", acc.nickname, res_rep)
+            elif isinstance(res_rep, dict):
                 reputacao = _parse_reputacao(res_rep)
 
-            if not isinstance(res_perguntas, Exception) and isinstance(res_perguntas, dict):
+            if isinstance(res_perguntas, Exception):
+                logger.warning("extra-cards.perguntas falhou acc=%s: %s", acc.nickname, res_perguntas)
+            elif isinstance(res_perguntas, dict):
                 perguntas = int(res_perguntas.get("total", 0) or 0)
 
-            if not isinstance(res_claims, Exception) and isinstance(res_claims, dict):
+            if isinstance(res_claims, Exception):
+                logger.warning("extra-cards.claims falhou acc=%s: %s", acc.nickname, res_claims)
+            elif isinstance(res_claims, dict):
                 claims = int(res_claims.get("paging", {}).get("total", 0) or 0)
 
-            if not isinstance(res_mediacoes, Exception) and isinstance(res_mediacoes, dict):
+            if isinstance(res_mediacoes, Exception):
+                logger.warning("extra-cards.mediacoes falhou acc=%s: %s", acc.nickname, res_mediacoes)
+            elif isinstance(res_mediacoes, dict):
                 mediacoes = int(res_mediacoes.get("paging", {}).get("total", 0) or 0)
 
-            if not isinstance(res_mensagens, Exception):
+            if isinstance(res_mensagens, Exception):
+                logger.warning("extra-cards.mensagens falhou acc=%s: %s", acc.nickname, res_mensagens)
+            else:
                 mensagens_nao_lidas = int(res_mensagens or 0)
 
-            if not isinstance(res_saldo, Exception) and isinstance(res_saldo, dict):
+            if isinstance(res_saldo, Exception):
+                logger.warning("extra-cards.saldo_mp falhou acc=%s: %s", acc.nickname, res_saldo)
+            elif isinstance(res_saldo, dict):
                 saldo_mp = float(res_saldo.get("total_amount", 0.0) or 0.0)
                 saldo_liberar = float(res_saldo.get("unavailable_balance", 0.0) or 0.0)
 
-            if not isinstance(res_full, Exception) and isinstance(res_full, dict):
+            if isinstance(res_full, Exception):
+                logger.warning("extra-cards.full_stock falhou acc=%s: %s", acc.nickname, res_full)
+            elif isinstance(res_full, dict):
                 full_stock = _parse_full_stock(res_full)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.exception("extra-cards falhou acc=%s: %s", acc.nickname, e)
 
     vendas_7d = await _sales_sparkline_7d(db, acc.id)
 
