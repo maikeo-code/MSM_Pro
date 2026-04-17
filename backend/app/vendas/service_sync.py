@@ -9,7 +9,7 @@ from uuid import UUID
 BRT = timezone(timedelta(hours=-3))
 
 from fastapi import HTTPException, status
-from sqlalchemy import cast, Date, select
+from sqlalchemy import cast, Date, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.vendas.models import Listing, ListingSnapshot
@@ -49,18 +49,20 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
 
         try:
             async with MLClient(account.access_token) as client:
-                # Busca IDs dos anúncios ativos
-                offset = 0
-                all_item_ids = []
-                while True:
-                    resp = await client.get_user_listings(
-                        account.ml_user_id, offset=offset, limit=50
-                    )
-                    item_ids = resp.get("results", [])
-                    all_item_ids.extend(item_ids)
-                    if len(item_ids) < 50:
-                        break
-                    offset += 50
+                # Busca IDs de active + paused (pausados também precisam ter status
+                # atualizado no banco; caso contrário ficam presos como "active").
+                all_item_ids: list[str] = []
+                for sync_status in ("active", "paused"):
+                    offset = 0
+                    while True:
+                        resp = await client.get_user_listings(
+                            account.ml_user_id, offset=offset, limit=50, status=sync_status
+                        )
+                        item_ids = resp.get("results", [])
+                        all_item_ids.extend(item_ids)
+                        if len(item_ids) < 50:
+                            break
+                        offset += 50
 
                 # Busca detalhes de cada anúncio
                 for mlb_id in all_item_ids:
@@ -337,6 +339,19 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                 except Exception:
                     # Não bloquear sync se orders falharem
                     pass
+
+                # Marca como "closed" listings que sumiram de active+paused.
+                # Preserva listings que já estão closed (não desfaz).
+                if all_item_ids:
+                    await db.execute(
+                        update(Listing)
+                        .where(
+                            Listing.ml_account_id == account.id,
+                            Listing.mlb_id.notin_(all_item_ids),
+                            Listing.status != "closed",
+                        )
+                        .values(status="closed")
+                    )
 
         except MLClientError as e:
             errors.append(f"Conta {account.nickname}: {e}")

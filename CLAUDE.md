@@ -576,7 +576,7 @@ Leia o arquivo `_auto_learning/INSTRUCOES_IA.md` para instruções completas.
 
 ---
 
-## SWARM GENESIS v6.0
+## SWARM GENESIS v7.0
 ## Sistema de Auto-Aprendizado Instalado
 
 - **Pasta do sistema**: `_auto_learning/`

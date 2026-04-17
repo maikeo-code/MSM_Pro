@@ -688,6 +688,18 @@ class MLClient:
         """
         return await self._request("GET", f"/users/{seller_id}")
 
+    async def get_my_unanswered_questions(self) -> dict:
+        """Busca todas as perguntas não respondidas do seller."""
+        return await self._request("GET", "/my/received_questions/search", params={"status": "UNANSWERED"})
+
+    async def get_my_open_claims(self) -> dict:
+        """Busca todas as reclaçmões abertas do seller."""
+        return await self._request("GET", "/v1/claims/search", params={"status": "opened"})
+
+    async def get_mp_balance(self, seller_id: str) -> dict:
+        """Busca saldo da conta Mercado Pago do usuário."""
+        return await self._request("GET", f"/users/{seller_id}/mercadopago_account/balance")
+
     # Métodos auxiliares/legados mantidos para compatibilidade
 
     async def get_listing(self, mlb_id: str) -> dict:
@@ -715,13 +727,19 @@ class MLClient:
             },
         )
 
-    async def get_user_listings(self, ml_user_id: str, offset: int = 0, limit: int = 50) -> dict:
-        """Busca anúncios ativos de um usuário ML."""
+    async def get_user_listings(
+        self,
+        ml_user_id: str,
+        offset: int = 0,
+        limit: int = 50,
+        status: str = "active",
+    ) -> dict:
+        """Busca anúncios de um usuário ML filtrando por status (active|paused|closed)."""
         return await self._request(
             "GET",
             f"/users/{ml_user_id}/items/search",
             params={
-                "status": "active",
+                "status": status,
                 "offset": offset,
                 "limit": limit,
             },

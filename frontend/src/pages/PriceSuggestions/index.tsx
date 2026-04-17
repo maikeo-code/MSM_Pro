@@ -606,12 +606,13 @@ function RecommendationCard({
           {/* Periods comparison table — dias individuais + blocos agregados + sparklines */}
           {rec.periods_data && (() => {
             const p = rec.periods_data;
-            // Tema 2: ordem do mais recente ao mais antigo (Ontem → D-6).
-            // Sparkline respeita a mesma ordem da tabela.
-            const dailyPeriods = [p.yesterday, p.day_before, p.d3, p.d4, p.d5, p.d6];
-            const convSpark = dailyPeriods.map(d => d?.conversion ?? 0);
-            const visitsSpark = dailyPeriods.map(d => d?.visits ?? 0);
-            const salesSpark = dailyPeriods.map(d => d?.sales ?? 0);
+            // Tabela: ordem do mais recente ao mais antigo (Ontem → D-6).
+            const tablePeriods = [p.yesterday, p.day_before, p.d3, p.d4, p.d5, p.d6];
+            // Chart deve ser cronológico (D-6 → Ontem)
+            const chartPeriods = [p.d6, p.d5, p.d4, p.d3, p.day_before, p.yesterday];
+            const convSpark = chartPeriods.map(d => d?.conversion ?? 0);
+            const visitsSpark = chartPeriods.map(d => d?.visits ?? 0);
+            const salesSpark = chartPeriods.map(d => d?.sales ?? 0);
 
             const thCls = "text-center px-1.5 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground font-medium whitespace-nowrap";
             const tdCls = "text-center px-1.5 py-1.5 font-semibold whitespace-nowrap";
@@ -711,11 +712,11 @@ function RecommendationCard({
           {/* Sparklines Summary (visual representation abaixo da tabela) */}
           {rec.periods_data && (() => {
             const p = rec.periods_data;
-            // Tema 2: ordem do mais recente ao mais antigo (Ontem → D-6)
-            const dailyPeriods = [p.yesterday, p.day_before, p.d3, p.d4, p.d5, p.d6];
-            const convSpark = dailyPeriods.map(d => d?.conversion ?? 0);
-            const visitsSpark = dailyPeriods.map(d => d?.visits ?? 0);
-            const salesSpark = dailyPeriods.map(d => d?.sales ?? 0);
+            // Chart deve ser cronológico (D-6 → Ontem)
+            const chartPeriods = [p.d6, p.d5, p.d4, p.d3, p.day_before, p.yesterday];
+            const convSpark = chartPeriods.map(d => d?.conversion ?? 0);
+            const visitsSpark = chartPeriods.map(d => d?.visits ?? 0);
+            const salesSpark = chartPeriods.map(d => d?.sales ?? 0);
 
             return (
               <div className="mt-4 grid grid-cols-3 gap-4">

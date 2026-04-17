@@ -48,7 +48,23 @@
       "WebFetch(domain:blog.mercadolivre.com.br)",
       "WebFetch(domain:www.olist.com)",
       "WebFetch(domain:www.tiny.com.br)",
-      "WebFetch(domain:tiny.com.br)"
+      "WebFetch(domain:tiny.com.br)",
+      "Bash(mkdir -p ~/.claude/hooks)",
+      "Bash(cp ~/.claude/skills/git-guardrails-claude-code/scripts/block-dangerous-git.sh ~/.claude/hooks/block-dangerous-git.sh)",
+      "Bash(chmod +x ~/.claude/hooks/block-dangerous-git.sh)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'git commit'; then cd /c/Users/Maikeo/MSM_Imports_Mercado_Livre/msm_pro && python obsidian_brain.py --update-metrics 2>/dev/null || true; fi"
+          }
+        ]
+      }
     ]
   },
   "enableAllProjectMcpServers": true,

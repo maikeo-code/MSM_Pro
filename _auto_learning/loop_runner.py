@@ -1,7 +1,7 @@
 """
 ============================================================
-SWARM GENESIS v6.0 — LOOP RUNNER
-CLI com 50+ comandos para todas as operações do sistema.
+SWARM GENESIS v7.0 — LOOP RUNNER
+CLI com 56 comandos para todas as operações do sistema.
 ============================================================
 Uso: python _auto_learning/loop_runner.py <comando> [json_data]
 ============================================================
@@ -9,8 +9,17 @@ Uso: python _auto_learning/loop_runner.py <comando> [json_data]
 
 import sys
 import json
+import os
 from pathlib import Path
 from datetime import datetime
+
+# Encoding safety for Windows
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
 
 sys.path.insert(0, str(Path(__file__).parent))
 from engine import SwarmDB
@@ -426,7 +435,7 @@ def cmd_status(_):
     agents = db.get_all_agents()
     areas  = db.get_area_scores()
     result = {
-        "version": "6.0",
+        "version": "7.0",
         "stats": stats,
         "current_cycle": cycle,
         "agents_summary": [
@@ -443,7 +452,7 @@ def cmd_status(_):
     except Exception:
         result["last_checkpoint"] = None
     try:
-        result["token_usage_total"] = db.get_token_usage_total()
+        result["token_usage_total"] = db.get_token_usage()
     except Exception:
         result["token_usage_total"] = None
     out(result)
@@ -571,7 +580,7 @@ def cmd_generate_report(_):
 
     code_changes_summary = {"total": 0, "rolled_back": 0, "pending_test": 0}
     try:
-        all_changes = db.get_code_change_history(limit=500)
+        all_changes = db.get_change_history(limit=500)
         code_changes_summary["total"] = len(all_changes)
         code_changes_summary["rolled_back"] = sum(
             1 for c in all_changes if c.get("status") == "ROLLED_BACK")
@@ -597,7 +606,7 @@ def cmd_generate_report(_):
 
     now = datetime.now().strftime("%d/%m/%Y %H:%M")
     lines = [
-        "# SWARM GENESIS v6.0 — RELATORIO COMPLETO",
+        "# SWARM GENESIS v7.0 — RELATORIO COMPLETO",
         f"Gerado em: {now}",
         "",
     ]
@@ -942,7 +951,7 @@ def cmd_help(d):
                  "available": sorted(COMMANDS.keys())})
     else:
         out({
-            "version": "SWARM GENESIS v6.0",
+            "version": "SWARM GENESIS v7.0",
             "total_commands": len(COMMANDS),
             "commands": {
                 cmd: HELP_TEXT.get(cmd, "Sem descricao")
@@ -960,6 +969,270 @@ def cmd_help(d):
         })
 
 
+# ============================================================
+# v8 — PLUGIN COMMANDS (CLI bridge)
+# ============================================================
+def _plugin_conn():
+    """Conexão com init de schemas dos plugins."""
+    import sqlite3
+    conn = sqlite3.connect(str(db.db_path))
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+
+def cmd_check_budget(d):
+    from plugins.ekas_efficiency import check_budget, get_today_usage, init_schema, BudgetExceeded
+    conn = _plugin_conn()
+    init_schema(conn)
+    try:
+        check_budget(conn, planned_cost_usd=float((d or {}).get("planned_cost", 0)))
+        usage = get_today_usage(conn)
+        out({"ok": True, **usage})
+    except BudgetExceeded as e:
+        out({"ok": False, "error": str(e)})
+    finally:
+        conn.close()
+
+
+def cmd_ekas_usage(d):
+    from plugins.ekas_efficiency import get_today_usage, init_schema
+    conn = _plugin_conn()
+    init_schema(conn)
+    out(get_today_usage(conn))
+    conn.close()
+
+
+def cmd_guard(d):
+    from plugins.tiered_autonomy import guard, init_schema, ActionBlocked
+    conn = _plugin_conn()
+    init_schema(conn)
+    try:
+        result = guard(conn, d["agent_name"], d["action_type"],
+                       target=d.get("target"))
+        conn.commit()
+        out({"outcome": result})
+    except ActionBlocked as e:
+        conn.commit()
+        out({"outcome": "blocked", "reason": str(e)})
+    finally:
+        conn.close()
+
+
+def cmd_verify_audit(d):
+    from plugins.tiered_autonomy import verify_audit_chain, init_schema
+    conn = _plugin_conn()
+    init_schema(conn)
+    ok, bad_id = verify_audit_chain(conn)
+    out({"ok": ok, "first_bad_id": bad_id})
+    conn.close()
+
+
+def cmd_register_skill(d):
+    from plugins.memory_procedural import register_skill, init_schema
+    conn = _plugin_conn()
+    init_schema(conn)
+    meta = register_skill(conn, name=d["name"], description=d["description"],
+                          code_body=d.get("code_body", "return {'ok': True}"),
+                          tags=d.get("tags"), created_by=d.get("created_by"))
+    conn.commit()
+    out(meta)
+    conn.close()
+
+
+def cmd_list_skills(d):
+    from plugins.memory_procedural import list_skills, init_schema
+    conn = _plugin_conn()
+    init_schema(conn)
+    out(list_skills(conn, status=(d or {}).get("status")))
+    conn.close()
+
+
+def cmd_run_skill(d):
+    from plugins.memory_procedural import run_skill, init_schema
+    conn = _plugin_conn()
+    init_schema(conn)
+    result = run_skill(conn, d["name"], d.get("payload", {}))
+    conn.commit()
+    out(result)
+    conn.close()
+
+
+def cmd_deprecate_stale_skills(d):
+    from plugins.memory_procedural import auto_deprecate_stale, init_schema
+    conn = _plugin_conn()
+    init_schema(conn)
+    n = auto_deprecate_stale(conn, days=int((d or {}).get("days", 30)))
+    conn.commit()
+    out({"deprecated": n})
+    conn.close()
+
+
+def cmd_self_report(d):
+    from plugins.self_model import generate_self_report
+    conn = _plugin_conn()
+    path = generate_self_report(conn, days=int((d or {}).get("days", 7)))
+    out({"path": str(path)})
+    conn.close()
+
+
+def cmd_consolidate_day(d):
+    from plugins.daily_consolidator import consolidate_day
+    conn = _plugin_conn()
+    stats = consolidate_day(conn)
+    conn.commit()
+    out(stats)
+    conn.close()
+
+
+def cmd_emotions(d):
+    from plugins.functional_emotions import get_emotions, init_schema
+    conn = _plugin_conn()
+    init_schema(conn)
+    if d and "agent_name" in d:
+        out(get_emotions(conn, d["agent_name"]))
+    else:
+        rows = conn.execute(
+            "SELECT agent_name, boredom, curiosity, fear, joy FROM agent_emotions ORDER BY agent_name"
+        ).fetchall()
+        out([{"agent": r[0], "boredom": r[1], "curiosity": r[2], "fear": r[3], "joy": r[4]} for r in rows])
+    conn.close()
+
+
+def cmd_choose_agent(d):
+    from plugins.functional_emotions import choose_agent, init_schema
+    conn = _plugin_conn()
+    init_schema(conn)
+    chosen = choose_agent(conn, d["candidates"])
+    out({"chosen": chosen})
+    conn.close()
+
+
+def cmd_dedup_question(d):
+    from plugins.question_dedup import dedup_insert
+    conn = _plugin_conn()
+    status, rid = dedup_insert(conn, d["question"], cycle_id=d.get("cycle_id"))
+    conn.commit()
+    out({"status": status, "row_id": rid})
+    conn.close()
+
+
+def cmd_what_changed(d):
+    from plugins.session_diff import what_changed
+    conn = _plugin_conn()
+    print(what_changed(conn))
+    conn.close()
+
+
+def cmd_export_knowledge(d):
+    from plugins.cross_project_sync import export_knowledge
+    conn = _plugin_conn()
+    result = export_knowledge(conn, confidence_threshold=float((d or {}).get("threshold", 0.8)))
+    conn.commit()
+    out(result)
+    conn.close()
+
+
+def cmd_import_knowledge(d):
+    from plugins.cross_project_sync import import_knowledge
+    conn = _plugin_conn()
+    result = import_knowledge(conn, d["path"])
+    conn.commit()
+    out(result)
+    conn.close()
+
+
+def cmd_calibration_report(d):
+    from plugins.confidence_calibrator import generate_calibration_report, init_schema
+    conn = _plugin_conn()
+    init_schema(conn)
+    print(generate_calibration_report(conn))
+    conn.close()
+
+
+def cmd_auto_calibrate(d):
+    from plugins.confidence_calibrator import auto_adjust_confidence, init_schema
+    conn = _plugin_conn()
+    init_schema(conn)
+    n = auto_adjust_confidence(conn, min_samples=int((d or {}).get("min_samples", 5)))
+    conn.commit()
+    out({"adjusted": n})
+    conn.close()
+
+
+def cmd_split_file(d):
+    from plugins.skill_split_task import split_file
+    out(split_file(d["file_path"], max_tokens=int(d.get("max_tokens", 30000))))
+
+
+def cmd_split_directory(d):
+    from plugins.skill_split_task import split_directory
+    out(split_directory(d["dir_path"], max_tokens=int(d.get("max_tokens", 30000))))
+
+
+def cmd_execution_plan(d):
+    from plugins.skill_split_task import generate_execution_plan
+    out(generate_execution_plan(d["dir_path"], d.get("task", "Analisar projeto"),
+                                max_tokens=int(d.get("max_tokens", 30000))))
+
+
+# Wire v8 commands
+COMMANDS["check-budget"] = cmd_check_budget
+COMMANDS["ekas-usage"] = cmd_ekas_usage
+COMMANDS["guard"] = cmd_guard
+COMMANDS["verify-audit"] = cmd_verify_audit
+COMMANDS["register-skill"] = cmd_register_skill
+COMMANDS["list-skills"] = cmd_list_skills
+COMMANDS["run-skill"] = cmd_run_skill
+COMMANDS["deprecate-stale-skills"] = cmd_deprecate_stale_skills
+COMMANDS["self-report"] = cmd_self_report
+COMMANDS["consolidate-day"] = cmd_consolidate_day
+COMMANDS["emotions"] = cmd_emotions
+COMMANDS["choose-agent"] = cmd_choose_agent
+COMMANDS["dedup-question"] = cmd_dedup_question
+COMMANDS["what-changed"] = cmd_what_changed
+COMMANDS["export-knowledge"] = cmd_export_knowledge
+COMMANDS["import-knowledge"] = cmd_import_knowledge
+COMMANDS["calibration-report"] = cmd_calibration_report
+COMMANDS["auto-calibrate"] = cmd_auto_calibrate
+COMMANDS["split-file"] = cmd_split_file
+COMMANDS["split-directory"] = cmd_split_directory
+COMMANDS["execution-plan"] = cmd_execution_plan
+
+REQUIRED["guard"] = ["agent_name", "action_type"]
+REQUIRED["register-skill"] = ["name", "description"]
+REQUIRED["run-skill"] = ["name"]
+REQUIRED["dedup-question"] = ["question"]
+REQUIRED["import-knowledge"] = ["path"]
+REQUIRED["split-file"] = ["file_path"]
+REQUIRED["split-directory"] = ["dir_path"]
+REQUIRED["execution-plan"] = ["dir_path"]
+REQUIRED["choose-agent"] = ["candidates"]
+
+HELP_TEXT["check-budget"] = "[v8] Verifica budget EKAS do dia. Opcional: planned_cost."
+HELP_TEXT["ekas-usage"] = "[v8] Resumo de uso EKAS do dia."
+HELP_TEXT["guard"] = "[v8] Avalia se acao pode prosseguir (tiered autonomy). Requer: agent_name, action_type."
+HELP_TEXT["verify-audit"] = "[v8] Valida cadeia de audit hash. Sem parametros."
+HELP_TEXT["register-skill"] = "[v8] Registra skill procedural. Requer: name, description."
+HELP_TEXT["list-skills"] = "[v8] Lista skills. Opcional: status (ACTIVE|STABLE|DEPRECATED)."
+HELP_TEXT["run-skill"] = "[v8] Executa skill. Requer: name. Opcional: payload."
+HELP_TEXT["deprecate-stale-skills"] = "[v8] Deprecia skills sem uso. Opcional: days (default 30)."
+HELP_TEXT["self-report"] = "[v8] Gera relatorio semanal. Opcional: days (default 7)."
+HELP_TEXT["consolidate-day"] = "[v8] Consolida memoria episodica do dia. Sem parametros."
+HELP_TEXT["emotions"] = "[v8] Emocoes dos agentes. Opcional: agent_name."
+HELP_TEXT["choose-agent"] = "[v8] Escolhe melhor agente por emocoes. Requer: candidates (lista)."
+HELP_TEXT["dedup-question"] = "[v8] Insere pergunta com dedup. Requer: question."
+HELP_TEXT["what-changed"] = "[v8] Resumo do que mudou desde ultimo checkpoint."
+HELP_TEXT["export-knowledge"] = "[v8] Exporta regras/padroes de alta confianca. Opcional: threshold."
+HELP_TEXT["import-knowledge"] = "[v8] Importa conhecimento de outro projeto. Requer: path."
+HELP_TEXT["calibration-report"] = "[v8] Relatorio de calibracao de confianca."
+HELP_TEXT["auto-calibrate"] = "[v8] Ajusta confidence baseado em resultados reais. Opcional: min_samples."
+HELP_TEXT["split-file"] = "[v8] Divide arquivo grande em partes. Requer: file_path."
+HELP_TEXT["split-directory"] = "[v8] Agrupa arquivos de diretorio em batches. Requer: dir_path."
+HELP_TEXT["execution-plan"] = "[v8] Plano de execucao com agentes. Requer: dir_path."
+
+
 COMMANDS["help"] = cmd_help
 
 
@@ -969,7 +1242,7 @@ COMMANDS["help"] = cmd_help
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         out({
-            "version": "SWARM GENESIS v6.0",
+            "version": "SWARM GENESIS v7.0",
             "commands": sorted(COMMANDS.keys()),
             "total": len(COMMANDS),
             "tip": "Use 'help' para ver descricoes de todos os comandos.",

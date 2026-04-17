@@ -1,0 +1,29 @@
+{
+  "description": "Hooks de automacao e protecao do SWARM GENESIS v7.0",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/scripts/protect-sensitive.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/scripts/session-start.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
