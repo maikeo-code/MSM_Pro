@@ -138,26 +138,37 @@ function AccountCardsRow({ acc }: { acc: AccountCardData }) {
             <Boxes className="h-4 w-4 text-purple-600" />
             <span className="text-xs font-medium">Uso do Full</span>
           </div>
-          <div className="text-[11px] space-y-1.5">
-            <div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Peq/Med:</span>
-                <span className="font-semibold">{smallPct.toFixed(0)}%</span>
+          {acc.full_stock.small_medium_total > 0 || acc.full_stock.large_xlarge_total > 0 ? (
+            <div className="text-[11px] space-y-1.5">
+              <div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Peq/Med:</span>
+                  <span className="font-semibold">{smallPct.toFixed(0)}%</span>
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {acc.full_stock.small_medium_used} un. de {acc.full_stock.small_medium_total} un.
+                </div>
               </div>
-              <div className="text-[10px] text-muted-foreground">
-                {acc.full_stock.small_medium_used} un. de {acc.full_stock.small_medium_total} un.
+              <div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Gra/ExtG:</span>
+                  <span className="font-semibold">{largePct.toFixed(0)}%</span>
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {acc.full_stock.large_xlarge_used} un. de {acc.full_stock.large_xlarge_total} un.
+                </div>
               </div>
             </div>
-            <div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Gra/ExtG:</span>
-                <span className="font-semibold">{largePct.toFixed(0)}%</span>
-              </div>
-              <div className="text-[10px] text-muted-foreground">
-                {acc.full_stock.large_xlarge_used} un. de {acc.full_stock.large_xlarge_total} un.
-              </div>
-            </div>
-          </div>
+          ) : (
+            <>
+              <span className="text-xs text-muted-foreground leading-tight">
+                Sem dados disponiveis
+              </span>
+              <span className="text-[10px] text-muted-foreground mt-1">
+                API resumo Full nao publica
+              </span>
+            </>
+          )}
         </div>
 
         {/* Sparkline vendas 7d */}
@@ -214,13 +225,26 @@ function AccountCardsRow({ acc }: { acc: AccountCardData }) {
             <Wallet className="h-4 w-4 text-indigo-600" />
             <span className="text-xs font-medium">Saldo MP</span>
           </div>
-          <span className="text-lg font-bold text-foreground leading-none">
-            {formatCurrency(acc.saldo_mp)}
-          </span>
-          {acc.saldo_liberar > 0 && (
-            <span className="text-[10px] text-muted-foreground mt-1">
-              A liberar: {formatCurrency(acc.saldo_liberar)}
-            </span>
+          {acc.saldo_mp > 0 || acc.saldo_liberar > 0 ? (
+            <>
+              <span className="text-lg font-bold text-foreground leading-none">
+                {formatCurrency(acc.saldo_mp)}
+              </span>
+              {acc.saldo_liberar > 0 && (
+                <span className="text-[10px] text-muted-foreground mt-1">
+                  A liberar: {formatCurrency(acc.saldo_liberar)}
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-muted-foreground leading-tight">
+                Requer conexao Mercado Pago separada
+              </span>
+              <span className="text-[10px] text-muted-foreground mt-1">
+                (scope OAuth diferente)
+              </span>
+            </>
           )}
         </div>
       </div>

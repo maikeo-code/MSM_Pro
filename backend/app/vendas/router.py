@@ -249,45 +249,6 @@ async def get_dashboard_extra_cards(
     return await get_extra_cards(db, current_user.id, ml_account_id=ml_account_id)
 
 
-@router.get("/dashboard/extra-cards/debug")
-async def debug_extra_cards(
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """DEBUG: tenta varios paths de Full Stock para descobrir qual funciona."""
-    import asyncio
-    from app.auth.models import MLAccount
-    from app.mercadolivre.client import MLClient
-
-    result = await db.execute(
-        select(MLAccount).where(
-            MLAccount.user_id == current_user.id,
-            MLAccount.is_active == True,
-        )
-    )
-    accounts = list(result.scalars().all())
-    out = []
-    for acc in accounts:
-        item = {"nickname": acc.nickname, "ml_user_id": acc.ml_user_id}
-        try:
-            async with MLClient(access_token=acc.access_token, ml_account_id=acc.id) as client:
-                paths = [
-                    f"/users/{acc.ml_user_id}/projections",
-                    f"/users/{acc.ml_user_id}/fulfillment/stock",
-                    f"/users/{acc.ml_user_id}/storage/summary",
-                    f"/inventories/users/{acc.ml_user_id}/summary",
-                    f"/users/{acc.ml_user_id}/items/capacity",
-                    f"/sites/MLB/fulfillment-stock-users/{acc.ml_user_id}",
-                    f"/users/{acc.ml_user_id}/inventory_summary",
-                ]
-                tasks = [client._request("GET", p) for p in paths]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                for p, r in zip(paths, results):
-                    item[p] = str(r)[:300] if isinstance(r, Exception) else r
-        except Exception as e:
-            item["error"] = str(e)
-        out.append(item)
-    return out
 
 
 
