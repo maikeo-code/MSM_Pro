@@ -653,10 +653,11 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
         receita_total = max(receita_total, float(ofb.receita_total))
         orders_fallback_ativo = True
 
-    # Proteção extra: se visitas parcial (menor que vendas), significa que
-    # o snapshot do dia está corrompido/incompleto. Descarta visitas e
-    # conversão para evitar cálculos sem sentido.
-    if orders_fallback_ativo or (vendas > 0 and visitas > 0 and visitas < vendas):
+    # Proteção: zera visitas apenas se snapshot está claramente corrompido
+    # (visitas < vendas — impossível). Se fallback Orders ativou mas visitas
+    # do snapshot são plausíveis (>= vendas reais), preserva visitas e
+    # recalcula conversão com as vendas corrigidas do fallback.
+    if vendas > 0 and visitas > 0 and visitas < vendas:
         visitas = 0
         conversao = 0.0
     else:
