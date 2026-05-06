@@ -4,7 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
@@ -407,6 +407,7 @@ async def list_orders(
         description="Periodo: 1d, 2d, 7d (padrao), 15d, 30d, 60d",
     ),
     mlb_id: str | None = Query(default=None, description="Filtrar por anuncio MLB"),
+    search: str | None = Query(default=None, description="Buscar por titulo do anuncio (palavra-chave)"),
     ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
 ):
     """
@@ -451,6 +452,16 @@ async def list_orders(
         if not mlb_normalized.startswith("MLB"):
             mlb_normalized = f"MLB{mlb_normalized}"
         conditions.append(Order.mlb_id == mlb_normalized)
+
+    if search:
+        search_term = search.strip()
+        if search_term:
+            conditions.append(
+                or_(
+                    Order.item_title.ilike(f"%{search_term}%"),
+                    Order.mlb_id.ilike(f"%{search_term}%"),
+                )
+            )
 
     result = await db.execute(
         select(Order)

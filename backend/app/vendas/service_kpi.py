@@ -1,7 +1,7 @@
 """
 KPI por período e listagem de anúncios com snapshots.
 """
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -290,6 +290,10 @@ async def list_listings(
         orders_date_to = today_date
 
     # Query: agregação de net_amount por listing (apenas pedidos aprovados)
+    # Converter range BRT para UTC (portável: funciona em PostgreSQL e SQLite)
+    orders_utc_start = datetime.combine(orders_date_from, time.min, tzinfo=BRT).astimezone(timezone.utc)
+    orders_utc_end = datetime.combine(orders_date_to, time.max, tzinfo=BRT).astimezone(timezone.utc)
+
     orders_agg_result = await db.execute(
         select(
             Order.listing_id,
@@ -302,8 +306,8 @@ async def list_listings(
         .where(
             Order.listing_id.in_(listing_ids),
             Order.payment_status.notin_(["cancelled", "refunded", "rejected"]),
-            cast(Order.order_date, Date) >= orders_date_from,
-            cast(Order.order_date, Date) <= orders_date_to,
+            Order.order_date >= orders_utc_start,
+            Order.order_date <= orders_utc_end,
         )
         .group_by(Order.listing_id)
     )
@@ -635,6 +639,10 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
     # e conversão ficam marcadas como indisponíveis (0) para esse dia, em vez
     # de contaminar o dashboard com dados inconsistentes.
     orders_fallback_ativo = False
+    # Fallback Orders: comparar em UTC para evitar bug de timezone
+    dt_utc_start = datetime.combine(dt, time.min, tzinfo=BRT).astimezone(timezone.utc)
+    dt_utc_end = datetime.combine(dt, time.max, tzinfo=BRT).astimezone(timezone.utc)
+
     orders_fallback = await db.execute(
         select(
             func.coalesce(func.sum(Order.quantity), 0).label("vendas"),
@@ -642,7 +650,8 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
             func.coalesce(func.sum(Order.total_amount), 0).label("receita_total"),
         ).where(
             Order.listing_id.in_(listing_ids),
-            cast(Order.order_date, Date) == dt,
+            Order.order_date >= dt_utc_start,
+            Order.order_date <= dt_utc_end,
             Order.payment_status.notin_(["cancelled", "refunded", "rejected"]),
         )
     )
@@ -745,6 +754,10 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
     devolucoes_valor = float(row.devolucoes_valor) if row else 0.0
 
     # Orders garantem contagem perfeita se snapshots perdem dados
+    # Converter range BRT para UTC (portável)
+    range_utc_start = datetime.combine(date_from, time.min, tzinfo=BRT).astimezone(timezone.utc)
+    range_utc_end = datetime.combine(date_to, time.max, tzinfo=BRT).astimezone(timezone.utc)
+
     orders_query = await db.execute(
         select(
             func.coalesce(func.sum(Order.quantity), 0).label("vendas"),
@@ -752,8 +765,8 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
             func.coalesce(func.sum(Order.total_amount), 0).label("receita_total"),
         ).where(
             Order.listing_id.in_(listing_ids),
-            cast(Order.order_date, Date) >= date_from,
-            cast(Order.order_date, Date) <= date_to,
+            Order.order_date >= range_utc_start,
+            Order.order_date <= range_utc_end,
             Order.payment_status.notin_(["cancelled", "refunded", "rejected"]),
         )
     )
