@@ -18,6 +18,8 @@ from uuid import UUID, uuid4
 from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import AsyncSessionLocal
+
 from app.atendimento.models import Claim
 from app.auth.models import MLAccount
 from app.mercadolivre.client import MLClient, MLClientError
@@ -65,16 +67,28 @@ def _extract_buyer(payload: dict) -> tuple[int | None, str | None]:
 
 
 def _extract_order_and_item(payload: dict) -> tuple[str | None, str | None]:
-    """Extrai ml_order_id e mlb_id do payload de claim."""
-    resource = payload.get("resource") or {}
-    if not isinstance(resource, dict):
-        return (None, None)
-    order_id = resource.get("order_id")
-    item_id = resource.get("item_id")
-    return (
-        str(order_id) if order_id else None,
-        str(item_id) if item_id else None,
-    )
+    """Extrai ml_order_id e mlb_id do payload de claim.
+
+    Na API ML (post-purchase/v1/claims), 'resource' é uma string
+    (ex: 'order', 'shipment') e 'resource_id' contém o ID do pedido.
+    O item_id (MLB) não vem diretamente no payload de claim.
+    Mantém fallback para formato legado (resource como dict).
+    """
+    # Formato novo: resource="order", resource_id=123
+    resource = payload.get("resource")
+    resource_id = payload.get("resource_id")
+    if resource == "order" and resource_id:
+        return (str(resource_id), None)
+    # Fallback formato legado: resource = {"order_id": "...", "item_id": "..."}
+    legacy = payload.get("resource") or {}
+    if isinstance(legacy, dict):
+        order_id = legacy.get("order_id")
+        item_id = legacy.get("item_id")
+        return (
+            str(order_id) if order_id else None,
+            str(item_id) if item_id else None,
+        )
+    return (None, None)
 
 
 async def sync_claims_for_account(
@@ -130,8 +144,13 @@ async def sync_claims_for_account(
 
                 for raw in claims_raw:
                     # Filtrar apenas claims do tipo desejado
+                    # API ML usa 'claim_type=return' para devolucoes
+                    raw_claim_type = str(raw.get("claim_type", "")).lower()
                     if claim_type == "reclamacao":
-                        if str(raw.get("claim_type", "")).lower() == "return":
+                        if raw_claim_type == "return":
+                            continue
+                    elif claim_type == "devolucao":
+                        if raw_claim_type != "return":
                             continue
 
                     claim_id = str(raw.get("id") or "")
@@ -210,6 +229,74 @@ async def sync_claims_for_account(
         "new": new,
         "updated": updated,
         "errors": errors,
+    }
+
+
+async def sync_all_claims() -> dict:
+    """
+    Sincroniza claims de TODAS as contas ML ativas.
+    Usa sessao isolada por conta (mesmo padrao de sync_all_questions).
+    """
+    total_synced = 0
+    total_new = 0
+    total_updated = 0
+    total_errors = 0
+    accounts_processed = 0
+
+    account_data: list[tuple] = []
+    try:
+        async with AsyncSessionLocal() as discover_db:
+            result = await discover_db.execute(
+                select(MLAccount).where(
+                    MLAccount.is_active == True,  # noqa: E712
+                    MLAccount.access_token.isnot(None),
+                )
+            )
+            for acc in result.scalars().all():
+                account_data.append((acc.id, acc.access_token, acc.nickname))
+    except Exception as exc:
+        logger.error("Erro ao listar contas para sync de claims: %s", exc, exc_info=True)
+        return {"total_synced": 0, "accounts_processed": 0, "errors": 1}
+
+    logger.info("Sincronizando claims de %d contas", len(account_data))
+
+    for acc_id, acc_token, acc_nickname in account_data:
+        try:
+            async with AsyncSessionLocal() as db:
+                acc_result = await db.execute(
+                    select(MLAccount).where(MLAccount.id == acc_id)
+                )
+                account = acc_result.scalar_one()
+                # Sync reclamacoes
+                stats_rec = await sync_claims_for_account(db, account, claim_type="reclamacao")
+                total_synced += stats_rec.get("synced", 0)
+                total_new += stats_rec.get("new", 0)
+                total_updated += stats_rec.get("updated", 0)
+                total_errors += stats_rec.get("errors", 0)
+                # Sync devolucoes
+                stats_ret = await sync_claims_for_account(db, account, claim_type="devolucao")
+                total_synced += stats_ret.get("synced", 0)
+                total_new += stats_ret.get("new", 0)
+                total_updated += stats_ret.get("updated", 0)
+                total_errors += stats_ret.get("errors", 0)
+                accounts_processed += 1
+        except Exception as exc:
+            logger.error(
+                "Erro ao sincronizar claims conta %s (%s): %s",
+                acc_id, acc_nickname, exc, exc_info=True,
+            )
+            total_errors += 1
+
+    logger.info(
+        "Sync claims concluida: synced=%d, new=%d, updated=%d, errors=%d, accounts=%d",
+        total_synced, total_new, total_updated, total_errors, accounts_processed,
+    )
+    return {
+        "total_synced": total_synced,
+        "new": total_new,
+        "updated": total_updated,
+        "accounts_processed": accounts_processed,
+        "errors": total_errors,
     }
 
 

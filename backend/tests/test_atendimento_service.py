@@ -258,7 +258,7 @@ class TestParseClaims:
         assert len(result) == 1
         assert result[0].type == "reclamacao"
         assert result[0].requires_action is True
-        assert result[0].text == "ITEM_NOT_AS_DESCRIBED"
+        assert result[0].text == "Motivo: ITEM_NOT_AS_DESCRIBED"
 
     def test_deduplicacao_mesmo_id(self):
         from app.atendimento.service import _parse_claims

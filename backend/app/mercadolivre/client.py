@@ -694,14 +694,14 @@ class MLClient:
 
     async def get_my_open_claims(self) -> dict:
         """Busca todas as reclaçmões abertas do seller."""
-        return await self._request("GET", "/v1/claims/search", params={"status": "opened"})
+        return await self._request("GET", "/post-purchase/v1/claims/search", params={"status": "opened"})
 
     async def get_my_open_mediations(self) -> dict:
         """Busca mediacoes abertas (claims escaladas para o Mercado Livre)."""
         try:
             return await self._request(
                 "GET",
-                "/v1/claims/search",
+                "/post-purchase/v1/claims/search",
                 params={"status": "opened", "stage": "dispute"},
             )
         except MLClientError:
@@ -994,7 +994,7 @@ class MLClient:
         try:
             return await self._request(
                 "GET",
-                "/v1/claims/search",
+                "/post-purchase/v1/claims/search",
                 params={
                     "status": status,
                     "offset": offset,
@@ -1010,7 +1010,7 @@ class MLClient:
         Busca detalhes de uma reclamação.
         GET /v1/claims/{claim_id}
         """
-        return await self._request("GET", f"/v1/claims/{claim_id}")
+        return await self._request("GET", f"/post-purchase/v1/claims/{claim_id}")
 
     async def send_claim_message(self, claim_id: int, message: str) -> dict:
         """
@@ -1019,7 +1019,7 @@ class MLClient:
         """
         return await self._request(
             "POST",
-            f"/v1/claims/{claim_id}/messages",
+            f"/post-purchase/v1/claims/{claim_id}/messages",
             json={"message": message},
         )
 
@@ -1095,13 +1095,13 @@ class MLClient:
         limit: int = 50,
     ) -> dict:
         """
-        Busca devoluções — no ML são claims com claim_type=return.
-        GET /v1/claims/search?claim_type=return
+        Busca devoluções — no ML são claims com type=returns.
+        GET /v1/claims/search?type=returns
         """
         try:
             return await self._request(
                 "GET",
-                "/v1/claims/search",
+                "/post-purchase/v1/claims/search",
                 params={
                     "claim_type": "return",
                     "offset": offset,

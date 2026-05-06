@@ -24,11 +24,12 @@ from app.atendimento.schemas import (
     AtendimentoListOut,
     AtendimentoStatsOut,
 )
+from app.atendimento.service_claims import find_similar_resolved_claims
 
 logger = logging.getLogger(__name__)
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-ANTHROPIC_MODEL_HAIKU = "claude-haiku-4-20250514"
+ANTHROPIC_MODEL_HAIKU = "claude-haiku-4-5"
 
 
 # ---------------------------------------------------------------------------
@@ -47,6 +48,35 @@ def _parse_dt(value: str | None) -> datetime:
         return dt
     except (ValueError, TypeError):
         return datetime.min.replace(tzinfo=timezone.utc)
+
+
+# Mapping de reason_id da API ML para texto legível
+_REASON_ID_MAP = {
+    "PDD9939": "Produto com defeito",
+    "PDD9940": "Produto avariado",
+    "PNR": "Produto não recebido",
+    "PNE": "Produto errado",
+    "PDD": "Produto com defeito",
+    "CS": "Cancelamento solicitado",
+    "CSD": "Cancelamento por demora",
+    "CSF": "Cancelamento por falta",
+    "CSN": "Cancelamento não especificado",
+    "RSD": "Reembolso solicitado",
+    "RSE": "Reembolso por estorno",
+    "RSP": "Reembolso por pagamento",
+    "ER": "Envio errado",
+    "EA": "Envio avariado",
+    "ED": "Envio demorado",
+    "EF": "Envio faltando itens",
+    "OT": "Outros",
+}
+
+
+def _reason_id_to_text(reason_id: str | None) -> str | None:
+    """Converte código reason_id da API ML para texto legível."""
+    if not reason_id:
+        return None
+    return _REASON_ID_MAP.get(str(reason_id).upper()) or f"Motivo: {reason_id}"
 
 
 def _requires_action(type_: str, status: str) -> bool:
@@ -126,8 +156,8 @@ def _parse_claims(
         seen_ids.add(claim_id)
 
         status = str(c.get("status", "")).lower()
-        # Claims têm "reason_id" como texto da reclamação
-        text = c.get("reason_id") or c.get("subject") or c.get("description") or "Sem descrição"
+        # Claims: 'reason_id' é código (ex: PDD9939); usar subject/description primeiro
+        text = c.get("subject") or c.get("description") or _reason_id_to_text(c.get("reason_id")) or "Sem descrição"
         # Comprador pode estar em "players" ou "buyer"
         buyer = None
         players = c.get("players", [])
@@ -141,9 +171,18 @@ def _parse_claims(
             if buyer_raw:
                 buyer = {"id": buyer_raw.get("id"), "nickname": buyer_raw.get("nickname")}
 
-        resource = c.get("resource", {}) or {}
-        item_id = str(resource.get("item_id", "")) or None
-        order_id = str(resource.get("order_id", "")) if resource.get("order_id") else None
+        # Na API ML, 'resource' é string e 'resource_id' é o ID
+        resource = c.get("resource")
+        resource_id = c.get("resource_id")
+        order_id = None
+        item_id = None
+        if resource == "order" and resource_id:
+            order_id = str(resource_id)
+        # Fallback para formatos legados
+        legacy_resource = c.get("resource") or {}
+        if isinstance(legacy_resource, dict):
+            order_id = order_id or str(legacy_resource.get("order_id", "")) or None
+            item_id = str(legacy_resource.get("item_id", "")) or None
 
         item = AtendimentoItem(
             id=claim_id,
@@ -295,7 +334,7 @@ async def get_all_atendimentos(
                             limit=50,
                         )
                         claims_raw = cl_data.get("data", cl_data.get("results", []))
-                        # Excluir devoluções desta lista (filtramos por claim_type != "return")
+                        # Excluir devoluções (API ML usa 'claim_type' == 'return')
                         claims_only = [
                             c for c in claims_raw
                             if c.get("claim_type", "").lower() != "return"
@@ -544,6 +583,8 @@ async def get_ai_suggestion(
     current_text = ""
     example_qa: list[dict] = []
     based_on_ids: list[str] = []
+    product_context = ""
+    mlb_id_for_claim: str | None = None
 
     async with MLClient(account.access_token) as client:
         # Texto do item atual
@@ -569,20 +610,62 @@ async def get_ai_suggestion(
                 for q in unans_data.get("questions", []):
                     if str(q.get("id", "")) == item_id:
                         current_text = q.get("text", "")
+                        mlb_id_for_claim = q.get("item_id")
                         break
+
+                # Busca contexto do produto para perguntas
+                if mlb_id_for_claim:
+                    try:
+                        item_data = await client.get_item(mlb_id_for_claim)
+                        product_context = f"Produto: {item_data.get('title', '')}"
+                    except MLClientError:
+                        pass
 
             elif item_type in ("reclamacao", "devolucao"):
                 # Para claims, busca o detalhe diretamente
                 try:
                     detail = await client.get_claim_detail(int(item_id))
                     current_text = (
-                        detail.get("reason_id")
-                        or detail.get("subject")
+                        detail.get("subject")
                         or detail.get("description")
+                        or _reason_id_to_text(detail.get("reason_id"))
                         or "Reclamação sem descrição detalhada"
                     )
+                    # Tenta extrair mlb_id do resource do claim
+                    resource = detail.get("resource")
+                    resource_id = detail.get("resource_id")
+                    if resource == "order" and resource_id:
+                        # Busca detalhe do pedido para obter o item
+                        try:
+                            order_detail = await client.get_order(str(resource_id))
+                            order_items = order_detail.get("order_items", [])
+                            if order_items:
+                                first = order_items[0]
+                                item_detail = first.get("item", {})
+                                mlb_id_for_claim = item_detail.get("id")
+                                product_context = f"Produto: {item_detail.get('title', '')}"
+                        except MLClientError:
+                            pass
                 except MLClientError:
                     current_text = "Detalhe da reclamação indisponível."
+
+                # Busca claims resolvidas similares como few-shot (do banco local)
+                if mlb_id_for_claim:
+                    try:
+                        similar = await find_similar_resolved_claims(
+                            db, user.id, mlb_id_for_claim, limit=5
+                        )
+                        for sim in similar:
+                            sim_text = sim.get("reason") or sim.get("description", "")
+                            sim_resolution = sim.get("resolution_notes") or sim.get("ml_suggestion", "")
+                            if sim_text and sim_resolution:
+                                example_qa.append({
+                                    "pergunta": sim_text,
+                                    "resposta": sim_resolution,
+                                })
+                                based_on_ids.append(str(sim.get("ml_claim_id", "")))
+                    except Exception:
+                        pass
 
         except MLClientError as exc:
             logger.warning(
@@ -610,16 +693,24 @@ async def get_ai_suggestion(
         "Você é um especialista em atendimento ao cliente para vendedores do Mercado Livre. "
         "Analise a pergunta/reclamação do cliente e gere uma resposta profissional, "
         "empática e objetiva em português brasileiro. "
-        "Use os exemplos de respostas anteriores como referência de tom e formato."
+        "Use os exemplos de respostas anteriores como referência de tom e formato.\n\n"
+        "Regras obrigatórias:\n"
+        "- Máximo 500 caracteres na resposta\n"
+        "- NUNCA inclua telefone, email, WhatsApp ou links externos\n"
+        "- NUNCA sugira negociação fora da plataforma\n"
+        "- Tom cordial e profissional\n"
+        "- Responda diretamente à dúvida sem enrolação"
     )
 
     user_prompt = f"""Item de atendimento atual ({item_type}):
 {current_text}
-
 """
 
+    if product_context:
+        user_prompt += f"\n{product_context}\n"
+
     if examples_text:
-        user_prompt += f"""Exemplos de respostas anteriores desta conta para referência:
+        user_prompt += f"""\nExemplos de respostas anteriores para referência:
 {examples_text}
 
 """
@@ -628,7 +719,7 @@ async def get_ai_suggestion(
 
     payload = {
         "model": ANTHROPIC_MODEL_HAIKU,
-        "max_tokens": 500,
+        "max_tokens": 150,
         "temperature": 0.4,
         "system": system_prompt,
         "messages": [{"role": "user", "content": user_prompt}],
