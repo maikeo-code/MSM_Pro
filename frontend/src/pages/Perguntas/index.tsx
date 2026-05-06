@@ -10,6 +10,8 @@ import {
   Search,
   Sparkles,
   Loader2,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import {
   listQuestions,
@@ -17,6 +19,7 @@ import {
   getSuggestion,
   getQuestionStats,
   syncQuestions,
+  rateSuggestion,
   type QuestionDB,
 } from "@/services/perguntasService";
 import { useAccountStore } from "@/store/accountStore";
@@ -239,7 +242,7 @@ function QuestionDetail({ question, tab, accountId }: QuestionDetailProps) {
         question!.id,
         text,
         accountId || question!.ml_account_id,
-        editedSuggestion ? "ai" : "manual",
+        suggestMutation.data ? "ai" : "manual",
         editedSuggestion,
       ),
     onSuccess: () => {
@@ -247,6 +250,17 @@ function QuestionDetail({ question, tab, accountId }: QuestionDetailProps) {
       setEditedSuggestion(false);
       queryClient.invalidateQueries({ queryKey: ["perguntas"] });
       queryClient.invalidateQueries({ queryKey: ["perguntas-stats"] });
+    },
+  });
+
+  // Rating mutation
+  const [userRating, setUserRating] = useState<number | null>(null);
+  const rateMutation = useMutation({
+    mutationFn: (rating: number) =>
+      rateSuggestion(question!.id, rating),
+    onSuccess: (_, rating) => {
+      setUserRating(rating);
+      queryClient.invalidateQueries({ queryKey: ["perguntas"] });
     },
   });
 
@@ -383,6 +397,36 @@ function QuestionDetail({ question, tab, accountId }: QuestionDetailProps) {
               >
                 Regenerar
               </button>
+              {/* Feedback thumbs up/down */}
+              <div className="ml-auto flex items-center gap-1">
+                <span className="text-[10px] text-gray-400 mr-1">Avaliar sugestão:</span>
+                <button
+                  onClick={() => rateMutation.mutate(5)}
+                  disabled={rateMutation.isPending || userRating !== null}
+                  className={cn(
+                    "p-1 rounded transition-colors",
+                    userRating === 5
+                      ? "bg-green-100 text-green-600"
+                      : "text-gray-400 hover:text-green-600 hover:bg-green-50",
+                  )}
+                  title="Boa sugestão"
+                >
+                  <ThumbsUp className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => rateMutation.mutate(1)}
+                  disabled={rateMutation.isPending || userRating !== null}
+                  className={cn(
+                    "p-1 rounded transition-colors",
+                    userRating === 1
+                      ? "bg-red-100 text-red-600"
+                      : "text-gray-400 hover:text-red-600 hover:bg-red-50",
+                  )}
+                  title="Ruim sugestão"
+                >
+                  <ThumbsDown className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -554,7 +598,12 @@ export default function Perguntas() {
   useEffect(() => {
     setSelectedQuestionId(null);
     setOffset(0);
+    setUserRating(null);
   }, [tab, activeAccountId]);
+
+  useEffect(() => {
+    setUserRating(null);
+  }, [selectedQuestionId]);
 
   return (
     <div className="p-6 space-y-6 h-full">

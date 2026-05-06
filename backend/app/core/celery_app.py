@@ -182,4 +182,28 @@ celery_app.conf.beat_schedule = {
             "expires": 900,  # 15 minutos
         },
     },
+    # Sincroniza claims (reclamacoes/devolucoes) a cada 1 hora
+    "sync-claims-hourly": {
+        "task": "app.jobs.tasks.sync_claims",
+        "schedule": crontab(minute=0),  # toda hora em ponto
+        "options": {
+            "expires": 3600,  # 1 hora
+        },
+    },
+    # Pré-gera sugestões IA para perguntas não respondidas (5 min após sync questions)
+    "pre-generate-suggestions": {
+        "task": "app.jobs.tasks.pre_generate_suggestions",
+        "schedule": crontab(minute="*/15"),
+        "options": {
+            "expires": 900,
+        },
+    },
+    # Auto-responde perguntas com sugestão high confidence (10 min após sync questions)
+    "auto-answer-high-confidence": {
+        "task": "app.jobs.tasks.auto_answer_high_confidence",
+        "schedule": crontab(minute="5,20,35,50"),
+        "options": {
+            "expires": 900,
+        },
+    },
 }

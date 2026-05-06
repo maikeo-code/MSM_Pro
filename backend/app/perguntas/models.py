@@ -193,6 +193,12 @@ class QASuggestionLog(Base):
     latency_ms: Mapped[int | None] = mapped_column(
         Integer(), nullable=True, comment="Tempo de resposta da IA em ms"
     )
+    user_rating: Mapped[int | None] = mapped_column(
+        Integer(), nullable=True, comment="Avaliacao 1-5 do usuario"
+    )
+    user_comment: Mapped[str | None] = mapped_column(
+        Text(), nullable=True, comment="Comentario do usuario sobre a sugestao"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

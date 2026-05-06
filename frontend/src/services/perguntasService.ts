@@ -105,6 +105,18 @@ export async function getSuggestion(
   return data;
 }
 
+export async function rateSuggestion(
+  questionId: string,
+  rating: number,
+  comment?: string,
+): Promise<{ status: string; rating: number }> {
+  const { data } = await api.post(`/perguntas/${questionId}/rate-suggestion`, {
+    rating,
+    comment,
+  });
+  return data;
+}
+
 export async function getQuestionsByListing(mlbId: string): Promise<QuestionsListResponse> {
   const { data } = await api.get(`/perguntas/by-listing/${mlbId}`);
   return data;

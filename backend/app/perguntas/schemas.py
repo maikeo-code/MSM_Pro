@@ -34,6 +34,13 @@ class AnswerQuestionOut(BaseModel):
     response: dict | None = None
 
 
+class RateSuggestionIn(BaseModel):
+    """Body para avaliar uma sugestão de IA."""
+
+    rating: int = Field(ge=1, le=5, description="Nota de 1 a 5 estrelas")
+    comment: str | None = Field(default=None, max_length=500, description="Comentario opcional")
+
+
 # ========== Schemas para persistência em banco ==========
 
 

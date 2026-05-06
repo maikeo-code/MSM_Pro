@@ -239,6 +239,57 @@ async def suggest_answer(
     return AISuggestionResponse(**result)
 
 
+@router.post("/{question_id}/rate-suggestion")
+async def rate_suggestion(
+    question_id: UUID,
+    body: dict,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Avalia a qualidade de uma sugestão de IA (1-5 estrelas).
+    """
+    from app.perguntas.models import QASuggestionLog
+    from sqlalchemy import desc
+
+    # Busca a pergunta e valida acesso
+    result = await db.execute(
+        select(Question).where(Question.id == question_id)
+    )
+    question = result.scalar_one_or_none()
+    if not question:
+        raise HTTPException(status_code=404, detail="Pergunta nao encontrada")
+
+    account_result = await db.execute(
+        select(MLAccount).where(
+            MLAccount.id == question.ml_account_id,
+            MLAccount.user_id == current_user.id,
+        )
+    )
+    if not account_result.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    # Busca o log de sugestao mais recente para esta pergunta
+    log_result = await db.execute(
+        select(QASuggestionLog)
+        .where(QASuggestionLog.question_id == question_id)
+        .order_by(desc(QASuggestionLog.created_at))
+        .limit(1)
+    )
+    log = log_result.scalar_one_or_none()
+
+    if not log:
+        raise HTTPException(
+            status_code=404, detail="Nenhuma sugestao encontrada para esta pergunta"
+        )
+
+    log.user_rating = body.get("rating")
+    log.user_comment = body.get("comment")
+    await db.commit()
+
+    return {"status": "success", "rating": body.get("rating")}
+
+
 @router.get("/by-listing/{mlb_id}")
 async def questions_by_listing(
     mlb_id: str,

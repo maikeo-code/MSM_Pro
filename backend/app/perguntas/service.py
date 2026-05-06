@@ -65,122 +65,133 @@ async def sync_questions_for_account(
         async with MLClient(account_token_local) as client:
             for status in statuses:
                 try:
-                    # Busca perguntas da API ML
-                    data = await client.get_received_questions(
-                        status=status, offset=0, limit=50
-                    )
-                    questions_api = data.get("questions", [])
-                    logger.info(
-                        "Sincronizando %d perguntas status=%s da conta %s",
-                        len(questions_api),
-                        status,
-                        account_id_local,
-                    )
+                    # Busca perguntas da API ML com paginação
+                    offset = 0
+                    while True:
+                        data = await client.get_received_questions(
+                            status=status, offset=offset, limit=50
+                        )
+                        questions_api = data.get("questions", [])
+                        if not questions_api:
+                            break
+                        total_in_status = data.get("total", 0)
+                        logger.info(
+                            "Sincronizando %d/%d perguntas status=%s offset=%d da conta %s",
+                            len(questions_api),
+                            total_in_status,
+                            status,
+                            offset,
+                            account_id_local,
+                        )
 
-                    for q in questions_api:
-                        try:
-                            # Extrai campos principais
-                            ml_question_id = q.get("id")
-                            text = q.get("text", "")
-                            mlb_id = q.get("item_id", "")
-                            item_title = q.get("item_title")
-                            date_created_str = q.get("date_created")
-                            answer_data = q.get("answer", {})
+                        for q in questions_api:
+                            try:
+                                # Extrai campos principais
+                                ml_question_id = q.get("id")
+                                text = q.get("text", "")
+                                mlb_id = q.get("item_id", "")
+                                item_title = q.get("item_title")
+                                date_created_str = q.get("date_created")
+                                answer_data = q.get("answer", {})
 
-                            # Parse da data
-                            if date_created_str:
-                                try:
-                                    date_created = datetime.fromisoformat(
-                                        date_created_str.replace("Z", "+00:00")
-                                    )
-                                except Exception:
-                                    date_created = datetime.now(timezone.utc)
-                            else:
-                                date_created = datetime.now(timezone.utc)
-
-                            # Extrai dados do comprador
-                            buyer_data = q.get("from", {})
-                            buyer_id = buyer_data.get("id")
-                            buyer_nickname = buyer_data.get("nickname")
-
-                            # Tenta encontrar listing local
-                            listing_id = None
-                            if mlb_id:
-                                result = await db.execute(
-                                    select(Listing.id).where(Listing.mlb_id == mlb_id)
-                                )
-                                row = result.scalar_one_or_none()
-                                if row:
-                                    listing_id = row
-
-                            # Trata resposta (se houver)
-                            answer_text = None
-                            answer_date = None
-                            if isinstance(answer_data, dict) and answer_data:
-                                answer_text = answer_data.get("text")
-                                answer_date_str = answer_data.get("date_created")
-                                if answer_date_str:
+                                # Parse da data
+                                if date_created_str:
                                     try:
-                                        answer_date = datetime.fromisoformat(
-                                            answer_date_str.replace("Z", "+00:00")
+                                        date_created = datetime.fromisoformat(
+                                            date_created_str.replace("Z", "+00:00")
                                         )
                                     except Exception:
-                                        answer_date = None
+                                        date_created = datetime.now(timezone.utc)
+                                else:
+                                    date_created = datetime.now(timezone.utc)
 
-                            # Upsert: busca pergunta existente por ml_question_id
-                            result = await db.execute(
-                                select(Question).where(
-                                    Question.ml_question_id == ml_question_id
+                                # Extrai dados do comprador
+                                buyer_data = q.get("from", {})
+                                buyer_id = buyer_data.get("id")
+                                buyer_nickname = buyer_data.get("nickname")
+
+                                # Tenta encontrar listing local
+                                listing_id = None
+                                if mlb_id:
+                                    result = await db.execute(
+                                        select(Listing.id).where(Listing.mlb_id == mlb_id)
+                                    )
+                                    row = result.scalar_one_or_none()
+                                    if row:
+                                        listing_id = row
+
+                                # Trata resposta (se houver)
+                                answer_text = None
+                                answer_date = None
+                                if isinstance(answer_data, dict) and answer_data:
+                                    answer_text = answer_data.get("text")
+                                    answer_date_str = answer_data.get("date_created")
+                                    if answer_date_str:
+                                        try:
+                                            answer_date = datetime.fromisoformat(
+                                                answer_date_str.replace("Z", "+00:00")
+                                            )
+                                        except Exception:
+                                            answer_date = None
+
+                                # Upsert: busca pergunta existente por ml_question_id
+                                result = await db.execute(
+                                    select(Question).where(
+                                        Question.ml_question_id == ml_question_id
+                                    )
                                 )
-                            )
-                            question = result.scalar_one_or_none()
+                                question = result.scalar_one_or_none()
 
-                            if question:
-                                # UPDATE
-                                question.status = status
-                                question.answer_text = answer_text
-                                question.answer_date = answer_date
-                                if answer_text:
-                                    question.answer_source = "ml_direct"
-                                question.synced_at = datetime.now(timezone.utc)
-                                question.updated_at = datetime.now(timezone.utc)
-                                await db.flush()
-                                updated += 1
-                            else:
-                                # CREATE
-                                question = Question(
-                                    ml_question_id=ml_question_id,
-                                    ml_account_id=account_id_local,
-                                    listing_id=listing_id,
-                                    mlb_id=mlb_id,
-                                    item_title=item_title,
-                                    text=text,
-                                    status=status,
-                                    buyer_id=buyer_id,
-                                    buyer_nickname=buyer_nickname,
-                                    date_created=date_created,
-                                    answer_text=answer_text,
-                                    answer_date=answer_date,
-                                    answer_source="ml_direct" if answer_text else None,
-                                    synced_at=datetime.now(timezone.utc),
+                                if question:
+                                    # UPDATE
+                                    question.status = status
+                                    question.answer_text = answer_text
+                                    question.answer_date = answer_date
+                                    if answer_text:
+                                        question.answer_source = "ml_direct"
+                                    question.synced_at = datetime.now(timezone.utc)
+                                    question.updated_at = datetime.now(timezone.utc)
+                                    await db.flush()
+                                    updated += 1
+                                else:
+                                    # CREATE
+                                    question = Question(
+                                        ml_question_id=ml_question_id,
+                                        ml_account_id=account_id_local,
+                                        listing_id=listing_id,
+                                        mlb_id=mlb_id,
+                                        item_title=item_title,
+                                        text=text,
+                                        status=status,
+                                        buyer_id=buyer_id,
+                                        buyer_nickname=buyer_nickname,
+                                        date_created=date_created,
+                                        answer_text=answer_text,
+                                        answer_date=answer_date,
+                                        answer_source="ml_direct" if answer_text else None,
+                                        synced_at=datetime.now(timezone.utc),
+                                    )
+                                    db.add(question)
+                                    await db.flush()
+                                    new += 1
+
+                                synced += 1
+
+                            except Exception as exc:
+                                logger.error(
+                                    "Erro ao processar pergunta ml_id=%s mlb=%s: %s",
+                                    q.get("id"),
+                                    q.get("item_id", "?"),
+                                    exc,
+                                    exc_info=True,
                                 )
-                                db.add(question)
-                                await db.flush()
-                                new += 1
+                                await db.rollback()
+                                errors += 1
+                                continue
 
-                            synced += 1
-
-                        except Exception as exc:
-                            logger.error(
-                                "Erro ao processar pergunta ml_id=%s mlb=%s: %s",
-                                q.get("id"),
-                                q.get("item_id", "?"),
-                                exc,
-                                exc_info=True,
-                            )
-                            await db.rollback()
-                            errors += 1
-                            continue
+                        offset += len(questions_api)
+                        if offset >= total_in_status:
+                            break
 
                 except MLClientError as exc:
                     logger.error(

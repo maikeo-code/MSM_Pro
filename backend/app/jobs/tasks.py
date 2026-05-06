@@ -48,6 +48,11 @@ from .tasks_listings import (
 from .tasks_orders import _sync_orders_async, _backfill_orders_after_reconnect_async
 from .tasks_health import _check_sync_health_async, _runtime_watcher_async
 from .tasks_questions import _sync_questions_async
+from .tasks_claims import _sync_claims_async
+from .tasks_auto_answer import (
+    _pre_generate_suggestions_async,
+    _auto_answer_high_confidence_async,
+)
 from .tasks_reputation import _sync_reputation_async
 from .tasks_tokens import _refresh_expired_tokens_async
 
@@ -297,6 +302,72 @@ def sync_questions(self):
         return run_async(_run())
     except Exception as exc:
         logger.error("Erro em sync_questions: %s", exc)
+        raise
+
+
+@celery_app.task(name="app.jobs.tasks.sync_claims", bind=True)
+def sync_claims(self):
+    """
+    Sincroniza claims (reclamacoes e devolucoes) de todas as contas ML ativas.
+    Executado a cada 1 hora via Celery beat.
+    Uses Redis lock to prevent duplicate execution across workers.
+    """
+    async def _run():
+        if not await acquire_task_lock("sync_claims", timeout=1800):
+            return {"status": "skipped", "reason": "lock_held"}
+        try:
+            return await _sync_claims_async()
+        finally:
+            await release_task_lock("sync_claims")
+
+    try:
+        return run_async(_run())
+    except Exception as exc:
+        logger.error("Erro em sync_claims: %s", exc)
+        raise
+
+
+@celery_app.task(name="app.jobs.tasks.pre_generate_suggestions", bind=True)
+def pre_generate_suggestions(self):
+    """
+    Pré-gera sugestões de IA para perguntas não respondidas.
+    Executado a cada 15 minutos (5 min após o sync de perguntas).
+    Uses Redis lock.
+    """
+    async def _run():
+        if not await acquire_task_lock("pre_generate_suggestions", timeout=300):
+            return {"status": "skipped", "reason": "lock_held"}
+        try:
+            return await _pre_generate_suggestions_async()
+        finally:
+            await release_task_lock("pre_generate_suggestions")
+
+    try:
+        return run_async(_run())
+    except Exception as exc:
+        logger.error("Erro em pre_generate_suggestions: %s", exc)
+        raise
+
+
+@celery_app.task(name="app.jobs.tasks.auto_answer_high_confidence", bind=True)
+def auto_answer_high_confidence(self):
+    """
+    Envia respostas automáticas para perguntas com sugestão IA de alta confiança.
+    Executado a cada 15 minutos (10 min após o sync de perguntas).
+    Uses Redis lock.
+    """
+    async def _run():
+        if not await acquire_task_lock("auto_answer_high_confidence", timeout=300):
+            return {"status": "skipped", "reason": "lock_held"}
+        try:
+            return await _auto_answer_high_confidence_async()
+        finally:
+            await release_task_lock("auto_answer_high_confidence")
+
+    try:
+        return run_async(_run())
+    except Exception as exc:
+        logger.error("Erro em auto_answer_high_confidence: %s", exc)
         raise
 
 
