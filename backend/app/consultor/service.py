@@ -13,7 +13,7 @@ from app.vendas.models import ListingSnapshot
 from app.vendas.service import get_kpi_by_period, list_listings
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+ANTHROPIC_MODEL = "claude-sonnet-4-5"
 MAX_LISTINGS = 20
 
 SYSTEM_PROMPT = """Voce e um especialista em vendas no Mercado Livre com mais de 10 anos de experiencia ajudando vendedores brasileiros a maximizar seus resultados.

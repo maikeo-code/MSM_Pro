@@ -118,7 +118,7 @@ async def classify_with_ai_fallback(text: str) -> str:
 
     try:
         payload = {
-            "model": "claude-haiku-4-20250514",
+            "model": "claude-haiku-4-5",
             "max_tokens": 20,
             "temperature": 0.0,
             "system": "Classifique a pergunta de comprador em UMA das categorias: compatibilidade, material, envio, preco, instalacao, estoque, garantia, outros. Responda APENAS com o nome da categoria sem pontuação.",

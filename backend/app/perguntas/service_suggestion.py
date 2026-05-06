@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-ANTHROPIC_MODEL = "claude-sonnet-4-20250514"  # Sonnet para qualidade
+ANTHROPIC_MODEL = "claude-sonnet-4-5"  # Sonnet para qualidade
 CACHE_TTL = 86400  # 24h
 
 
