@@ -334,7 +334,10 @@ export default function Pedidos() {
                           {order.mlb_id}
                         </span>
                         {order.item_title && (
-                          <span className="text-[10px] leading-tight text-gray-500 max-w-[150px] line-clamp-2" title={order.item_title}>
+                          <span
+                            className="text-[11px] leading-tight text-gray-600 max-w-[220px] line-clamp-3 cursor-help"
+                            title={order.item_title}
+                          >
                             {order.item_title}
                           </span>
                         )}

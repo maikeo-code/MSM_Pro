@@ -387,6 +387,13 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                     )
 
         except MLClientError as e:
+            # Marca conta para reconexao se 401 (token expirado/refresh falhou)
+            if e.status_code == 401:
+                try:
+                    account.needs_reauth = True
+                    await db.flush()
+                except Exception:
+                    pass
             errors.append(f"Conta {account.nickname}: {e}")
             continue
 

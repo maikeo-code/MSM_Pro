@@ -41,6 +41,7 @@ class MLAccountOut(BaseModel):
     created_at: datetime
     active_listings_count: int = 0  # será preenchido no router
     last_sync_at: datetime | None = None  # será preenchido no router
+    needs_reauth: bool = False  # True quando token expirou e refresh falhou
 
     model_config = {"from_attributes": True}
 

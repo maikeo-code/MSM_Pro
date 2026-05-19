@@ -227,6 +227,7 @@ async def list_ml_accounts(
                 created_at=account.created_at,
                 active_listings_count=active_listings,
                 last_sync_at=None,  # pode ser implementado com sync_logs no futuro
+                needs_reauth=bool(account.needs_reauth),
             )
         )
 

@@ -395,6 +395,100 @@ async def get_data_coverage(
     }
 
 
+# ─── Sales Trend (gráfico 7 dias) ────────────────────────────────────────────
+
+@router.get("/sales-trend")
+async def sales_trend(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    days: int = Query(default=7, ge=1, le=30, description="Quantidade de dias (1-30)"),
+    ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML"),
+):
+    """
+    Vendas brutas por dia para o gráfico de tendência no Dashboard.
+    Lê da tabela orders local (não chama ML). Retorna lista de pontos
+    {date: 'YYYY-MM-DD', total: float, pedidos: int} ordenada por data ascendente.
+
+    Inclui dias zero (sem vendas) para o gráfico ficar contínuo.
+    Compara com período anterior equivalente: retorna `variacao_pct` no payload.
+    """
+    from datetime import date as date_alias, datetime as dt_alias, timedelta as td_alias
+    from sqlalchemy import and_, func, select
+
+    from app.auth.models import MLAccount
+    from app.vendas.models import Order
+
+    BRT_TZ = timezone(timedelta(hours=-3))
+    hoje = dt_alias.now(BRT_TZ).date()
+    inicio = hoje - td_alias(days=days - 1)
+    inicio_anterior = inicio - td_alias(days=days)
+    fim_anterior = inicio - td_alias(days=1)
+
+    # IDs das contas ML do usuário
+    acc_q = select(MLAccount.id).where(
+        and_(MLAccount.user_id == current_user.id, MLAccount.is_active == True)  # noqa: E712
+    )
+    if ml_account_id is not None:
+        acc_q = acc_q.where(MLAccount.id == ml_account_id)
+    acc_ids = [r[0] for r in (await db.execute(acc_q)).fetchall()]
+    if not acc_ids:
+        return {
+            "period_days": days,
+            "data": [{"date": (inicio + td_alias(days=i)).isoformat(), "total": 0.0, "pedidos": 0} for i in range(days)],
+            "total_atual": 0.0,
+            "total_anterior": 0.0,
+            "variacao_pct": None,
+        }
+
+    # Query: agrega por data BRT
+    inicio_utc = dt_alias.combine(inicio_anterior, dt_alias.min.time()).replace(tzinfo=BRT_TZ)
+    fim_utc = dt_alias.combine(hoje, dt_alias.max.time()).replace(tzinfo=BRT_TZ)
+
+    rows = (await db.execute(
+        select(
+            func.date(func.timezone("America/Sao_Paulo", Order.order_date)).label("dia"),
+            func.sum(Order.total_amount).label("total"),
+            func.count(Order.id).label("pedidos"),
+        )
+        .where(
+            Order.ml_account_id.in_(acc_ids),
+            Order.order_date >= inicio_utc,
+            Order.order_date <= fim_utc,
+            Order.payment_status.in_(["approved", "paid"]),
+        )
+        .group_by("dia")
+    )).fetchall()
+
+    by_date = {str(r.dia): {"total": float(r.total or 0), "pedidos": int(r.pedidos or 0)} for r in rows}
+
+    # Período atual (preenche dias zero)
+    data_atual = []
+    total_atual = 0.0
+    for i in range(days):
+        d = (inicio + td_alias(days=i)).isoformat()
+        item = by_date.get(d, {"total": 0.0, "pedidos": 0})
+        data_atual.append({"date": d, "total": item["total"], "pedidos": item["pedidos"]})
+        total_atual += item["total"]
+
+    # Período anterior (só agregado, não retorna ponto a ponto)
+    total_anterior = sum(
+        by_date.get((inicio_anterior + td_alias(days=i)).isoformat(), {"total": 0.0})["total"]
+        for i in range(days)
+    )
+
+    variacao_pct = None
+    if total_anterior > 0:
+        variacao_pct = round(((total_atual - total_anterior) / total_anterior) * 100, 2)
+
+    return {
+        "period_days": days,
+        "data": data_atual,
+        "total_atual": round(total_atual, 2),
+        "total_anterior": round(total_anterior, 2),
+        "variacao_pct": variacao_pct,
+    }
+
+
 # ─── Orders ──────────────────────────────────────────────────────────────────
 
 @router.get("/orders/", response_model=list[OrderOut])
