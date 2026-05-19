@@ -148,7 +148,7 @@ async def apply_price_suggestion(
     deleted_old_promo = False
 
     try:
-        async with MLClient(ml_account.access_token) as promo_client:
+        async with MLClient(ml_account.access_token, ml_account_id=str(ml_account.id)) as promo_client:
             promotions = await promo_client.get_item_promotions(listing.mlb_id)
             active_promos = [
                 p for p in promotions
@@ -201,7 +201,7 @@ async def apply_price_suggestion(
     error_msg = None
 
     try:
-        async with MLClient(ml_account.access_token) as client:
+        async with MLClient(ml_account.access_token, ml_account_id=str(ml_account.id)) as client:
             ml_response = await client.create_price_discount_promotion(
                 seller_id=seller_id,
                 mlb_id=listing.mlb_id,

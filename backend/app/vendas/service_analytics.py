@@ -142,7 +142,7 @@ async def _fetch_ads_for_listing(db: AsyncSession, listing) -> dict:
         if not ml_account or not ml_account.access_token:
             return {}
 
-        async with MLClient(ml_account.access_token) as ml_client:
+        async with MLClient(ml_account.access_token, ml_account_id=str(ml_account.id)) as ml_client:
             ads_data = await ml_client.get_item_ads(listing.mlb_id)
             return ads_data or {}
     except Exception:
@@ -166,7 +166,7 @@ async def _fetch_promotions_for_listing(db: AsyncSession, listing) -> list[dict]
         if not ml_account or not ml_account.access_token:
             return []
 
-        async with MLClient(ml_account.access_token) as ml_client:
+        async with MLClient(ml_account.access_token, ml_account_id=str(ml_account.id)) as ml_client:
             promo_data = await ml_client.get_item_promotions(listing.mlb_id)
             if not isinstance(promo_data, list):
                 return []
@@ -616,7 +616,7 @@ async def get_search_position(
     total_results: int | None = None
     searched_pages = 0
 
-    async with MLClient(access_token=account.access_token) as client:
+    async with MLClient(access_token=account.access_token, ml_account_id=str(account.id)) as client:
         for page_idx in range(MAX_PAGES):
             offset = page_idx * PAGE_SIZE
             try:

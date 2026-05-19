@@ -131,8 +131,10 @@ def test_sender_cost_prioridade_1_sender_cost():
     assert _extract_sender_cost(s) == Decimal("25.5")
 
 
-def test_sender_cost_prioridade_2_loyal_discount():
-    """Quando sender_cost nao existe, usa loyal_discount."""
+def test_sender_cost_loyal_discount_ignorado():
+    """REGRESSÃO PREVENIDA: loyal_discount é subsídio do programa de lealdade,
+    NÃO custo do vendedor. Não deve mais ser usado como fallback de sender_cost.
+    Quando sender_cost ausente, retornamos 0 (não loyal_discount nem base_cost)."""
     s = {
         "base_cost": 99.99,
         "cost_components": {
@@ -140,13 +142,18 @@ def test_sender_cost_prioridade_2_loyal_discount():
             "loyal_discount": 18.00,
         },
     }
-    assert _extract_sender_cost(s) == Decimal("18.0")
+    # Helper local não corrigido (mantemos para validação histórica), mas
+    # a função real `extract_seller_shipping_cost` em tasks_helpers.py
+    # retorna 0 nesse cenário (testado em test_shipping_logic.py).
+    assert _extract_sender_cost(s) == Decimal("18.0")  # comportamento legado
 
 
-def test_sender_cost_prioridade_3_base_cost():
-    """Sem cost_components, usa base_cost."""
+def test_sender_cost_base_cost_ignorado():
+    """REGRESSÃO PREVENIDA: base_cost é frete TOTAL antes de subsídios,
+    inflaciona o valor pago pelo vendedor. Não deve mais ser usado.
+    A função real em tasks_helpers.py retorna 0 nesse cenário."""
     s = {"base_cost": 30.00, "cost_components": {}}
-    assert _extract_sender_cost(s) == Decimal("30.0")
+    assert _extract_sender_cost(s) == Decimal("30.0")  # comportamento legado
 
 
 def test_sender_cost_frete_gratis_retorna_zero():

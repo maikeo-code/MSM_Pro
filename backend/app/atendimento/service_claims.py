@@ -115,7 +115,7 @@ async def sync_claims_for_account(
     ]
 
     try:
-        async with MLClient(account.access_token) as client:
+        async with MLClient(account.access_token, ml_account_id=str(account.id)) as client:
             for st in statuses_to_search:
                 try:
                     data = await client.get_claims(

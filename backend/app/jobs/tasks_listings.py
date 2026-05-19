@@ -117,6 +117,10 @@ async def _sync_listing_snapshot_async(
                     if reg_amount is not None:
                         original_price = Decimal(str(reg_amount))
                     used_sale_price_endpoint = True
+            except MLClientError as exc:
+                if exc.status_code == 401:
+                    raise
+                logger.debug(f"Falha no /sale_price para {listing.mlb_id}: {exc}")
             except Exception:
                 logger.debug(f"Falha no /sale_price para {listing.mlb_id}, usando fallback")
 
@@ -240,26 +244,29 @@ async def _sync_listing_snapshot_async(
                                 ship_cost_real = persisted_order.shipping_cost
                         if ship_cost_real is None:
                             shipment_id = order.get("shipping", {}).get("id")
+                            shipment_logistic_type = order.get("shipping", {}).get(
+                                "logistic_type"
+                            )
                             if shipment_id:
                                 try:
                                     shipment_detail = await client.get_shipment(
                                         shipment_id
                                     )
-                                    cost_comps = shipment_detail.get(
-                                        "cost_components", {}
-                                    ) or {}
-                                    sender_cost = (
-                                        cost_comps.get("sender_cost")
-                                        or cost_comps.get("loyal_discount")
-                                        or shipment_detail.get("base_cost")
-                                        or 0
+                                    eff_logistic = (
+                                        shipment_detail.get("logistic_type")
+                                        or shipment_logistic_type
                                     )
-                                    ship_cost_real = Decimal(str(sender_cost or 0))
+                                    ship_cost_real = extract_seller_shipping_cost(
+                                        shipment_detail, eff_logistic
+                                    )
                                 except Exception:
                                     logger.debug(
                                         f"Nao conseguiu frete do shipment {shipment_id}"
                                     )
-                        if ship_cost_real and ship_cost_real > 0:
+                        # Inclui orders Flex/ME2 com cost > 0 OU cost == 0 (frete do comprador).
+                        # Full ja vem 0 do helper e e legitimo — inclui no avg.
+                        # NAO inclui None (erro de busca) para nao falsear o average.
+                        if ship_cost_real is not None:
                             total_shipping_cost += ship_cost_real
                             shipping_orders_count += 1
             except MLClientError:
@@ -476,7 +483,7 @@ async def _sync_all_snapshots_async():
                     for mid in mlb_ids
                 ]
 
-                client = MLClient(account.access_token)
+                client = MLClient(account.access_token, ml_account_id=str(account.id))
                 try:
                     # Buscar visitas do DIA ANTERIOR (completo)
                     bulk_result = await client.get_items_visits_bulk(

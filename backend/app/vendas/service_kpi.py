@@ -580,8 +580,18 @@ async def list_listings(
     return output[start : start + per_page]
 
 
-async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
-    """KPI para um único dia (último snapshot por listing)."""
+async def _kpi_single_day(
+    db: AsyncSession,
+    listing_ids: list,
+    dt,
+    total_anuncios: int | None = None,
+) -> dict:
+    """KPI para um único dia (último snapshot por listing).
+
+    total_anuncios: se fornecido, usa esse valor para "anuncios" (universo de
+    listings ativos), em vez de contar snapshots do dia. Evita números
+    incoerentes quando o sync do dia foi parcial ou ainda não rodou.
+    """
     latest_snap_subq = (
         select(
             ListingSnapshot.listing_id,
@@ -677,13 +687,59 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
     taxa_cancelamento = round(cancelados / total_pedidos_com_cancelados * 100, 2) if total_pedidos_com_cancelados > 0 else 0.0
     vendas_concluidas = round(receita_total - cancelados_valor - devolucoes_valor, 2)
 
+    receita_dia = float(row.receita) if row else 0.0
+
+    # Valor estoque é POSIÇÃO PONTUAL — para cada listing, usa o último
+    # snapshot com captured_at <= fim_do_dia. Isso evita subestimar o estoque
+    # quando o sync do dia foi parcial (ex: anteontem com só 12/374 listings)
+    # ou ainda não rodou ("Hoje" antes das 06:00 BRT).
+    valor_estoque = 0.0
+    if listing_ids:
+        dt_end = datetime.combine(dt, time.max, tzinfo=BRT).astimezone(timezone.utc)
+        per_listing_latest = (
+            select(
+                ListingSnapshot.listing_id,
+                func.max(ListingSnapshot.captured_at).label("max_captured_at"),
+            )
+            .where(
+                ListingSnapshot.listing_id.in_(listing_ids),
+                ListingSnapshot.captured_at <= dt_end,
+            )
+            .group_by(ListingSnapshot.listing_id)
+            .subquery()
+        )
+        estoque_result = await db.execute(
+            select(
+                func.coalesce(
+                    func.sum(ListingSnapshot.price * ListingSnapshot.stock), 0
+                ).label("valor_estoque"),
+            )
+            .join(
+                per_listing_latest,
+                (ListingSnapshot.listing_id == per_listing_latest.c.listing_id)
+                & (ListingSnapshot.captured_at == per_listing_latest.c.max_captured_at),
+            )
+            .where(ListingSnapshot.listing_id.in_(listing_ids))
+        )
+        est_row = estoque_result.fetchone()
+        if est_row:
+            valor_estoque = float(est_row.valor_estoque)
+
+    # Anúncios: prefere o universo total de listings ativos (constante entre
+    # períodos). Cai para o COUNT do snapshot só se total_anuncios não foi
+    # informado (compatibilidade).
+    if total_anuncios is not None:
+        anuncios_count = total_anuncios
+    else:
+        anuncios_count = int(row.anuncios) if row else 0
+
     return {
         "vendas": vendas,
         "visitas": visitas,
         "conversao": conversao,
-        "anuncios": int(row.anuncios) if row else 0,
-        "valor_estoque": float(row.valor_estoque) if row else 0.0,
-        "receita": float(row.receita) if row else 0.0,
+        "anuncios": anuncios_count,
+        "valor_estoque": valor_estoque,
+        "receita": receita_dia,
         "pedidos": pedidos,
         "receita_total": receita_total,
         "preco_medio": preco_medio,
@@ -702,8 +758,18 @@ async def _kpi_single_day(db: AsyncSession, listing_ids: list, dt) -> dict:
     }
 
 
-async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_to) -> dict:
-    """KPI para um intervalo de dias (último snapshot por listing por dia, somados)."""
+async def _kpi_date_range(
+    db: AsyncSession,
+    listing_ids: list,
+    date_from,
+    date_to,
+    total_anuncios: int | None = None,
+) -> dict:
+    """KPI para um intervalo de dias (último snapshot por listing por dia, somados).
+
+    total_anuncios: se fornecido, usa esse valor para "anuncios" (universo de
+    listings ativos), em vez de contar snapshots do intervalo.
+    """
     # Subquery: último snapshot de cada listing em cada dia do intervalo
     latest_per_day = (
         select(
@@ -811,11 +877,19 @@ async def _kpi_date_range(db: AsyncSession, listing_ids: list, date_from, date_t
     else:
         valor_estoque = 0.0
 
+    # Anúncios: prefere o universo total de listings ativos (constante entre
+    # períodos). Cai para o COUNT do snapshot só se total_anuncios não foi
+    # informado.
+    if total_anuncios is not None:
+        anuncios_count = total_anuncios
+    else:
+        anuncios_count = int(row.anuncios) if row else 0
+
     return {
         "vendas": vendas,
         "visitas": visitas,
         "conversao": conversao,
-        "anuncios": int(row.anuncios) if row else 0,
+        "anuncios": anuncios_count,
         "valor_estoque": valor_estoque,
         "receita": float(row.receita) if row else 0.0,
         "pedidos": pedidos,
@@ -949,13 +1023,19 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID, ml_account_id: UUID
     yesterday = today - timedelta(days=1)
     anteontem = today - timedelta(days=2)
 
-    # Busca listings do usuário (opcional: filtra por conta ML)
-    query = select(Listing.id).where(Listing.user_id == user_id)
+    # Busca listings ATIVOS do usuário (opcional: filtra por conta ML).
+    # Filtrar por status="active" garante que "Anuncios" reflita o universo
+    # real do vendedor, e não pausados/encerrados que ainda têm snapshots.
+    query = select(Listing.id).where(
+        Listing.user_id == user_id,
+        Listing.status == "active",
+    )
     if ml_account_id is not None:
         query = query.where(Listing.ml_account_id == ml_account_id)
 
     listings_result = await db.execute(query)
     listing_ids = [row[0] for row in listings_result.fetchall()]
+    total_anuncios = len(listing_ids)
 
     empty = {
         "vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0,
@@ -971,16 +1051,17 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID, ml_account_id: UUID
 
     periods = {}
 
-    # Períodos de dia único
+    # Períodos de dia único — passa total_anuncios para manter "Anuncios"
+    # constante mesmo que o sync do dia tenha sido parcial ou não tenha rodado.
     for label, dt in [("hoje", today), ("ontem", yesterday), ("anteontem", anteontem)]:
-        periods[label] = await _kpi_single_day(db, listing_ids, dt)
+        periods[label] = await _kpi_single_day(db, listing_ids, dt, total_anuncios=total_anuncios)
 
     # Períodos de intervalo (dados acumulados do histórico de snapshots)
     periods["7dias"] = await _kpi_date_range(
-        db, listing_ids, today - timedelta(days=6), today
+        db, listing_ids, today - timedelta(days=6), today, total_anuncios=total_anuncios
     )
     periods["30dias"] = await _kpi_date_range(
-        db, listing_ids, today - timedelta(days=29), today
+        db, listing_ids, today - timedelta(days=29), today, total_anuncios=total_anuncios
     )
 
     # Calcular variações entre períodos (hoje vs ontem, ontem vs anteontem)

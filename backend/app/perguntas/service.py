@@ -475,7 +475,7 @@ async def answer_question_and_track(
 
         # Envia resposta via API ML
         try:
-            async with MLClient(account.access_token) as client:
+            async with MLClient(account.access_token, ml_account_id=str(account.id)) as client:
                 response = await client.answer_question(
                     question.ml_question_id, text
                 )

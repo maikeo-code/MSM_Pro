@@ -20,6 +20,9 @@ celery_app = Celery(
 # relationship('AlertConfig')) falham com 'failed to locate a name'.
 def _eager_load_models() -> None:
     import importlib
+    import logging
+
+    logger = logging.getLogger(__name__)
     for mod in (
         "app.auth.models",
         "app.core.models",
@@ -38,7 +41,9 @@ def _eager_load_models() -> None:
         try:
             importlib.import_module(mod)
         except Exception:
-            pass
+            # Loga mas nao quebra. ImportError silencioso mascarava bugs;
+            # agora aparece em stdout do worker para diagnose.
+            logger.exception(f"Falha ao carregar modulo eager: {mod}")
 
 _eager_load_models()
 
@@ -73,10 +78,11 @@ celery_app.conf.beat_schedule = {
             },
         },
     },
-    # Sincronização horária para anúncios com mudança recente de preço
+    # Sincronização horária para anúncios com mudança recente de preço.
+    # Move para minuto 25 para evitar pile-up no minuto 0 (sync-orders + sync-claims + etc).
     "sync-recent-snapshots-hourly": {
         "task": "app.jobs.tasks.sync_recent_snapshots",
-        "schedule": crontab(minute=0),  # A cada hora
+        "schedule": crontab(minute=25),
         "options": {
             "expires": 3600,
         },
@@ -174,26 +180,29 @@ celery_app.conf.beat_schedule = {
             "expires": 7200,
         },
     },
-    # Sincroniza perguntas recebidas a cada 15 minutos
+    # Sincroniza perguntas recebidas a cada 15 minutos.
+    # Escalonado: 8,23,38,53 (intercalado com pre-generate-suggestions 3,18,33,48).
     "sync-questions-every-15min": {
         "task": "app.jobs.tasks.sync_questions",
-        "schedule": crontab(minute="*/15"),
+        "schedule": crontab(minute="8,23,38,53"),
         "options": {
-            "expires": 900,  # 15 minutos
+            "expires": 900,
         },
     },
-    # Sincroniza claims (reclamacoes/devolucoes) a cada 1 hora
+    # Sincroniza claims (reclamacoes/devolucoes) a cada 1 hora.
+    # Move para minuto 45 (evita pile-up no minuto 0 onde sync_orders e refresh_tokens correm).
     "sync-claims-hourly": {
         "task": "app.jobs.tasks.sync_claims",
-        "schedule": crontab(minute=0),  # toda hora em ponto
+        "schedule": crontab(minute=45),
         "options": {
             "expires": 3600,  # 1 hora
         },
     },
-    # Pré-gera sugestões IA para perguntas não respondidas (5 min após sync questions)
+    # Pré-gera sugestões IA para perguntas não respondidas.
+    # Escalonado para 3,18,33,48 (offset de pre-generate em relação a sync-questions */15).
     "pre-generate-suggestions": {
         "task": "app.jobs.tasks.pre_generate_suggestions",
-        "schedule": crontab(minute="*/15"),
+        "schedule": crontab(minute="3,18,33,48"),
         "options": {
             "expires": 900,
         },

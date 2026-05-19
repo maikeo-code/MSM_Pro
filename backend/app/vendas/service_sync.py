@@ -48,7 +48,7 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
             continue
 
         try:
-            async with MLClient(account.access_token) as client:
+            async with MLClient(account.access_token, ml_account_id=str(account.id)) as client:
                 # Busca IDs de active + paused (pausados também precisam ter status
                 # atualizado no banco; caso contrário ficam presos como "active").
                 all_item_ids: list[str] = []
@@ -98,6 +98,12 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                                 if reg_amount is not None:
                                     original_price = Decimal(str(reg_amount))
                                 used_sale_price_endpoint = True
+                        except MLClientError as exc:
+                            # 401 com refresh falhado -> token expirado de vez. Aborta a conta inteira:
+                            # continuar processaria mais 27 listings com mesmo token quebrado.
+                            if exc.status_code == 401:
+                                raise
+                            # 404/400/outros: fallback legado é aceitável
                         except Exception:
                             pass
 
@@ -276,6 +282,20 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                             db.add(snapshot)
 
                     except MLClientError as e:
+                        # Token expirado de vez (refresh já tentou e falhou no _request):
+                        # abortar o sync DESSA conta — proxima iteração continua para
+                        # outra conta. Marca conta para reauth.
+                        if e.status_code == 401:
+                            errors.append(
+                                f"Conta {account.nickname}: token expirado (401). "
+                                f"Marcando para reconexao."
+                            )
+                            try:
+                                account.needs_reauth = True
+                                await db.flush()
+                            except Exception:
+                                pass
+                            break  # sai do for mlb_id; for account continua
                         errors.append(f"{mlb_id}: {e}")
                         continue
 
@@ -336,9 +356,22 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                                             str(round((sales_count / snap.visits) * 100, 2))
                                         )
                                     await db.flush()
-                except Exception:
-                    # Não bloquear sync se orders falharem
-                    pass
+                except MLClientError as e:
+                    # 401 aqui = token quebrou no meio do sync. Loga e segue —
+                    # o for account vai pra proxima conta.
+                    if e.status_code == 401:
+                        errors.append(f"Conta {account.nickname}: orders 401")
+                    else:
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            f"Falha ao buscar orders de hoje para {account.nickname}: {e}"
+                        )
+                except Exception as exc:
+                    # Não bloquear sync se orders falharem — mas LOGA agora.
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        f"Erro inesperado em sync de orders para {account.nickname}: {exc}"
+                    )
 
                 # Marca como "closed" listings que sumiram de active+paused.
                 # Preserva listings que já estão closed (não desfaz).

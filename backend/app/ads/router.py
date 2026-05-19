@@ -108,7 +108,7 @@ async def sync_ads(
     for account in accounts:
         if not account.access_token:
             continue
-        async with MLClient(account.access_token) as ml_client:
+        async with MLClient(account.access_token, ml_account_id=str(account.id)) as ml_client:
             sync_result = await service.sync_ads_from_ml(db, ml_client, account)
             results.append(sync_result)
 

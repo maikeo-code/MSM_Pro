@@ -291,7 +291,7 @@ async def get_all_atendimentos(
 
         ml_user_id = account.ml_user_id
 
-        async with MLClient(account.access_token) as client:
+        async with MLClient(account.access_token, ml_account_id=str(account.id)) as client:
             # --- Perguntas ---
             if type_filter is None or type_filter == "pergunta":
                 q_status = status_filter.upper() if status_filter else "UNANSWERED"
@@ -519,7 +519,7 @@ async def respond_to_item(
     if not account or not account.access_token:
         raise ValueError("Conta ML não encontrada ou sem token ativo.")
 
-    async with MLClient(account.access_token) as client:
+    async with MLClient(account.access_token, ml_account_id=str(account.id)) as client:
         if item_type == "pergunta":
             await client.answer_question(int(item_id), text)
             return {"success": True, "message": "Pergunta respondida com sucesso."}
@@ -586,7 +586,7 @@ async def get_ai_suggestion(
     product_context = ""
     mlb_id_for_claim: str | None = None
 
-    async with MLClient(account.access_token) as client:
+    async with MLClient(account.access_token, ml_account_id=str(account.id)) as client:
         # Texto do item atual
         try:
             if item_type == "pergunta":

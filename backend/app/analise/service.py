@@ -346,7 +346,7 @@ async def get_analysis_listings(
 
     # Para cada conta, buscar advertiser_id e métricas
     for account in ml_accounts:
-        async with MLClient(account.access_token) as client:
+        async with MLClient(account.access_token, ml_account_id=str(account.id)) as client:
             advertiser_id = await client.get_advertiser_id()
 
             if not advertiser_id:

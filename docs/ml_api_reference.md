@@ -2426,6 +2426,308 @@ Os 6 metodos de Publicidade (Ads) estao documentados nas secoes 20-25 mas NAO po
 
 ---
 
+## 41. Saldo Mercado Pago
+
+### GET /users/{SELLER_ID}/mercadopago_account/balance
+
+Retorna saldo disponivel e reservado da conta Mercado Pago vinculada ao ML.
+
+**STATUS: DISPONIVEL — requer OAuth com scope financeiro do MP (ver abaixo)**
+
+**Base URL:** `https://api.mercadopago.com` (NAO mercadolibre.com)
+
+**URL completa:** `GET https://api.mercadopago.com/users/{SELLER_ID}/mercadopago_account/balance`
+
+**Headers:**
+- `Authorization: Bearer {access_token}` — token ML normal (APP_USR-...) funciona se a conta tem Mercado Pago associado
+
+**ATENCAO — OAuth separado obrigatorio:**
+O token ML (scope `offline_access read write`) NAO e suficiente para esta API.
+E necessario um OAuth separado com o Mercado Pago com scopes financeiros.
+- Scopes necessarios: `read` + (provavelmente) escopo financeiro especifico do MP
+- O ML e o MP sao plataformas distintas com OAuth independente
+- Referencia: https://www.mercadopago.com.br/developers/en/docs/security/oauth
+
+**Resposta esperada (estrutura conhecida):**
+```json
+{
+  "available_balance": 25980.00,
+  "unavailable_balance": 8500.00,
+  "total_amount": 34480.00,
+  "currency_id": "BRL"
+}
+```
+
+**Campos:**
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| `available_balance` | float | Dinheiro disponivel para saque imediato |
+| `unavailable_balance` | float | Dinheiro ainda retido (em processo de liberacao) |
+| `total_amount` | float | Soma total |
+| `currency_id` | string | `"BRL"` |
+
+**CAMPO "Disponivel para antecipar" (R$10.670):**
+Este valor NAO faz parte do endpoint /balance. E retornado por endpoint separado do MP:
+- Provavel: `GET https://api.mercadopago.com/v1/account/anticipation`
+- Ou via `GET https://api.mercadopago.com/v1/money_advances` (endpoint beta, nao documentado publicamente)
+- Este endpoint pode nao estar disponivel via API publica — o painel do MP pode calcular isso internamente
+
+**Implementado em:** `client.py` — metodo `get_mp_balance()`
+**Validado com curl:** NAO — requer OAuth MP separado com scopes financeiros
+**Ultima validacao:** 2026-05-18 (pesquisa documental)
+
+---
+
+## 42. Perguntas Nao Respondidas — Count por Conta
+
+### GET /my/received_questions/search
+
+Retorna perguntas recebidas pelo vendedor autenticado, com filtro de status.
+Para o dashboard, usar `limit=0` e ler apenas `total` para obter o count sem dados.
+
+**STATUS: DISPONIVEL — usa token ML normal**
+
+**Parametros:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `status` | string | Sim | `"UNANSWERED"` para pendentes. Outros: `"ANSWERED"`, `"BANNED"`, `"CLOSED_UNANSWERED"`, `"DELETED"`, `"UNDER_REVIEW"` |
+| `limit` | int | Opcional | Max items por pagina. Usar `1` quando so precisa do total. |
+| `offset` | int | Opcional | Para paginacao |
+| `sort_fields` | string | Opcional | `"date_created"` |
+| `sort_types` | string | Opcional | `"DESC"` |
+
+**Resposta real:**
+```json
+{
+  "total": 7,
+  "limit": 1,
+  "questions": [
+    {
+      "id": 123456,
+      "text": "Tem na cor azul?",
+      "status": "UNANSWERED",
+      "date_created": "2026-05-17T14:00:00.000Z",
+      "item_id": "MLB1234567890",
+      "seller_id": 2050442871,
+      "from": {"id": 987654321, "answered_questions": 5}
+    }
+  ]
+}
+```
+
+**Para dashboard (count rapido):**
+```python
+# Usar limit=1 para minimizar payload — total ainda reflete o universo completo
+resp = await client.get_received_questions(status="UNANSWERED", limit=1, offset=0)
+count = resp.get("total", 0)
+```
+
+**Campos:**
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| `total` | int | Total de perguntas com o status solicitado (COUNT real) |
+| `limit` | int | Limite aplicado |
+| `questions` | list | Lista de perguntas (vazia se limit=0 ou offset>=total) |
+
+**Gotchas:**
+- O endpoint `/questions/search?item=MLB123&status=unanswered` e para perguntas de UM item especifico.
+- O endpoint `/my/received_questions/search?status=UNANSWERED` e para TODAS as perguntas do vendedor.
+- Status e case-sensitive: usar `"UNANSWERED"` (maiusculo).
+- `api_version=4` pode ser necessario em alguns casos — testar sem primeiro.
+
+**Implementado em:** `client.py` — metodo `get_received_questions(status, offset, limit)`
+**Validado com curl:** Pendente validacao com token real
+**Ultima validacao:** 2026-05-18 (pesquisa documental + confirmacao pela doc oficial ML)
+
+---
+
+## 43. Mensagens Nao Lidas (Pos-Venda)
+
+### GET /messages/unread
+
+Retorna conversas pos-venda com mensagens nao lidas pelo vendedor.
+
+**STATUS: DISPONIVEL — usa token ML normal com scope `read`**
+
+**Parametros:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `role` | string | Sim | `"seller"` |
+| `tag` | string | Sim | `"post_sale"` |
+
+**Resposta real:**
+```json
+{
+  "user_id": 2050442871,
+  "total": 3,
+  "results": [
+    {
+      "pack_id": "2000012345678",
+      "status": "active",
+      "last_message_date": "2026-05-17T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+**Para dashboard (count de nao lidas):**
+```python
+resp = await client.get_unread_messages_count(seller_id)
+# O metodo ja retorna int diretamente via resp.get("total", 0)
+```
+
+**Campos:**
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| `total` | int | Total de conversas com mensagens nao lidas |
+| `results` | list | Lista de conversas (ate 500 por chamada) |
+| `results[].pack_id` | string | ID do pack (agrupa multiplos itens de um pedido) |
+
+**Limitacoes:**
+- Retorna ate 500 conversas por chamada. Se total > 500, marcar algumas como lidas e repetir.
+- Rate limit: 500 rpm (GET) compartilhado com outros endpoints de messaging.
+- `GET /messages/packs/{pack_id}/sellers/{seller_id}` marca como LIDA ao buscar — usar `?mark_as_read=false` para nao marcar.
+
+**Gotchas:**
+- NAO ha endpoint tipo `GET /messages/unread/count` que retorne apenas o numero — sempre retorna lista.
+- O `total` no response e o count que o dashboard precisa.
+- Para detalhes de uma conversa: `GET /messages/packs/{pack_id}/sellers/{seller_id}?tag=post_sale&mark_as_read=false`.
+
+**Implementado em:** `client.py` — metodo `get_unread_messages_count(seller_id)`
+**Validado com curl:** Pendente validacao com token real
+**Ultima validacao:** 2026-05-18 (pesquisa documental + confirmacao pela doc oficial ML)
+
+---
+
+## 44. Reclamacoes e Mediacoes Abertas
+
+### GET /post-purchase/v1/claims/search
+
+Busca reclamacoes do vendedor com filtros de status e stage.
+
+**STATUS: DISPONIVEL — usa token ML normal. Endpoint legado `/v1/claims/` DEPRECIADO desde maio 2024.**
+
+**Parametros:**
+| Param | Tipo | Obrigatorio | Descricao |
+|-------|------|-------------|-----------|
+| `status` | string | Opcional | `"opened"`, `"closed"`, `"resolved"` |
+| `stage` | string | Opcional | `"claim"` (reclamacao simples), `"dispute"` (mediacao — ML intervem) |
+| `players.role` | string | Opcional | `"complainant"` (comprador reclamou) ou `"respondent"` (vendedor reclamou) |
+| `players.user_id` | string | Opcional | ID do usuario (usar com `players.role`) |
+| `resource` | string | Opcional | `"order"`, `"shipment"`, `"payment"`, `"purchase"` |
+| `resource_id` | string | Opcional | ID do recurso (usar com `resource`) |
+| `sort` | string | Opcional | `"last_updated:asc"` ou `"last_updated:desc"` |
+| `offset` | int | Opcional | Paginacao |
+| `limit` | int | Opcional | Max por pagina |
+
+**Resposta real:**
+```json
+{
+  "paging": {"total": 2, "offset": 0, "limit": 50},
+  "data": [
+    {
+      "id": 5001234567,
+      "type": "mediations",
+      "stage": "dispute",
+      "status": "opened",
+      "reason_id": "BUYER_NOT_RECEIVED",
+      "date_created": "2026-05-10T12:00:00.000Z",
+      "last_updated": "2026-05-17T09:00:00.000Z",
+      "resource": "order",
+      "resource_id": "2000012345678",
+      "players": [
+        {"role": "complainant", "type": "buyer", "user_id": 987654321},
+        {"role": "respondent", "type": "seller", "user_id": 2050442871}
+      ]
+    }
+  ]
+}
+```
+
+**Distincao claim vs mediacao:**
+| `stage` | `type` | Descricao |
+|---------|--------|-----------|
+| `"claim"` | `"mediations"` ou outro | Reclamacao simples — vendedor e comprador tentam resolver |
+| `"dispute"` | `"mediations"` | Mediacao — ML interveio para arbitrar |
+
+**Para dashboard:**
+```python
+# Claims abertas (inclui claims simples + mediacoes)
+resp_claims = await client.get_my_open_claims()
+count_claims = resp_claims.get("paging", {}).get("total", 0)
+
+# Apenas mediacoes (ML interveio)
+resp_med = await client.get_my_open_mediations()
+count_mediations = resp_med.get("paging", {}).get("total", 0)
+```
+
+**Gotchas:**
+- O count fica em `paging.total`, NAO em campo `total` raiz.
+- Lista de dados fica em `data`, NAO em `results`.
+- Para vendas onde o VENDEDOR reclamou: usar `players.role=complainant&players.user_id={seller_id}`.
+- Para claims onde o COMPRADOR reclamou do vendedor: nao filtrar por role (vendor aparece como `respondent`).
+- `type` e `stage` sao conceitualmente diferentes: `type` descreve o tipo da resolucao, `stage` descreve a fase do processo.
+
+**Implementado em:** `client.py` — metodos `get_my_open_claims()`, `get_my_open_mediations()`, `get_claims()`
+**Validado com curl:** Pendente validacao com token real (endpoint migrado)
+**Doc oficial:** https://developers.mercadolivre.com.br/pt_br/gerenciar-reclamacoes
+**Ultima validacao:** 2026-05-18 (pesquisa documental + confirmacao pela doc oficial ML)
+
+---
+
+## 45. Uso do Full (Estoque Fulfillment) — Resumo por Conta
+
+### GET /users/{SELLER_ID}/fbm_stock/summary
+
+Retorna resumo de uso do Full (Fulfillment by Mercadolivre) categorizado por tamanho.
+
+**STATUS: RESTRITO / BETA — endpoint nao documentado publicamente. Pode retornar 404 em contas sem Full.**
+
+**Implementado em:** `client.py` — metodo `get_full_inventory_summary()` (com try/except retornando `{}`)
+
+**Resposta esperada (estrutura hipotetica — nao validada):**
+```json
+{
+  "SMALL_MEDIUM": {
+    "occupied": 155,
+    "total_capacity": 3430,
+    "available": 3275
+  },
+  "LARGE_EXTRA_LARGE": {
+    "occupied": 107,
+    "total_capacity": 1020,
+    "available": 913
+  }
+}
+```
+
+**Endpoint publicamente documentado (alternativa validada):**
+
+### GET /inventories/{INVENTORY_ID}/stock/fulfillment
+
+Retorna estoque Full de um inventory_id especifico.
+
+Para obter `inventory_id` de um item: consultar `GET /items/{ITEM_ID}` — campo `inventory_id` (se presente).
+
+Ou via: `GET /user-products/{ITEM_ID}/stock/fulfillment` (ver secao 18).
+
+**Endpoint de operacoes (para auditoria de movimentos):**
+```
+GET /stock/fulfillment/operations/search?seller_id={SELLER_ID}&inventory_id={INVENTORY_ID}
+```
+Parametros adicionais: `date_from`, `date_to`, `type` (inbound_reception, sale_confirmation, etc.)
+
+**CONCLUSAO — Full Dashboard:**
+- O painel "Pequenos e medios: 155 un. de 3.430" exibido no ML nao tem endpoint publico equivalente.
+- `/users/{id}/fbm_stock/summary` e o endpoint mais proximo, mas e BETA/nao documentado.
+- A alternativa realista e: consultar `/user-products/{id}/stock/fulfillment` por item Full, e somar manualmente.
+- Recomendacao: tentar `/fbm_stock/summary` e tratar 404/erro com fallback gracioso.
+
+**Validado com curl:** NAO — requer conta com Full ativo e endpoint e beta
+**Ultima validacao:** 2026-05-18 (pesquisa documental)
+
+---
+
 ## Checklist para novo endpoint
 
 Antes de usar qualquer endpoint novo no projeto:
