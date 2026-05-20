@@ -412,68 +412,76 @@ async def sales_trend(
     Inclui dias zero (sem vendas) para o gráfico ficar contínuo.
     Compara com período anterior equivalente: retorna `variacao_pct` no payload.
     """
+    import logging
+
     from sqlalchemy import and_, select
 
     from app.auth.models import MLAccount
     from app.vendas.models import Order
 
-    BRT_TZ = timezone(timedelta(hours=-3))
-    hoje = datetime.now(BRT_TZ).date()
-    inicio = hoje - timedelta(days=days - 1)
-    inicio_anterior = inicio - timedelta(days=days)
+    logger = logging.getLogger(__name__)
 
-    # IDs das contas ML do usuário (filtra por user_id + opcionalmente ml_account_id)
-    account_query = select(MLAccount.id).where(
-        and_(MLAccount.user_id == current_user.id, MLAccount.is_active == True)  # noqa: E712
-    )
-    if ml_account_id is not None:
-        account_query = account_query.where(MLAccount.id == ml_account_id)
-    account_ids = [r[0] for r in (await db.execute(account_query)).fetchall()]
+    try:
+        BRT_TZ = timezone(timedelta(hours=-3))
+        hoje = datetime.now(BRT_TZ).date()
+        inicio = hoje - timedelta(days=days - 1)
+        inicio_anterior = inicio - timedelta(days=days)
 
-    if not account_ids:
-        return {
-            "period_days": days,
-            "data": [
-                {"date": (inicio + timedelta(days=i)).isoformat(), "total": 0.0, "pedidos": 0}
-                for i in range(days)
-            ],
-            "total_atual": 0.0,
-            "total_anterior": 0.0,
-            "variacao_pct": None,
-        }
-
-    # Range UTC para o filtro SQL (BRT 00:00 do inicio_anterior ate BRT 23:59:59 de hoje)
-    inicio_utc = datetime(
-        inicio_anterior.year, inicio_anterior.month, inicio_anterior.day,
-        0, 0, 0, tzinfo=BRT_TZ,
-    )
-    fim_utc = datetime(
-        hoje.year, hoje.month, hoje.day, 23, 59, 59, tzinfo=BRT_TZ,
-    )
-
-    # NAO usa func.timezone (Postgres-only): busca orders no range e agrega em Python.
-    # Volume tipico: 30 dias x 2 contas x ~10 pedidos/dia = ~600 rows. Aceitavel.
-    # Filtro positivo de status: 'approved' e 'paid' sao vendas confirmadas.
-    rows = (await db.execute(
-        select(Order.order_date, Order.total_amount)
-        .where(
-            Order.ml_account_id.in_(account_ids),
-            Order.order_date >= inicio_utc,
-            Order.order_date <= fim_utc,
-            Order.payment_status.in_(["approved", "paid", "partially_refunded"]),
+        # IDs das contas ML do usuário (filtra por user_id + opcionalmente ml_account_id)
+        account_query = select(MLAccount.id).where(
+            and_(MLAccount.user_id == current_user.id, MLAccount.is_active == True)  # noqa: E712
         )
-    )).fetchall()
+        if ml_account_id is not None:
+            account_query = account_query.where(MLAccount.id == ml_account_id)
+        account_ids = [r[0] for r in (await db.execute(account_query)).fetchall()]
 
-    # Agrega por data BRT em Python
-    by_date: dict[str, dict[str, float]] = {}
-    for order_date, total_amount in rows:
-        # order_date pode vir naive (SQLite) ou aware (Postgres). Normaliza.
-        if order_date.tzinfo is None:
-            order_date = order_date.replace(tzinfo=timezone.utc)
-        order_date_brt = order_date.astimezone(BRT_TZ).date().isoformat()
-        bucket = by_date.setdefault(order_date_brt, {"total": 0.0, "pedidos": 0})
-        bucket["total"] += float(total_amount or 0)
-        bucket["pedidos"] += 1
+        if not account_ids:
+            return {
+                "period_days": days,
+                "data": [
+                    {"date": (inicio + timedelta(days=i)).isoformat(), "total": 0.0, "pedidos": 0}
+                    for i in range(days)
+                ],
+                "total_atual": 0.0,
+                "total_anterior": 0.0,
+                "variacao_pct": None,
+            }
+
+        # Range UTC para o filtro SQL.
+        inicio_utc = datetime(
+            inicio_anterior.year, inicio_anterior.month, inicio_anterior.day,
+            0, 0, 0, tzinfo=BRT_TZ,
+        )
+        fim_utc = datetime(
+            hoje.year, hoje.month, hoje.day, 23, 59, 59, tzinfo=BRT_TZ,
+        )
+
+        # NAO usa func.timezone (Postgres-only): agrega em Python.
+        rows = (await db.execute(
+            select(Order.order_date, Order.total_amount)
+            .where(
+                Order.ml_account_id.in_(account_ids),
+                Order.order_date >= inicio_utc,
+                Order.order_date <= fim_utc,
+                Order.payment_status.in_(["approved", "paid", "partially_refunded"]),
+            )
+        )).fetchall()
+
+        # Agrega por data BRT em Python
+        by_date: dict[str, dict[str, float]] = {}
+        for order_date, total_amount in rows:
+            if order_date is None:
+                continue
+            # order_date pode vir naive (SQLite) ou aware (Postgres). Normaliza.
+            if order_date.tzinfo is None:
+                order_date = order_date.replace(tzinfo=timezone.utc)
+            order_date_brt = order_date.astimezone(BRT_TZ).date().isoformat()
+            bucket = by_date.setdefault(order_date_brt, {"total": 0.0, "pedidos": 0})
+            bucket["total"] += float(total_amount or 0)
+            bucket["pedidos"] += 1
+    except Exception as exc:
+        logger.exception(f"Erro em /sales-trend: days={days} ml_account_id={ml_account_id}: {exc}")
+        raise
 
     # Período atual (preenche dias zero)
     data_atual = []
