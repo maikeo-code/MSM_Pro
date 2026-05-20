@@ -481,7 +481,13 @@ async def sales_trend(
             bucket["pedidos"] += 1
     except Exception as exc:
         logger.exception(f"Erro em /sales-trend: days={days} ml_account_id={ml_account_id}: {exc}")
-        raise
+        # TEMPORARIO: retorna detalhe do erro para debug em prod. Remover apos diagnostico.
+        import traceback
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"{type(exc).__name__}: {str(exc)[:300]}",
+        )
 
     # Período atual (preenche dias zero)
     data_atual = []
