@@ -115,9 +115,20 @@ def sync_recent_snapshots():
     """
     Sincroniza snapshots de anúncios com mudança recente de preço.
     Executado a cada hora para capturar mudanças rápidas.
+    Uses Redis lock (consistente com sync_all_snapshots) para evitar
+    duplicação se beat entregar a task 2x ou se uma execução >60min
+    sobrepor com a próxima.
     """
+    async def _run():
+        if not await acquire_task_lock("sync_recent_snapshots", timeout=600):
+            return {"status": "skipped", "reason": "lock_held"}
+        try:
+            return await _sync_recent_snapshots_async()
+        finally:
+            await release_task_lock("sync_recent_snapshots")
+
     try:
-        return run_async(_sync_recent_snapshots_async())
+        return run_async(_run())
     except Exception as exc:
         logger.error(f"Erro em sync_recent_snapshots: {exc}")
         raise

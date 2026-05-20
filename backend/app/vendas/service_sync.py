@@ -16,6 +16,20 @@ from app.vendas.models import Listing, ListingSnapshot
 from app.vendas.service_health import calculate_quality_score_quick
 
 
+async def _mark_account_for_reauth(db: AsyncSession, account) -> None:
+    """Marca conta para reconexao manual (token expirado + refresh falhou).
+
+    Centraliza o padrao usado em 3 locais do fluxo de sync onde 401 persistente
+    indica que o refresh_token ja foi invalidado pelo ML. Falhas em flush sao
+    silenciadas — nao bloqueiam o sync das outras contas.
+    """
+    try:
+        account.needs_reauth = True
+        await db.flush()
+    except Exception:
+        pass
+
+
 async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
     """
     Busca todos os anúncios ativos das contas ML do usuário e salva no banco.
@@ -290,11 +304,7 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                                 f"Conta {account.nickname}: token expirado (401). "
                                 f"Marcando para reconexao."
                             )
-                            try:
-                                account.needs_reauth = True
-                                await db.flush()
-                            except Exception:
-                                pass
+                            await _mark_account_for_reauth(db, account)
                             break  # sai do for mlb_id; for account continua
                         errors.append(f"{mlb_id}: {e}")
                         continue
@@ -389,11 +399,7 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
         except MLClientError as e:
             # Marca conta para reconexao se 401 (token expirado/refresh falhou)
             if e.status_code == 401:
-                try:
-                    account.needs_reauth = True
-                    await db.flush()
-                except Exception:
-                    pass
+                await _mark_account_for_reauth(db, account)
             errors.append(f"Conta {account.nickname}: {e}")
             continue
 

@@ -143,6 +143,12 @@ async def refresh_ml_token_by_id(account_id: UUID) -> str | None:
     Retorna o novo access_token se sucesso, None se falha.
     Salva o token renovado no banco.
 
+    PROTEGIDO POR LOCK DISTRIBUIDO (Redis): ML refresh tokens sao single-use,
+    entao 2 workers chamando refresh em paralelo invalidam o refresh_token
+    (1o sucesso revoga; 2o vira invalid_grant e incrementa token_refresh_failures).
+    Quando o lock ja esta tomado, aguardamos 3s + re-buscamos o access_token
+    que o outro worker provavelmente acabou de renovar.
+
     Atualiza rastreamento: last_token_refresh_at, token_refresh_failures, needs_reauth.
 
     Args:
@@ -152,7 +158,42 @@ async def refresh_ml_token_by_id(account_id: UUID) -> str | None:
         str: novo access_token se sucesso
         None: se falha na renovação
     """
+    import asyncio
+
     from app.core.database import AsyncSessionLocal
+    # Import lazy para evitar circular (tasks_tokens.py importa de auth.service)
+    from app.jobs.tasks_tokens import (
+        _acquire_token_refresh_lock,
+        _release_token_refresh_lock,
+    )
+
+    account_id_str = str(account_id)
+
+    # Tentativa de lock — se ja tomado, outro worker esta fazendo refresh
+    lock_acquired = await _acquire_token_refresh_lock(account_id_str, timeout=60)
+    if not lock_acquired:
+        # Aguarda outro worker terminar e tenta usar o token que ele renovou.
+        await asyncio.sleep(3)
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(MLAccount).where(MLAccount.id == account_id)
+            )
+            account = result.scalar_one_or_none()
+            if (
+                account
+                and account.access_token
+                and not account.needs_reauth
+                and account.token_expires_at
+                and account.token_expires_at > datetime.now(timezone.utc)
+            ):
+                logger.info(
+                    f"Lock tomado para {account_id_str}; usando token renovado por outro worker"
+                )
+                return account.access_token
+            logger.warning(
+                f"Lock tomado para {account_id_str} mas token ainda invalido apos espera"
+            )
+            return None
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(MLAccount).where(MLAccount.id == account_id))
@@ -162,6 +203,7 @@ async def refresh_ml_token_by_id(account_id: UUID) -> str | None:
             logger.warning(
                 f"Conta {account_id} não encontrada ou sem refresh_token — refresh abortado"
             )
+            await _release_token_refresh_lock(account_id_str)
             return None
 
         try:
@@ -183,6 +225,7 @@ async def refresh_ml_token_by_id(account_id: UUID) -> str | None:
                         f"após {account.token_refresh_failures} falhas"
                     )
                 await db.commit()
+                await _release_token_refresh_lock(account_id_str)
                 return None
 
             access_token = token_data.get("access_token")
@@ -207,6 +250,7 @@ async def refresh_ml_token_by_id(account_id: UUID) -> str | None:
                 f"elapsed={refresh_elapsed:.2f}s, "
                 f"account_id={account_id}"
             )
+            await _release_token_refresh_lock(account_id_str)
             return access_token
 
         except Exception as e:
@@ -224,6 +268,7 @@ async def refresh_ml_token_by_id(account_id: UUID) -> str | None:
                     f"após {account.token_refresh_failures} falhas"
                 )
             await db.commit()
+            await _release_token_refresh_lock(account_id_str)
             return None
 
 

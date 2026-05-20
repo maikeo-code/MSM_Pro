@@ -186,8 +186,11 @@ class MLClient:
                     status_code=e.response.status_code,
                 )
 
+        # status_code=599 = sentinel para timeout/network exausto.
+        # Permite que callers distingam de 401/404/500 ao decidirem fallback.
         raise MLClientError(
             f"Falha após {max_retries} tentativas: {last_exception}",
+            status_code=599,
         )
 
     async def get_item(self, mlb_id: str) -> dict:

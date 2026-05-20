@@ -48,7 +48,9 @@ async def _pre_generate_suggestions_async() -> dict:
             for question, account in rows:
                 try:
                     await generate_suggestion(
-                        db, question, account.access_token, regenerate=False
+                        db, question, account.access_token,
+                        regenerate=False,
+                        account_id=str(account.id),
                     )
                     total_generated += 1
                 except Exception as exc:

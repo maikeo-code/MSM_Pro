@@ -412,67 +412,81 @@ async def sales_trend(
     Inclui dias zero (sem vendas) para o gráfico ficar contínuo.
     Compara com período anterior equivalente: retorna `variacao_pct` no payload.
     """
-    from datetime import date as date_alias, datetime as dt_alias, timedelta as td_alias
-    from sqlalchemy import and_, func, select
+    from sqlalchemy import and_, select
 
     from app.auth.models import MLAccount
     from app.vendas.models import Order
 
     BRT_TZ = timezone(timedelta(hours=-3))
-    hoje = dt_alias.now(BRT_TZ).date()
-    inicio = hoje - td_alias(days=days - 1)
-    inicio_anterior = inicio - td_alias(days=days)
-    fim_anterior = inicio - td_alias(days=1)
+    hoje = datetime.now(BRT_TZ).date()
+    inicio = hoje - timedelta(days=days - 1)
+    inicio_anterior = inicio - timedelta(days=days)
 
-    # IDs das contas ML do usuário
-    acc_q = select(MLAccount.id).where(
+    # IDs das contas ML do usuário (filtra por user_id + opcionalmente ml_account_id)
+    account_query = select(MLAccount.id).where(
         and_(MLAccount.user_id == current_user.id, MLAccount.is_active == True)  # noqa: E712
     )
     if ml_account_id is not None:
-        acc_q = acc_q.where(MLAccount.id == ml_account_id)
-    acc_ids = [r[0] for r in (await db.execute(acc_q)).fetchall()]
-    if not acc_ids:
+        account_query = account_query.where(MLAccount.id == ml_account_id)
+    account_ids = [r[0] for r in (await db.execute(account_query)).fetchall()]
+
+    if not account_ids:
         return {
             "period_days": days,
-            "data": [{"date": (inicio + td_alias(days=i)).isoformat(), "total": 0.0, "pedidos": 0} for i in range(days)],
+            "data": [
+                {"date": (inicio + timedelta(days=i)).isoformat(), "total": 0.0, "pedidos": 0}
+                for i in range(days)
+            ],
             "total_atual": 0.0,
             "total_anterior": 0.0,
             "variacao_pct": None,
         }
 
-    # Query: agrega por data BRT
-    inicio_utc = dt_alias.combine(inicio_anterior, dt_alias.min.time()).replace(tzinfo=BRT_TZ)
-    fim_utc = dt_alias.combine(hoje, dt_alias.max.time()).replace(tzinfo=BRT_TZ)
+    # Range UTC para o filtro SQL (BRT 00:00 do inicio_anterior ate BRT 23:59:59 de hoje)
+    inicio_utc = datetime(
+        inicio_anterior.year, inicio_anterior.month, inicio_anterior.day,
+        0, 0, 0, tzinfo=BRT_TZ,
+    )
+    fim_utc = datetime(
+        hoje.year, hoje.month, hoje.day, 23, 59, 59, tzinfo=BRT_TZ,
+    )
 
+    # NAO usa func.timezone (Postgres-only): busca orders no range e agrega em Python.
+    # Volume tipico: 30 dias x 2 contas x ~10 pedidos/dia = ~600 rows. Aceitavel.
+    # Filtro positivo de status: 'approved' e 'paid' sao vendas confirmadas.
     rows = (await db.execute(
-        select(
-            func.date(func.timezone("America/Sao_Paulo", Order.order_date)).label("dia"),
-            func.sum(Order.total_amount).label("total"),
-            func.count(Order.id).label("pedidos"),
-        )
+        select(Order.order_date, Order.total_amount)
         .where(
-            Order.ml_account_id.in_(acc_ids),
+            Order.ml_account_id.in_(account_ids),
             Order.order_date >= inicio_utc,
             Order.order_date <= fim_utc,
-            Order.payment_status.in_(["approved", "paid"]),
+            Order.payment_status.in_(["approved", "paid", "partially_refunded"]),
         )
-        .group_by("dia")
     )).fetchall()
 
-    by_date = {str(r.dia): {"total": float(r.total or 0), "pedidos": int(r.pedidos or 0)} for r in rows}
+    # Agrega por data BRT em Python
+    by_date: dict[str, dict[str, float]] = {}
+    for order_date, total_amount in rows:
+        # order_date pode vir naive (SQLite) ou aware (Postgres). Normaliza.
+        if order_date.tzinfo is None:
+            order_date = order_date.replace(tzinfo=timezone.utc)
+        order_date_brt = order_date.astimezone(BRT_TZ).date().isoformat()
+        bucket = by_date.setdefault(order_date_brt, {"total": 0.0, "pedidos": 0})
+        bucket["total"] += float(total_amount or 0)
+        bucket["pedidos"] += 1
 
     # Período atual (preenche dias zero)
     data_atual = []
     total_atual = 0.0
     for i in range(days):
-        d = (inicio + td_alias(days=i)).isoformat()
+        d = (inicio + timedelta(days=i)).isoformat()
         item = by_date.get(d, {"total": 0.0, "pedidos": 0})
-        data_atual.append({"date": d, "total": item["total"], "pedidos": item["pedidos"]})
+        data_atual.append({"date": d, "total": round(item["total"], 2), "pedidos": int(item["pedidos"])})
         total_atual += item["total"]
 
     # Período anterior (só agregado, não retorna ponto a ponto)
     total_anterior = sum(
-        by_date.get((inicio_anterior + td_alias(days=i)).isoformat(), {"total": 0.0})["total"]
+        by_date.get((inicio_anterior + timedelta(days=i)).isoformat(), {"total": 0.0})["total"]
         for i in range(days)
     )
 

@@ -19,7 +19,7 @@ from app.core.database import AsyncSessionLocal
 from app.mercadolivre.client import MLClient, MLClientError
 from app.vendas.models import Listing, ListingSnapshot
 
-from .tasks_helpers import _create_sync_log, _finish_sync_log
+from .tasks_helpers import _create_sync_log, _finish_sync_log, extract_seller_shipping_cost
 
 logger = logging.getLogger(__name__)
 

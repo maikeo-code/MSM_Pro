@@ -128,16 +128,22 @@ async def _sync_orders_async():
                                 except (ValueError, AttributeError):
                                     order_date = datetime.now(timezone.utc)
 
-                                # Status de pagamento e data de aprovacao
+                                # Status de pagamento e data de aprovacao.
+                                # Em retry (1a tentativa rejected -> 2a approved), payments[0]
+                                # retorna a rejected (cronologica). Buscamos primeiro approved
+                                # explicitamente; fallback para o mais recente (payments[-1]).
                                 payments = order_raw.get("payments", [])
                                 payment_status = "pending"
                                 payment_date = None
                                 if payments:
-                                    first_payment = payments[0]
-                                    payment_status = (
-                                        first_payment.get("status", "pending") or "pending"
+                                    chosen_payment = next(
+                                        (p for p in payments if p.get("status") == "approved"),
+                                        payments[-1],
                                     )
-                                    payment_date_str = first_payment.get("date_approved")
+                                    payment_status = (
+                                        chosen_payment.get("status", "pending") or "pending"
+                                    )
+                                    payment_date_str = chosen_payment.get("date_approved")
                                     if payment_date_str:
                                         try:
                                             payment_date = datetime.fromisoformat(
@@ -437,16 +443,19 @@ async def _backfill_orders_after_reconnect_async(
                             except (ValueError, AttributeError):
                                 order_date = datetime.now(timezone.utc)
 
-                            # Status de pagamento e data de aprovacao
+                            # Status de pagamento — busca approved primeiro, fallback ultimo.
                             payments = order_raw.get("payments", [])
                             payment_status = "pending"
                             payment_date = None
                             if payments:
-                                first_payment = payments[0]
-                                payment_status = (
-                                    first_payment.get("status", "pending") or "pending"
+                                chosen_payment = next(
+                                    (p for p in payments if p.get("status") == "approved"),
+                                    payments[-1],
                                 )
-                                payment_date_str = first_payment.get("date_approved")
+                                payment_status = (
+                                    chosen_payment.get("status", "pending") or "pending"
+                                )
+                                payment_date_str = chosen_payment.get("date_approved")
                                 if payment_date_str:
                                     try:
                                         payment_date = datetime.fromisoformat(

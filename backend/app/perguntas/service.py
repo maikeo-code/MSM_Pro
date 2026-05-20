@@ -62,7 +62,7 @@ async def sync_questions_for_account(
     account_token_local = account.access_token
 
     try:
-        async with MLClient(account_token_local) as client:
+        async with MLClient(account_token_local, ml_account_id=str(account_id_local)) as client:
             for status in statuses:
                 try:
                     # Busca perguntas da API ML com paginação

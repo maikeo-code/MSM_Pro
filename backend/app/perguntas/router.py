@@ -233,7 +233,9 @@ async def suggest_answer(
 
     # Gera sugestão
     result = await generate_suggestion(
-        db, question, account.access_token, regenerate=body.regenerate
+        db, question, account.access_token,
+        regenerate=body.regenerate,
+        account_id=str(account.id),
     )
 
     return AISuggestionResponse(**result)

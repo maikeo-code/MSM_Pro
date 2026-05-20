@@ -14,13 +14,18 @@ from app.vendas.models import Listing
 async def _enrich_competitor_from_ml(
     competitor: Competitor,
     ml_token: str,
+    ml_account_id: str | None = None,
 ) -> None:
     """
     Busca dados reais do concorrente na API ML e popula title, seller_nickname, thumbnail.
     Erros de API são silenciados — se falhar, o competitor é salvo com dados parciais.
+
+    Args:
+        ml_account_id: opcional — ID da MLAccount. Quando passado, ativa
+            auto-refresh on-401 do MLClient (recomendado para sync confiavel).
     """
     try:
-        async with MLClient(ml_token) as client:
+        async with MLClient(ml_token, ml_account_id=ml_account_id) as client:
             item_data = await client.get_item(competitor.mlb_id)
 
             # Extrai título
@@ -99,9 +104,14 @@ async def add_competitor(
         is_active=True,
     )
 
-    # Enriquece com dados da API ML se token for fornecido
+    # Enriquece com dados da API ML se token for fornecido.
+    # Passa ml_account_id do listing para habilitar auto-refresh on-401 do MLClient.
     if ml_token:
-        await _enrich_competitor_from_ml(competitor, ml_token)
+        await _enrich_competitor_from_ml(
+            competitor,
+            ml_token,
+            ml_account_id=str(listing.ml_account_id) if listing.ml_account_id else None,
+        )
 
     db.add(competitor)
     await db.flush()

@@ -31,6 +31,7 @@ async def generate_suggestion(
     question: "Question",
     account_token: str,
     regenerate: bool = False,
+    account_id: str | None = None,
 ) -> dict:
     """
     Pipeline completo de sugestão IA:
@@ -46,6 +47,8 @@ async def generate_suggestion(
         question: Question model
         account_token: Token OAuth da conta ML
         regenerate: Se True, ignora cache e gera nova sugestão
+        account_id: opcional — UUID em string da MLAccount.
+            Quando passado, ativa auto-refresh on-401 no MLClient.
 
     Returns:
         dict com chaves:
@@ -75,7 +78,7 @@ async def generate_suggestion(
 
     # 3. Coletar contexto
     try:
-        async with MLClient(account_token) as client:
+        async with MLClient(account_token, ml_account_id=account_id) as client:
             context = await collect_context(db, question, client)
     except Exception as exc:
         logger.warning("Falha ao coletar contexto: %s", exc)

@@ -28,9 +28,23 @@ def extract_seller_shipping_cost(
       - NUNCA usar `loyal_discount` (é subsídio do programa de lealdade, não custo).
       - NUNCA usar `base_cost` como fallback (é o frete TOTAL antes de subsídios,
         inflaciona o valor pago pelo vendedor).
+      - Valores negativos (estorno retroativo) sao clampados a 0 — nao podem
+        somar como "custo" no agregado.
+
+    Exemplos:
+      >>> extract_seller_shipping_cost({"cost_components": {"sender_cost": 7.85}})
+      Decimal('7.85')
+      >>> extract_seller_shipping_cost({"cost_components": {"sender_cost": 0}})
+      Decimal('0')
+      >>> extract_seller_shipping_cost({}, logistic_type="fulfillment")
+      Decimal('0')
+      >>> extract_seller_shipping_cost({"cost_components": {"sender_cost": -5}})
+      Decimal('0')
 
     Retorna Decimal sempre; nunca None.
     """
+    import logging
+
     if logistic_type == "fulfillment":
         return Decimal("0")
 
@@ -42,9 +56,21 @@ def extract_seller_shipping_cost(
         return Decimal("0")
 
     try:
-        return Decimal(str(sender_cost_raw))
-    except Exception:
+        value = Decimal(str(sender_cost_raw))
+    except Exception as exc:
+        logging.getLogger(__name__).debug(
+            "sender_cost invalido %r: %s — usando 0", sender_cost_raw, exc
+        )
         return Decimal("0")
+
+    # Clamp negativos: estornos retroativos nao podem inflar o agregado de "custo".
+    if value < 0:
+        logging.getLogger(__name__).debug(
+            "sender_cost negativo %s — clampado para 0", value
+        )
+        return Decimal("0")
+
+    return value
 
 
 async def _create_sync_log(db, task_name: str, ml_account_id=None):
