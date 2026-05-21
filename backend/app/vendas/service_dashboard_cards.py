@@ -221,33 +221,41 @@ def _empty_full_stock() -> dict:
 
 
 async def _sales_sparkline_7d(db: AsyncSession, ml_account_id: UUID) -> list[dict]:
-    """Retorna lista de 7 dias com valor de vendas (net_amount) em BRT."""
+    """Retorna lista de 7 dias com valor de vendas (net_amount) em BRT.
+
+    Agrega em Python (nao usa func.timezone que e Postgres-only). Volume
+    tipico de 7 dias eh baixo (~70 orders), aceitavel.
+    """
     today = datetime.now(BRT).date()
     start = today - timedelta(days=6)
 
-    start_dt = datetime.combine(start, datetime.min.time()).replace(tzinfo=BRT)
-    end_dt = datetime.combine(today, datetime.max.time()).replace(tzinfo=BRT)
+    start_dt = datetime(start.year, start.month, start.day, 0, 0, 0, tzinfo=BRT)
+    end_dt = datetime(today.year, today.month, today.day, 23, 59, 59, tzinfo=BRT)
 
     stmt = (
-        select(
-            func.date(func.timezone("America/Sao_Paulo", Order.order_date)).label("dia"),
-            func.coalesce(func.sum(Order.net_amount), 0).label("valor"),
-        )
+        select(Order.order_date, Order.net_amount)
         .where(
             Order.ml_account_id == ml_account_id,
             Order.order_date >= start_dt,
             Order.order_date <= end_dt,
             Order.payment_status.notin_(["cancelled", "refunded", "rejected"]),
         )
-        .group_by("dia")
     )
     rows = (await db.execute(stmt)).all()
-    by_day = {r.dia.isoformat() if r.dia else "": float(r.valor or 0) for r in rows}
+
+    by_day: dict[str, float] = {}
+    for order_date, net_amount in rows:
+        if order_date is None:
+            continue
+        if order_date.tzinfo is None:
+            order_date = order_date.replace(tzinfo=timezone.utc)
+        day_key = order_date.astimezone(BRT).date().isoformat()
+        by_day[day_key] = by_day.get(day_key, 0.0) + float(net_amount or 0)
 
     result = []
     for i in range(7):
         d = start + timedelta(days=i)
-        result.append({"date": d.isoformat(), "valor": by_day.get(d.isoformat(), 0.0)})
+        result.append({"date": d.isoformat(), "valor": round(by_day.get(d.isoformat(), 0.0), 2)})
     return result
 
 
