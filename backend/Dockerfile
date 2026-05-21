@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY supervisord.conf /etc/supervisor/conf.d/msm_pro.conf
 
 # Cache-bust: force re-copy of application code
-ARG CACHEBUST=1
+ARG CACHEBUST=2
 COPY . .
 
 # Garante que o start.sh seja executável

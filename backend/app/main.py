@@ -49,7 +49,7 @@ from app.vendas.router import router as vendas_router
 
 _is_prod = settings.environment == "production"
 
-APP_VERSION = "1.0.3"
+APP_VERSION = "1.0.4"
 
 app = FastAPI(
     title="MSM_Pro API",
