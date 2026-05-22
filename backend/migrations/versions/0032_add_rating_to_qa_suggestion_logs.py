@@ -1,7 +1,7 @@
 """Add user_rating and user_comment to qa_suggestion_logs.
 
 Revision ID: 0032_rating_qa_logs
-Revises: 0031_add_item_title_to_orders
+Revises: 0031_item_title_orders
 Create Date: 2026-04-22 00:00:00.000000
 """
 from alembic import op
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 
 revision = "0032_rating_qa_logs"
-down_revision = "0031_add_item_title_to_orders"
+down_revision = "0031_item_title_orders"
 branch_labels = None
 depends_on = None
 
