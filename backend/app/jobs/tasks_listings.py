@@ -397,7 +397,11 @@ async def _sync_listing_snapshot_async(
             existing_snap = existing_snap_result.scalar_one_or_none()
             if existing_snap:
                 existing_snap.price = price
-                existing_snap.visits = visits
+                # Preserva visits anterior se o novo valor for 0 (provavel falha
+                # de API) e ja havia valor plausivel. Evita regressao do KPI
+                # quando uma re-sincronizacao retorna vazio.
+                if visits > 0 or not existing_snap.visits:
+                    existing_snap.visits = visits
                 existing_snap.sales_today = sales_today
                 existing_snap.questions = questions_count
                 existing_snap.stock = stock

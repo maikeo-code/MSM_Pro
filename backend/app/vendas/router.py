@@ -87,13 +87,16 @@ async def backfill_snapshots(
             detail=f"date_iso invalido: {date_iso}. Use YYYY-MM-DD.",
         )
 
-    # Busca listings ativos do usuario
+    # Busca listings ativos do usuario agrupados por conta ML
+    from collections import defaultdict
+
     from app.auth.models import MLAccount
+    from app.mercadolivre.client import MLClient
     from app.vendas.models import Listing
     from sqlalchemy import and_
 
     listings_query = (
-        select(Listing.id, Listing.mlb_id)
+        select(Listing.id, Listing.mlb_id, Listing.ml_account_id)
         .join(MLAccount, MLAccount.id == Listing.ml_account_id)
         .where(
             and_(
@@ -108,14 +111,44 @@ async def backfill_snapshots(
     if not rows:
         return {"dispatched": 0, "target_date": date_iso, "message": "Nenhum listing ativo"}
 
-    # Despacha 1 task por listing com snapshot_date_iso=target
+    # Agrupa por ml_account_id e busca visitas em bulk (1 chamada por conta)
+    # — abordagem CONFIAVEL (1 item por vez retorna lifetime no ML).
+    by_account: dict = defaultdict(list)
+    for row in rows:
+        by_account[row.ml_account_id].append(row)
+
+    visits_map: dict[str, int] = {}
+    for acc_id, listings in by_account.items():
+        acc = (await db.execute(
+            select(MLAccount).where(MLAccount.id == acc_id)
+        )).scalar_one_or_none()
+        if not acc or not acc.access_token:
+            continue
+        mlb_ids = [
+            (l.mlb_id.upper().replace("-", "") if l.mlb_id.upper().startswith("MLB") else f"MLB{l.mlb_id.upper().replace('-','')}")
+            for l in listings
+        ]
+        try:
+            async with MLClient(acc.access_token, ml_account_id=str(acc.id)) as client:
+                bulk = await client.get_items_visits_bulk(
+                    mlb_ids, date_from=date_iso, date_to=date_iso
+                )
+                visits_map.update(bulk)
+        except Exception:
+            pass
+
+    # Despacha 1 task por listing com visits_override do bulk
     from app.jobs.tasks import sync_listing_snapshot
 
     dispatched = 0
     for row in rows:
+        mlb_norm = row.mlb_id.upper().replace("-", "")
+        if not mlb_norm.startswith("MLB"):
+            mlb_norm = f"MLB{mlb_norm}"
+        v = visits_map.get(mlb_norm)
         sync_listing_snapshot.delay(
             str(row.id),
-            visits_override=None,  # busca individual (sem bulk para simplicidade)
+            visits_override=v,
             snapshot_date_iso=date_iso,
         )
         dispatched += 1
@@ -123,6 +156,7 @@ async def backfill_snapshots(
     return {
         "dispatched": dispatched,
         "target_date": date_iso,
+        "bulk_visits_obtained": len(visits_map),
         "message": f"Backfill enfileirado para {dispatched} listings — acompanhe em /health/sync",
     }
 
