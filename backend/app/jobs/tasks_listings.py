@@ -196,6 +196,23 @@ async def _sync_listing_snapshot_async(
             visits = 0
             if visits_override is not None:
                 visits = visits_override
+            elif snapshot_date < date_alias_top.today():
+                # Backfill: snapshot e de um dia passado. Busca visitas do dia
+                # EXATO via /visits/items (bulk para 1 item) com date_from=date_to=snapshot_date.
+                # NAO usar get_item_visits(days=1) que retorna ultimas 24h
+                # (misturaria hoje com snapshot_date).
+                try:
+                    mlb_norm = listing.mlb_id.upper().replace("-", "")
+                    if not mlb_norm.startswith("MLB"):
+                        mlb_norm = f"MLB{mlb_norm}"
+                    bulk = await client.get_items_visits_bulk(
+                        [mlb_norm],
+                        date_from=snapshot_date.isoformat(),
+                        date_to=snapshot_date.isoformat(),
+                    )
+                    visits = int(bulk.get(mlb_norm, 0) or 0)
+                except Exception:
+                    logger.debug(f"Backfill visits failed para {listing.mlb_id} em {snapshot_date}")
             else:
                 try:
                     visits_data = await client.get_item_visits(listing.mlb_id, days=1)
