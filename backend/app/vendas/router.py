@@ -118,11 +118,13 @@ async def backfill_snapshots(
         by_account[row.ml_account_id].append(row)
 
     visits_map: dict[str, int] = {}
+    debug_info = []
     for acc_id, listings in by_account.items():
         acc = (await db.execute(
             select(MLAccount).where(MLAccount.id == acc_id)
         )).scalar_one_or_none()
         if not acc or not acc.access_token:
+            debug_info.append(f"acc={acc_id} sem token")
             continue
         mlb_ids = [
             (l.mlb_id.upper().replace("-", "") if l.mlb_id.upper().startswith("MLB") else f"MLB{l.mlb_id.upper().replace('-','')}")
@@ -134,8 +136,9 @@ async def backfill_snapshots(
                     mlb_ids, date_from=date_iso, date_to=date_iso
                 )
                 visits_map.update(bulk)
-        except Exception:
-            pass
+                debug_info.append(f"acc={acc.nickname} mlb_count={len(mlb_ids)} bulk_result={len(bulk)} sample={list(bulk.items())[:2]}")
+        except Exception as e:
+            debug_info.append(f"acc={acc.nickname} ERROR: {type(e).__name__}: {str(e)[:150]}")
 
     # Despacha 1 task por listing com visits_override do bulk
     from app.jobs.tasks import sync_listing_snapshot
@@ -157,6 +160,7 @@ async def backfill_snapshots(
         "dispatched": dispatched,
         "target_date": date_iso,
         "bulk_visits_obtained": len(visits_map),
+        "debug": debug_info,
         "message": f"Backfill enfileirado para {dispatched} listings — acompanhe em /health/sync",
     }
 
