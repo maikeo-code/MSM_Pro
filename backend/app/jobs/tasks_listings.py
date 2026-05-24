@@ -199,8 +199,7 @@ async def _sync_listing_snapshot_async(
             elif snapshot_date < date_alias_top.today():
                 # Backfill: snapshot e de um dia passado. Busca visitas do dia
                 # EXATO via /visits/items (bulk para 1 item) com date_from=date_to=snapshot_date.
-                # NAO usar get_item_visits(days=1) que retorna ultimas 24h
-                # (misturaria hoje com snapshot_date).
+                # NAO usar get_item_visits(days=1) que retorna ultimas 24h.
                 try:
                     mlb_norm = listing.mlb_id.upper().replace("-", "")
                     if not mlb_norm.startswith("MLB"):
@@ -211,6 +210,15 @@ async def _sync_listing_snapshot_async(
                         date_to=snapshot_date.isoformat(),
                     )
                     visits = int(bulk.get(mlb_norm, 0) or 0)
+                    # SAFEGUARD: > 10000 visitas em 1 dia para 1 item e
+                    # implausivel — ML provavelmente retornou lifetime.
+                    # Descarta para nao poluir KPI.
+                    if visits > 10000:
+                        logger.warning(
+                            f"Backfill visits ABSURDO para {listing.mlb_id} em "
+                            f"{snapshot_date}: {visits} — usando 0 (provavel lifetime)"
+                        )
+                        visits = 0
                 except Exception:
                     logger.debug(f"Backfill visits failed para {listing.mlb_id} em {snapshot_date}")
             else:
