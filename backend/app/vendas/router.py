@@ -160,6 +160,11 @@ async def backfill_snapshots(
         "dispatched": dispatched,
         "target_date": date_iso,
         "bulk_visits_obtained": len(visits_map),
+        "warning": (
+            "Visitas via API ML para dias > 1 dia atras NAO sao confiaveis "
+            "(/visits/items pode retornar lifetime). Receita/pedidos sao "
+            "confiaveis pois vem da tabela orders local."
+        ) if len(visits_map) == 0 else None,
         "debug": debug_info,
         "message": f"Backfill enfileirado para {dispatched} listings — acompanhe em /health/sync",
     }

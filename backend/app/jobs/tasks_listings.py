@@ -210,10 +210,11 @@ async def _sync_listing_snapshot_async(
                         date_to=snapshot_date.isoformat(),
                     )
                     visits = int(bulk.get(mlb_norm, 0) or 0)
-                    # SAFEGUARD: > 10000 visitas em 1 dia para 1 item e
-                    # implausivel — ML provavelmente retornou lifetime.
-                    # Descarta para nao poluir KPI.
-                    if visits > 10000:
+                    # SAFEGUARD: > 3000 visitas em 1 dia para 1 item e
+                    # implausivel (>2 visitas/min 24/7). Quando ML responde
+                    # /visits/items com 1 unico item e date_from=date_to,
+                    # parece retornar lifetime — descarta.
+                    if visits > 3000:
                         logger.warning(
                             f"Backfill visits ABSURDO para {listing.mlb_id} em "
                             f"{snapshot_date}: {visits} — usando 0 (provavel lifetime)"
