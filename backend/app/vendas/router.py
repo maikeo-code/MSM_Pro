@@ -56,6 +56,77 @@ async def sync_listings(
     return await service.sync_listings_from_ml(db, current_user.id)
 
 
+@router.post("/backfill-snapshots")
+async def backfill_snapshots(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    date_iso: str = Query(
+        description="Data ISO (YYYY-MM-DD) a sincronizar como snapshot",
+    ),
+):
+    """
+    Backfill manual: dispara sync de snapshots para uma data passada.
+
+    Util quando o sync diario nao rodou em um dia especifico (ex: Postgres
+    saturado, container reiniciando) e o dashboard mostra vendas/visitas
+    zeradas naquele dia.
+
+    Despacha 1 task Celery por listing ativo, com snapshot_date_iso=date_iso.
+    Cada task chama API ML para visitas e pedidos do dia exato, e grava
+    snapshot com captured_at = date_iso 23:59 BRT.
+    """
+    from datetime import date as date_alias
+
+    # Valida data
+    try:
+        target = date_alias.fromisoformat(date_iso)
+    except ValueError:
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=f"date_iso invalido: {date_iso}. Use YYYY-MM-DD.",
+        )
+
+    # Busca listings ativos do usuario
+    from app.auth.models import MLAccount
+    from app.vendas.models import Listing
+    from sqlalchemy import and_
+
+    listings_query = (
+        select(Listing.id, Listing.mlb_id)
+        .join(MLAccount, MLAccount.id == Listing.ml_account_id)
+        .where(
+            and_(
+                MLAccount.user_id == current_user.id,
+                MLAccount.is_active == True,  # noqa: E712
+                Listing.status == "active",
+            )
+        )
+    )
+    rows = (await db.execute(listings_query)).fetchall()
+
+    if not rows:
+        return {"dispatched": 0, "target_date": date_iso, "message": "Nenhum listing ativo"}
+
+    # Despacha 1 task por listing com snapshot_date_iso=target
+    from app.jobs.tasks import sync_listing_snapshot
+
+    dispatched = 0
+    for row in rows:
+        sync_listing_snapshot.delay(
+            str(row.id),
+            visits_override=None,  # busca individual (sem bulk para simplicidade)
+            snapshot_date_iso=date_iso,
+        )
+        dispatched += 1
+
+    return {
+        "dispatched": dispatched,
+        "target_date": date_iso,
+        "message": f"Backfill enfileirado para {dispatched} listings — acompanhe em /health/sync",
+    }
+
+
 @router.get("/", response_model=list[ListingOut])
 async def list_listings(
     current_user: Annotated[User, Depends(get_current_user)],
