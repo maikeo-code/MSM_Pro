@@ -672,6 +672,12 @@ async def _kpi_single_day(
         receita_total = max(receita_total, float(ofb.receita_total))
         orders_fallback_ativo = True
 
+    # Quando o fallback Orders ativou, a `receita` (calculada do snapshot via
+    # price * sales_today) tambem pode estar zerada/incompleta. Preferimos a
+    # receita real dos Orders nessa situacao para o dashboard nao mostrar R$ 0
+    # quando ha vendas reais.
+    receita_orders = float(ofb.receita_total) if ofb else 0.0
+
     # Proteção: zera visitas apenas se snapshot está claramente corrompido
     # (visitas < vendas — impossível). Se fallback Orders ativou mas visitas
     # do snapshot são plausíveis (>= vendas reais), preserva visitas e
@@ -688,6 +694,9 @@ async def _kpi_single_day(
     vendas_concluidas = round(receita_total - cancelados_valor - devolucoes_valor, 2)
 
     receita_dia = float(row.receita) if row else 0.0
+    # Se Orders tem receita maior (mais confiavel), usa Orders.
+    if receita_orders > receita_dia:
+        receita_dia = receita_orders
 
     # Valor estoque é POSIÇÃO PONTUAL — para cada listing, usa o último
     # snapshot com captured_at <= fim_do_dia. Isso evita subestimar o estoque
@@ -837,10 +846,16 @@ async def _kpi_date_range(
         )
     )
     ofb = orders_query.fetchone()
+    receita_orders_range = float(ofb.receita_total) if ofb else 0.0
     if ofb and (int(ofb.vendas) > vendas or int(ofb.pedidos) > pedidos):
         vendas = max(vendas, int(ofb.vendas))
         pedidos = max(pedidos, int(ofb.pedidos))
-        receita_total = max(receita_total, float(ofb.receita_total))
+        receita_total = max(receita_total, receita_orders_range)
+
+    # receita do snapshot (price * sales_today) ja foi calculada acima como row.receita.
+    # Se Orders tem mais receita real, usa-a (evita R$ 0 quando ha vendas).
+    receita_snapshot = float(row.receita) if row else 0.0
+    receita_final = max(receita_snapshot, receita_orders_range)
 
     preco_medio = round(receita_total / vendas, 2) if vendas > 0 else 0.0
     preco_medio_por_venda = round(receita_total / pedidos, 2) if pedidos > 0 else 0.0
@@ -891,7 +906,7 @@ async def _kpi_date_range(
         "conversao": conversao,
         "anuncios": anuncios_count,
         "valor_estoque": valor_estoque,
-        "receita": float(row.receita) if row else 0.0,
+        "receita": receita_final,
         "pedidos": pedidos,
         "receita_total": receita_total,
         "preco_medio": preco_medio,
