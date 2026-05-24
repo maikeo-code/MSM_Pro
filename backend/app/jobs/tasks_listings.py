@@ -12,6 +12,9 @@ from datetime import date as date_type
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+# Timezone BRT (UTC-3) — usado pra registrar captured_at com final do dia BRT
+BRT = timezone(timedelta(hours=-3))
+
 from sqlalchemy import and_, select
 
 from app.auth.models import MLAccount
@@ -25,14 +28,27 @@ logger = logging.getLogger(__name__)
 
 
 async def _sync_listing_snapshot_async(
-    listing_id: str, visits_override: int | None = None
+    listing_id: str,
+    visits_override: int | None = None,
+    snapshot_date_iso: str | None = None,
 ):
     """
     Lógica assíncrona do sync de snapshot de um anúncio específico.
 
     visits_override: quando fornecido pelo bulk caller (_sync_all_snapshots_async),
-    pula a chamada individual de visitas e usa este valor diretamente.
+        pula a chamada individual de visitas e usa este valor diretamente.
+    snapshot_date_iso: data ISO (YYYY-MM-DD) que o snapshot representa. Default = hoje.
+        Usado pelo sync diario para criar snapshot DO DIA ANTERIOR (porque
+        roda na manha e busca dados de ontem). Sem isso, "ontem" ficaria
+        sem snapshot e o dashboard mostra visitas/vendas zeradas.
     """
+    from datetime import date as date_alias_top
+
+    snapshot_date = (
+        date_alias_top.fromisoformat(snapshot_date_iso)
+        if snapshot_date_iso
+        else date_alias_top.today()
+    )
     async with AsyncSessionLocal() as db:
         # Busca o listing com a conta ML
         result = await db.execute(
@@ -208,8 +224,11 @@ async def _sync_listing_snapshot_async(
                 # Busca TODOS os pedidos do dia (sem filtro de status restritivo).
                 # Exclui apenas cancelled/invalid no loop — status "paid",
                 # "confirmed", "payment_in_process", etc. são vendas válidas.
+                # Usa target_date para alinhar com snapshot_date.
                 all_orders_raw = await client.get_item_orders_by_status(
-                    listing.mlb_id, account.ml_user_id, days=1, status=None
+                    listing.mlb_id, account.ml_user_id,
+                    target_date=snapshot_date,
+                    status=None,
                 )
                 paid_orders = [
                     o for o in all_orders_raw
@@ -327,15 +346,27 @@ async def _sync_listing_snapshot_async(
             if visits > 0 and sales_today > 0:
                 conversion_rate = Decimal(str(round((sales_today / visits) * 100, 4)))
 
-            # Upsert snapshot: atualiza se já existe do mesmo dia, senão insere
-            from datetime import date as date_alias
-
+            # Upsert snapshot: atualiza se já existe do snapshot_date, senão insere.
+            # snapshot_date pode ser ontem (sync diario) ou hoje (sync horario).
             from sqlalchemy import Date, cast
+
+            # captured_at para representar dados do dia: meio-dia BRT do snapshot_date
+            # quando e um dia passado; agora() quando e hoje. Garante ordenacao
+            # cronologica correta no banco.
+            now_utc = datetime.now(timezone.utc)
+            if snapshot_date < date_alias_top.today():
+                snapshot_captured_at = datetime.combine(
+                    snapshot_date,
+                    datetime.min.time().replace(hour=23, minute=59, second=59),
+                    tzinfo=BRT,
+                ).astimezone(timezone.utc)
+            else:
+                snapshot_captured_at = now_utc
 
             existing_snap_result = await db.execute(
                 select(ListingSnapshot).where(
                     ListingSnapshot.listing_id == listing.id,
-                    cast(ListingSnapshot.captured_at, Date) == date_alias.today(),
+                    cast(ListingSnapshot.captured_at, Date) == snapshot_date,
                 ).order_by(ListingSnapshot.captured_at.desc()).limit(1)
             )
             existing_snap = existing_snap_result.scalar_one_or_none()
@@ -353,7 +384,7 @@ async def _sync_listing_snapshot_async(
                 existing_snap.cancelled_revenue = cancelled_revenue
                 existing_snap.returns_count = returns_count
                 existing_snap.returns_revenue = returns_revenue
-                existing_snap.captured_at = datetime.now(timezone.utc)
+                existing_snap.captured_at = snapshot_captured_at
             else:
                 snapshot = ListingSnapshot(
                     listing_id=listing.id,
@@ -370,6 +401,7 @@ async def _sync_listing_snapshot_async(
                     cancelled_revenue=cancelled_revenue,
                     returns_count=returns_count,
                     returns_revenue=returns_revenue,
+                    captured_at=snapshot_captured_at,
                 )
                 db.add(snapshot)
 
@@ -513,7 +545,16 @@ async def _sync_all_snapshots_async():
                 # caso contrário, a task buscará individualmente (fallback seguro)
                 visits_val = visits_map.get(mlb_normalized)
 
-                sync_listing_snapshot.delay(str(listing.id), visits_override=visits_val)
+                # Snapshot do DIA ANTERIOR (yesterday): essa task busca visitas
+                # de ontem (bulk) + pedidos do dia de ontem (target_date) e grava
+                # tudo num snapshot com captured_at=ontem 23:59 BRT. Assim
+                # "Ontem" no dashboard sempre tem dados, mesmo quando o sync
+                # so roda na manha seguinte.
+                sync_listing_snapshot.delay(
+                    str(listing.id),
+                    visits_override=visits_val,
+                    snapshot_date_iso=yesterday_str,
+                )
                 dispatched.append(str(listing.id))
 
             logger.info(f"Enfileiradas {len(dispatched)} tasks de snapshot")

@@ -241,7 +241,12 @@ class MLClient:
         return response.get("results", [])
 
     async def get_item_orders_by_status(
-        self, mlb_id: str, seller_id: str, days: int = 1, status: str | None = None
+        self,
+        mlb_id: str,
+        seller_id: str,
+        days: int = 1,
+        status: str | None = None,
+        target_date: "date | None" = None,
     ) -> list[dict]:
         """
         Busca pedidos de um anúncio com filtro opcional de status.
@@ -249,8 +254,11 @@ class MLClient:
         Args:
             mlb_id: ID do anúncio MLB
             seller_id: ID do vendedor ML
-            days: Número de dias para buscar (retroativos a partir de hoje)
+            days: Número de dias para buscar (retroativos a partir de hoje).
+                Ignorado se target_date for fornecido.
             status: Status do pedido (ex: "paid", "cancelled"). None = todos os status.
+            target_date: se fornecido, busca apenas pedidos do dia exato (00:00–23:59 BRT).
+                Usado pelo sync diario para popular snapshot do dia anterior corretamente.
 
         NOTA: o parâmetro "q" é uma busca textual — a API do ML não oferece filtro exato
         por item_id em /orders/search. A validação exata (garantir que o item no pedido
@@ -264,9 +272,13 @@ class MLClient:
         if not item_id.startswith("MLB"):
             item_id = f"MLB{item_id}"
 
-        date_from = date_type.today() - td(days=days - 1)
+        if target_date is not None:
+            date_from = target_date
+            date_to = target_date
+        else:
+            date_from = date_type.today() - td(days=days - 1)
+            date_to = date_type.today()
         date_from_str = f"{date_from.isoformat()}T00:00:00.000-03:00"
-        date_to = date_type.today()
         date_to_str = f"{date_to.isoformat()}T23:59:59.000-03:00"
 
         params = {

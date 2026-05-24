@@ -67,7 +67,12 @@ logger = logging.getLogger(__name__)
     max_retries=3,
     default_retry_delay=60,
 )
-def sync_listing_snapshot(self, listing_id: str, visits_override: int | None = None):
+def sync_listing_snapshot(
+    self,
+    listing_id: str,
+    visits_override: int | None = None,
+    snapshot_date_iso: str | None = None,
+):
     """
     Sincroniza snapshot de um anúncio específico.
     Chama a API ML e salva o snapshot no banco.
@@ -77,7 +82,11 @@ def sync_listing_snapshot(self, listing_id: str, visits_override: int | None = N
     """
     try:
         return run_async(
-            _sync_listing_snapshot_async(listing_id, visits_override=visits_override)
+            _sync_listing_snapshot_async(
+                listing_id,
+                visits_override=visits_override,
+                snapshot_date_iso=snapshot_date_iso,
+            )
         )
     except Exception as exc:
         logger.error(f"Erro ao sincronizar snapshot de {listing_id}: {exc}")
