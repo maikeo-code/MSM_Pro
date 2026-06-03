@@ -922,6 +922,14 @@ async def get_rentabilidade_por_sku(
                 "cost": prod.cost,
             }
 
+    # Aliquota de imposto do usuario (Simples Nacional etc.) — incide sobre a
+    # receita bruta, igual ao DRE. Sem tax_config (ou malformado) => 0.
+    tax_cfg = await get_tax_config(db, user_id)
+    try:
+        aliquota = Decimal(str(tax_cfg["aliquota_efetiva"])) if tax_cfg else Decimal("0")
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        aliquota = Decimal("0")
+
     # Agrupar por product_id
     by_sku: dict[str, dict] = {}
     for row in listing_rows:
@@ -934,6 +942,7 @@ async def get_rentabilidade_por_sku(
                 "listings": [],
                 "receita_total": Decimal("0"),
                 "custo_total": Decimal("0"),
+                "imposto_total": Decimal("0"),
                 "num_vendas": 0,
             }
 
@@ -943,11 +952,12 @@ async def get_rentabilidade_por_sku(
         taxa_valor = (rev * taxa_pct).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         frete_unit = Decimal(str(row.avg_shipping_cost or 0))
         frete_listing = (frete_unit * orders).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        imposto_listing = (rev * aliquota).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         receita_liquida = rev - taxa_valor - frete_listing
 
         custo_unitario = by_sku[product_id_str]["cost_unitario"]
         custo_listing = (custo_unitario * orders).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        margem = receita_liquida - custo_listing
+        margem = receita_liquida - custo_listing - imposto_listing
 
         by_sku[product_id_str]["listings"].append({
             "mlb_id": row.mlb_id,
@@ -957,6 +967,7 @@ async def get_rentabilidade_por_sku(
         })
         by_sku[product_id_str]["receita_total"] += receita_liquida
         by_sku[product_id_str]["custo_total"] += custo_listing
+        by_sku[product_id_str]["imposto_total"] += imposto_listing
         by_sku[product_id_str]["num_vendas"] += orders
 
     # Montar resultado final
@@ -967,7 +978,8 @@ async def get_rentabilidade_por_sku(
     for product_id_str, sku_data in by_sku.items():
         receita = sku_data["receita_total"]
         custo = sku_data["custo_total"]
-        margem = receita - custo
+        imposto = sku_data["imposto_total"]
+        margem = receita - custo - imposto
         margem_pct = (
             (margem / receita * 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             if receita > 0

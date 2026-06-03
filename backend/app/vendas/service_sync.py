@@ -57,6 +57,26 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
     updated = 0
     errors = []
 
+    # Mapa SKU -> product_id para auto-vincular anuncios aos produtos cadastrados.
+    # O seller_sku do anuncio pode conter o SKU de 8 digitos (eventualmente
+    # varios, separados por " | " em anuncios com variacao).
+    import re as _re
+
+    from app.produtos.models import Product
+
+    prod_rows = await db.execute(
+        select(Product.id, Product.sku).where(Product.user_id == user_id)
+    )
+    sku_to_product_id = {sku: pid for pid, sku in prod_rows.all()}
+
+    def _match_product_id(seller_sku: str | None):
+        if not seller_sku:
+            return None
+        for tok in _re.findall(r"\d{8}", seller_sku):
+            if tok in sku_to_product_id:
+                return sku_to_product_id[tok]
+        return None
+
     for account in accounts:
         if not account.access_token:
             continue
@@ -206,6 +226,25 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                             except Exception:
                                 pass  # fallback para taxa fixa
 
+                        # Custo do frete GRATIS pago pelo vendedor (itens > limite ML).
+                        # Para itens sem free_shipping o comprador paga => custo 0.
+                        # Falha-segura: se a API nao retornar, mantem None.
+                        avg_shipping_cost = None
+                        if shipping.get("free_shipping"):
+                            try:
+                                frete_cost = await client.get_free_shipping_cost(
+                                    seller_id=account.ml_user_id,
+                                    item_id=mlb_id,
+                                    listing_type_id=listing_type_raw,
+                                    logistic_type=shipping.get("logistic_type"),
+                                )
+                                if frete_cost is not None:
+                                    avg_shipping_cost = frete_cost
+                            except Exception:
+                                pass
+                        else:
+                            avg_shipping_cost = Decimal("0")
+
                         if listing:
                             listing.title = item.get("title", listing.title)
                             listing.price = price
@@ -216,10 +255,17 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                             listing.permalink = item.get("permalink")
                             listing.category_id = category_id
                             listing.seller_sku = seller_sku
+                            # Auto-vincula ao produto cadastrado se ainda nao vinculado
+                            if listing.product_id is None:
+                                matched_pid = _match_product_id(seller_sku)
+                                if matched_pid is not None:
+                                    listing.product_id = matched_pid
                             if sale_fee_amount is not None:
                                 listing.sale_fee_amount = sale_fee_amount
                             if sale_fee_pct is not None:
                                 listing.sale_fee_pct = sale_fee_pct
+                            if avg_shipping_cost is not None:
+                                listing.avg_shipping_cost = avg_shipping_cost
                             # Calcula quality_score durante sync
                             listing.quality_score = calculate_quality_score_quick(listing)
                             await db.flush()
@@ -239,8 +285,10 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                                 permalink=item.get("permalink"),
                                 category_id=category_id,
                                 seller_sku=seller_sku,
+                                product_id=_match_product_id(seller_sku),
                                 sale_fee_amount=sale_fee_amount,
                                 sale_fee_pct=sale_fee_pct,
+                                avg_shipping_cost=avg_shipping_cost,
                             )
                             # Calcula quality_score para novo listing
                             listing.quality_score = calculate_quality_score_quick(listing)

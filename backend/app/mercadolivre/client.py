@@ -687,6 +687,52 @@ class MLClient:
             # Se falhar, retorna dict vazio (fallback para taxa padrão)
             return {"percentage_fee": 0, "fixed_fee": 0, "sale_fee_amount": 0}
 
+    async def get_free_shipping_cost(
+        self,
+        seller_id: int | str,
+        item_id: str,
+        listing_type_id: str | None = None,
+        logistic_type: str | None = None,
+    ):
+        """
+        Custo do frete GRATIS pago pelo VENDEDOR para um item (ME2).
+        GET /users/{seller_id}/shipping_options/free?item_id={item_id}&free_shipping=true
+
+        Retorna o custo (Decimal) que o ML cobra do vendedor por oferecer frete
+        gratis, ou None se indisponivel/inaplicavel. Fonte: coverage.all_country.list_cost.
+
+        Falha-seguro: qualquer erro retorna None (nao quebra o sync).
+        """
+        from decimal import Decimal as _Decimal
+
+        try:
+            params = {
+                "item_id": item_id,
+                "free_shipping": "true",
+                "verbose": "false",
+            }
+            if listing_type_id:
+                params["listing_type_id"] = listing_type_id
+            if logistic_type:
+                params["logistic_type"] = logistic_type
+            data = await self._request(
+                "GET", f"/users/{seller_id}/shipping_options/free", params=params
+            )
+            cost = (
+                (data or {})
+                .get("coverage", {})
+                .get("all_country", {})
+                .get("list_cost")
+            )
+            if cost is not None:
+                value = _Decimal(str(cost))
+                return value if value >= 0 else None
+        except MLClientError:
+            pass
+        except Exception:
+            pass
+        return None
+
     async def get_seller_reputation(self, seller_id: str) -> dict:
         """
         Busca dados de reputacao do vendedor.
