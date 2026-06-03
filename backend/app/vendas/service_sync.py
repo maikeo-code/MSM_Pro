@@ -226,25 +226,6 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                             except Exception:
                                 pass  # fallback para taxa fixa
 
-                        # Custo do frete GRATIS pago pelo vendedor (itens > limite ML).
-                        # Para itens sem free_shipping o comprador paga => custo 0.
-                        # Falha-segura: se a API nao retornar, mantem None.
-                        avg_shipping_cost = None
-                        if shipping.get("free_shipping"):
-                            try:
-                                frete_cost = await client.get_free_shipping_cost(
-                                    seller_id=account.ml_user_id,
-                                    item_id=mlb_id,
-                                    listing_type_id=listing_type_raw,
-                                    logistic_type=shipping.get("logistic_type"),
-                                )
-                                if frete_cost is not None:
-                                    avg_shipping_cost = frete_cost
-                            except Exception:
-                                pass
-                        else:
-                            avg_shipping_cost = Decimal("0")
-
                         if listing:
                             listing.title = item.get("title", listing.title)
                             listing.price = price
@@ -264,8 +245,6 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                                 listing.sale_fee_amount = sale_fee_amount
                             if sale_fee_pct is not None:
                                 listing.sale_fee_pct = sale_fee_pct
-                            if avg_shipping_cost is not None:
-                                listing.avg_shipping_cost = avg_shipping_cost
                             # Calcula quality_score durante sync
                             listing.quality_score = calculate_quality_score_quick(listing)
                             await db.flush()
@@ -288,7 +267,6 @@ async def sync_listings_from_ml(db: AsyncSession, user_id: UUID) -> dict:
                                 product_id=_match_product_id(seller_sku),
                                 sale_fee_amount=sale_fee_amount,
                                 sale_fee_pct=sale_fee_pct,
-                                avg_shipping_cost=avg_shipping_cost,
                             )
                             # Calcula quality_score para novo listing
                             listing.quality_score = calculate_quality_score_quick(listing)

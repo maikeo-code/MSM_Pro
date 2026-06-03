@@ -442,11 +442,27 @@ async def _sync_listing_snapshot_async(
             listing.status = status
             listing.category_id = category_id
             listing.seller_sku = seller_sku
-            # Atualiza frete medio real quando disponivel
-            if shipping_orders_count > 0:
-                listing.avg_shipping_cost = (
-                    total_shipping_cost / shipping_orders_count
-                ).quantize(Decimal("0.01"))
+            # Frete grátis: itens acima do limite ML (free_shipping=true) sao pagos
+            # pelo VENDEDOR. Busca o custo real via API ML (shipping_options/free)
+            # como fonte primaria — mais confiavel que a media das orders, que pode
+            # vir 0 quando o shipment nao expoe cost_components.sender_cost.
+            # Itens sem free_shipping => comprador paga => 0.
+            item_shipping = item_data.get("shipping") or {}
+            if item_shipping.get("free_shipping"):
+                frete_ml = await client.get_free_shipping_cost(
+                    seller_id=account.ml_user_id,
+                    item_id=listing.mlb_id,
+                    listing_type_id=listing_type_raw,
+                    logistic_type=item_shipping.get("logistic_type"),
+                )
+                if frete_ml is not None:
+                    listing.avg_shipping_cost = frete_ml
+                elif shipping_orders_count > 0:
+                    listing.avg_shipping_cost = (
+                        total_shipping_cost / shipping_orders_count
+                    ).quantize(Decimal("0.01"))
+            else:
+                listing.avg_shipping_cost = Decimal("0")
             # Calcula quality_score
             from app.vendas.service import calculate_quality_score_quick
 
