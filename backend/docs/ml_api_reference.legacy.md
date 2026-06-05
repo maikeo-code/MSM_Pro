@@ -1,12 +1,6 @@
-# ML API Reference — MSM_Pro  (⚠️ SUPERADO — ver canônico)
-#
-# >>> ESTE ARQUIVO FOI SUPERADO PELA AUDITORIA ARCH-014 (2026-06-03). <<<
-# >>> FONTE DA VERDADE ATUAL: `backend/docs/ml_endpoints_canonical.md` <<<
-# >>> Espelho Obsidian: 02 - API Mercado Livre/Endpoints Usados.md <<<
-# Mantido apenas como histórico/transição (cópia integral em ml_api_reference.legacy.md).
-#
+# ML API Reference — MSM_Pro
 # Fonte da verdade para todos os endpoints da API do Mercado Livre usados no projeto.
-# SEMPRE leia o canônico antes de implementar ou modificar qualquer chamada à API ML.
+# SEMPRE leia este arquivo antes de implementar ou modificar qualquer chamada à API ML.
 
 Base URL: `https://api.mercadolibre.com`
 Documentação oficial: https://developers.mercadolivre.com.br/pt_br/api-docs-pt-br
