@@ -79,34 +79,49 @@ class TestGetListing:
 
 class TestServiceHealth:
     def test_calculate_quality_score_quick_basico(self):
-        """calculate_quality_score_quick retorna float entre 0 e 100."""
+        """calculate_quality_score_quick retorna inteiro entre 0 e 100."""
+        from types import SimpleNamespace
         from app.vendas.service_health import calculate_quality_score_quick
 
-        result = calculate_quality_score_quick(
-            visits=100,
-            sales_today=5,
-            stock=10,
-            conversion_rate=5.0,
+        listing = SimpleNamespace(
+            title="Produto de teste",
+            thumbnail="http://x/img.jpg",
+            listing_type="classico",
+            status="active",
+            price=50.0,
         )
+        result = calculate_quality_score_quick(listing)
         assert 0 <= result <= 100
 
-    def test_zero_visitas_retorna_score_baixo(self):
-        """Zero visitas → score baixo."""
+    def test_listing_pobre_retorna_score_baixo(self):
+        """Listing sem thumbnail/título curto/inativo → score baixo."""
+        from types import SimpleNamespace
         from app.vendas.service_health import calculate_quality_score_quick
 
-        result = calculate_quality_score_quick(
-            visits=0, sales_today=0, stock=10, conversion_rate=0.0
+        listing = SimpleNamespace(
+            title="X",
+            thumbnail=None,
+            listing_type="classico",
+            status="paused",
+            price=0,
         )
-        assert result < 50.0
+        result = calculate_quality_score_quick(listing)
+        assert result < 50
 
-    def test_boas_metricas_retorna_score_alto(self):
-        """Boas métricas → score alto."""
+    def test_listing_rico_retorna_score_alto(self):
+        """Listing completo (título longo, thumb, full, ativo, com preço) → score alto."""
+        from types import SimpleNamespace
         from app.vendas.service_health import calculate_quality_score_quick
 
-        result = calculate_quality_score_quick(
-            visits=500, sales_today=25, stock=100, conversion_rate=5.0
+        listing = SimpleNamespace(
+            title="Produto premium com titulo bem descritivo e longo o suficiente aqui",
+            thumbnail="http://x/img.jpg",
+            listing_type="full",
+            status="active",
+            price=99.9,
         )
-        assert result > 50.0
+        result = calculate_quality_score_quick(listing)
+        assert result > 50
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -120,12 +135,10 @@ class TestFinanceiroServiceAdditional:
     def test_parse_period_todos_valores(self):
         """_parse_period aceita todos os valores suportados."""
         from app.financeiro.service import _parse_period
-        from datetime import date
 
-        today = date(2026, 4, 16)
         for period in ["7d", "15d", "30d", "60d", "90d", "mtd", "custom"]:
-            result = _parse_period(period, today, today)
-            # Deve retornar tupla de 2 datas
+            result = _parse_period(period)
+            # Deve retornar tupla de 2 datas (valores não suportados caem no default 30d)
             assert len(result) == 2
 
     def test_calcular_margem_listing_type_full(self):
@@ -138,7 +151,7 @@ class TestFinanceiroServiceAdditional:
             listing_type="full",
         )
         # Taxa full = 16% → 100 - 16 - 50 = 34
-        assert result["margem_valor"] == Decimal("34.00")
+        assert result["margem_bruta"] == Decimal("34.00")
 
     def test_calcular_margem_com_frete_e_taxa(self):
         """Margem com frete e sale_fee_pct explícito."""
@@ -149,10 +162,10 @@ class TestFinanceiroServiceAdditional:
             custo=Decimal("40.00"),
             listing_type="classico",
             frete=Decimal("10.00"),
-            sale_fee_pct=Decimal("11.0"),
+            sale_fee_pct=Decimal("0.11"),  # fração (11%), não percentual
         )
         # 100 - 11 - 40 - 10 = 39
-        assert result["margem_valor"] == Decimal("39.00")
+        assert result["margem_bruta"] == Decimal("39.00")
 
     def test_calcular_taxa_ml_premium(self):
         """Listing type 'premium' → taxa 16%."""
@@ -187,4 +200,4 @@ class TestFinanceiroServiceAdditional:
             custo=Decimal("60.00"),
             listing_type="classico",
         )
-        assert result["margem_valor"] < 0
+        assert result["margem_bruta"] < 0
