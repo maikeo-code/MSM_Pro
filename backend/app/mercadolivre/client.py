@@ -8,6 +8,21 @@ from app.core.config import settings
 
 ML_API_BASE = "https://api.mercadolibre.com"
 
+# IDs dos Agentes de Mensageria pós-venda (nova arquitetura ML, desde 02/02/2026).
+# Em MLB/MLC o campo `to.user_id` ao enviar mensagem deve ser o ID do Agente do site,
+# não o ID do comprador. Fonte: doc oficial `mensagens-post-venda` (MCP ML, 2026-06-08).
+ML_MESSAGING_AGENT_IDS = {
+    "MLC": "3020819166",  # Chile
+    "MCO": "3037204123",  # Colômbia
+    "MLM": "3037204279",  # México
+    "MLA": "3037674934",  # Argentina
+    "MLB": "3037675074",  # Brasil
+    "MLU": "3037204685",  # Outros
+}
+ML_DEFAULT_SITE = "MLB"
+# Limite oficial de caracteres por mensagem pós-venda ao comprador.
+ML_MESSAGE_MAX_LEN = 350
+
 # ---------------------------------------------------------------------------
 # Distributed rate limiter via Redis SETNX
 # Garante 1 req/seg GLOBAL (entre todos os workers Celery + API)
@@ -433,10 +448,12 @@ class MLClient:
         if top_deal_price is not None:
             payload["top_deal_price"] = top_deal_price
 
+        # Doc oficial (desconto-individua): a query só leva app_version=v2.
+        # `user_id` NÃO existe no contrato oficial — removido (reverif. MCP 2026-06-08).
         return await self._request(
             "POST",
             f"/seller-promotions/items/{item_id}",
-            params={"user_id": seller_id},
+            params={"app_version": "v2"},
             json=payload,
         )
 
@@ -469,10 +486,12 @@ class MLClient:
         if not item_id.startswith("MLB"):
             item_id = f"MLB{item_id}"
 
+        # Doc oficial (desconto-individua): delete individual usa promotion_type+app_version=v2.
+        # `user_id` NÃO existe no contrato oficial — removido (reverif. MCP 2026-06-08).
         return await self._request(
             "DELETE",
             f"/seller-promotions/items/{item_id}",
-            params={"user_id": seller_id, "promotion_type": promotion_type},
+            params={"promotion_type": promotion_type, "app_version": "v2"},
         )
 
     # Mantido por compatibilidade — DEPRECADO: usar create_price_discount_promotion()
@@ -753,17 +772,39 @@ class MLClient:
         """Busca todas as perguntas não respondidas do seller."""
         return await self._request("GET", "/my/received_questions/search", params={"status": "UNANSWERED"})
 
-    async def get_my_open_claims(self) -> dict:
-        """Busca todas as reclaçmões abertas do seller."""
-        return await self._request("GET", "/post-purchase/v1/claims/search", params={"status": "opened"})
+    async def get_my_open_claims(self, seller_id: str | int) -> dict:
+        """Busca todas as reclamações abertas do seller.
 
-    async def get_my_open_mediations(self) -> dict:
+        Doc oficial (gerenciar-reclamacoes): claims/search exige ≥1 filtro real.
+        `status` sozinho é ineficiente/arriscado — usar players.user_id + players.role.
+        """
+        try:
+            return await self._request(
+                "GET",
+                "/post-purchase/v1/claims/search",
+                params={
+                    "players.user_id": str(seller_id),
+                    "players.role": "respondent",
+                    "status": "opened",
+                    "limit": 100,
+                },
+            )
+        except MLClientError:
+            return {"data": [], "paging": {"total": 0}}
+
+    async def get_my_open_mediations(self, seller_id: str | int) -> dict:
         """Busca mediacoes abertas (claims escaladas para o Mercado Livre)."""
         try:
             return await self._request(
                 "GET",
                 "/post-purchase/v1/claims/search",
-                params={"status": "opened", "stage": "dispute"},
+                params={
+                    "players.user_id": str(seller_id),
+                    "players.role": "respondent",
+                    "status": "opened",
+                    "stage": "dispute",
+                    "limit": 100,
+                },
             )
         except MLClientError:
             return {"data": [], "paging": {"total": 0}}
@@ -852,10 +893,13 @@ class MLClient:
         if not item_id.startswith("MLB"):
             item_id = f"MLB{item_id}"
 
+        # Doc oficial (perguntas-e-respostas): o exemplo executável usa `item_id`
+        # (a tabela cita `item`, mas o curl oficial usa `item_id`). api_version=4
+        # recomendado; status em maiúsculo conforme available_filters.
         return await self._request(
             "GET",
             "/questions/search",
-            params={"item": item_id, "status": "unanswered"},
+            params={"item_id": item_id, "status": "UNANSWERED", "api_version": "4"},
         )
 
     async def get_items_visits_bulk(
@@ -1043,24 +1087,32 @@ class MLClient:
     async def get_claims(
         self,
         seller_id: str,
-        status: str = "open",
+        status: str = "opened",
         offset: int = 0,
         limit: int = 50,
     ) -> dict:
         """
         Busca reclamações do vendedor.
-        GET /v1/claims/search?status={status}&offset={offset}&limit={limit}
-        O seller_id é derivado do token (autenticação implícita).
+        GET /post-purchase/v1/claims/search?players.user_id={seller}&players.role=respondent&status={status}
+
+        Doc oficial (gerenciar-reclamacoes): claims/search exige ≥1 filtro real;
+        `status`/paginação sozinhos retornam 400 ou são ineficientes. Por isso enviamos
+        sempre players.user_id + players.role=respondent. `status` válido: opened|closed
+        (qualquer outro valor legado é normalizado). offset máx 9999, limit máx 100.
         """
+        _st = str(status or "").lower()
+        status_param = "closed" if _st == "closed" else "opened"
         try:
             return await self._request(
                 "GET",
                 "/post-purchase/v1/claims/search",
                 params={
-                    "status": status,
-                    "offset": offset,
-                    "limit": limit,
-                    "sort": "date_created:DESC",
+                    "players.user_id": str(seller_id),
+                    "players.role": "respondent",
+                    "status": status_param,
+                    "offset": min(offset, 9999),
+                    "limit": min(limit, 100),
+                    "sort": "date_created:desc",
                 },
             )
         except MLClientError:
@@ -1073,15 +1125,30 @@ class MLClient:
         """
         return await self._request("GET", f"/post-purchase/v1/claims/{claim_id}")
 
-    async def send_claim_message(self, claim_id: int, message: str) -> dict:
+    async def send_claim_message(
+        self,
+        claim_id: int,
+        message: str,
+        receiver_role: str = "complainant",
+        attachments: list[str] | None = None,
+    ) -> dict:
         """
         Envia mensagem numa reclamação.
-        POST /v1/claims/{claim_id}/messages
+        POST /post-purchase/v1/claims/{claim_id}/actions/send-message
+
+        Doc oficial (gerenciar-mensagem-de-uma-eclamacao): o POST de criação é em
+        `/actions/send-message` (o `/messages` é somente GET). O body exige
+        `receiver_role` ∈ {complainant, respondent, mediator} — deve corresponder a uma
+        `available_actions` do claim (send_message_to_complainant / _mediator). Default
+        complainant (vendedor → comprador na etapa claim). Resposta 201.
         """
+        body: dict = {"receiver_role": receiver_role, "message": message}
+        if attachments:
+            body["attachments"] = attachments
         return await self._request(
             "POST",
-            f"/post-purchase/v1/claims/{claim_id}/messages",
-            json={"message": message},
+            f"/post-purchase/v1/claims/{claim_id}/actions/send-message",
+            json=body,
         )
 
     # -----------------------------------------------------------------------
@@ -1099,27 +1166,53 @@ class MLClient:
         GET /messages/packs/{pack_id}/sellers/{seller_id}
         GET /messages/orders/{order_id}
         """
+        # Doc oficial (mensagens-post-venda): consultas pós-venda exigem ?tag=post_sale.
+        # O order_id também usa o path /packs (mantendo a estrutura). GET marca como lido.
         try:
             if pack_id and seller_id:
                 return await self._request(
                     "GET",
                     f"/messages/packs/{pack_id}/sellers/{seller_id}",
+                    params={"tag": "post_sale"},
                 )
             elif order_id:
-                return await self._request("GET", f"/messages/orders/{order_id}")
+                return await self._request(
+                    "GET",
+                    f"/messages/orders/{order_id}",
+                    params={"tag": "post_sale"},
+                )
             return {"messages": []}
         except MLClientError:
             return {"messages": []}
 
-    async def send_message(self, pack_id: str, text: str, seller_id: str) -> dict:
+    async def send_message(
+        self,
+        pack_id: str,
+        text: str,
+        seller_id: str,
+        to_user_id: str | None = None,
+        site_id: str = ML_DEFAULT_SITE,
+    ) -> dict:
         """
         Envia mensagem num pack de conversa pós-venda.
-        POST /messages/packs/{pack_id}/sellers/{seller_id}
+        POST /messages/packs/{pack_id}/sellers/{seller_id}?tag=post_sale
+
+        Doc oficial (mensagens-post-venda): `to.user_id` é OBRIGATÓRIO. Desde 02/02/2026,
+        em MLB/MLC ele deve ser o ID do Agente de Mensageria do site (não o comprador) —
+        o agente faz a entrega final. `?tag=post_sale` obrigatório. Limite de 350 chars.
         """
+        agent_id = to_user_id or ML_MESSAGING_AGENT_IDS.get(
+            site_id, ML_MESSAGING_AGENT_IDS[ML_DEFAULT_SITE]
+        )
         return await self._request(
             "POST",
             f"/messages/packs/{pack_id}/sellers/{seller_id}",
-            json={"from": {"user_id": seller_id}, "text": text},
+            params={"tag": "post_sale"},
+            json={
+                "from": {"user_id": str(seller_id)},
+                "to": {"user_id": str(agent_id)},
+                "text": text[:ML_MESSAGE_MAX_LEN],
+            },
         )
 
     async def get_message_packs(
@@ -1156,18 +1249,25 @@ class MLClient:
         limit: int = 50,
     ) -> dict:
         """
-        Busca devoluções — no ML são claims com type=returns.
-        GET /v1/claims/search?type=returns
+        Busca devoluções — no ML são claims com type=return.
+        GET /post-purchase/v1/claims/search?players.user_id={seller}&players.role=respondent&type=return
+
+        Doc oficial (gerenciar-reclamacoes): o filtro é `type=return` (o parâmetro
+        `claim_type` NÃO existe). Exige players.user_id+players.role. Para os dados da
+        devolução em si (envio de retorno, refund), consultar depois
+        GET /post-purchase/v2/claims/{claim_id}/returns. (reverif. MCP 2026-06-08)
         """
         try:
             return await self._request(
                 "GET",
                 "/post-purchase/v1/claims/search",
                 params={
-                    "claim_type": "return",
-                    "offset": offset,
-                    "limit": limit,
-                    "sort": "date_created:DESC",
+                    "players.user_id": str(seller_id),
+                    "players.role": "respondent",
+                    "type": "return",
+                    "offset": min(offset, 9999),
+                    "limit": min(limit, 100),
+                    "sort": "date_created:desc",
                 },
             )
         except MLClientError:

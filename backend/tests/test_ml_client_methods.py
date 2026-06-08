@@ -456,8 +456,10 @@ class TestSendClaimMessage:
         client._request = AsyncMock(return_value={})
         await client.send_claim_message(888, "Mensagem teste")
         call = client._request.call_args
-        assert "/v1/claims/888/messages" in call[0][1]
+        # Doc oficial: POST de criação é /actions/send-message com receiver_role+message.
+        assert "/v1/claims/888/actions/send-message" in call[0][1]
         assert call[1]["json"]["message"] == "Mensagem teste"
+        assert call[1]["json"]["receiver_role"] == "complainant"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

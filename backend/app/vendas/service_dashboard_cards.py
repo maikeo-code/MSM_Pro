@@ -66,8 +66,8 @@ async def _fetch_account_data(db: AsyncSession, acc: MLAccount) -> dict:
             ) = await asyncio.gather(
                 client.get_seller_reputation(acc.ml_user_id),
                 client.get_my_unanswered_questions(),
-                client.get_my_open_claims(),
-                client.get_my_open_mediations(),
+                client.get_my_open_claims(acc.ml_user_id),
+                client.get_my_open_mediations(acc.ml_user_id),
                 client.get_unread_messages_count(acc.ml_user_id),
                 client.get_mp_balance(acc.ml_user_id),
                 client.get_full_inventory_summary(acc.ml_user_id),

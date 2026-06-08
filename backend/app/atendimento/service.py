@@ -320,10 +320,9 @@ async def get_all_atendimentos(
             if type_filter is None or type_filter == "reclamacao":
                 # Se status_filter especificado, buscar apenas aquele
                 # Caso contrário, buscar múltiplos statuses relevantes
+                # Doc oficial: status de claim válido é apenas opened|closed.
                 claim_statuses_to_search = [status_filter] if status_filter else [
-                    "open",
                     "opened",
-                    "waiting_for_seller_response",
                 ]
 
                 for cl_status in claim_statuses_to_search:
@@ -334,10 +333,10 @@ async def get_all_atendimentos(
                             limit=50,
                         )
                         claims_raw = cl_data.get("data", cl_data.get("results", []))
-                        # Excluir devoluções (API ML usa 'claim_type' == 'return')
+                        # Excluir devoluções (API ML usa o campo 'type' == 'return')
                         claims_only = [
                             c for c in claims_raw
-                            if c.get("claim_type", "").lower() != "return"
+                            if str(c.get("type", "")).lower() != "return"
                         ]
                         parsed_cl = _parse_claims(claims_only, "reclamacao", account, seen_claim_ids)
                         all_items.extend(parsed_cl)

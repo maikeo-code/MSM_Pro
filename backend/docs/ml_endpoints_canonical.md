@@ -2,7 +2,13 @@
 
 > **Este é o arquivo canônico.** Substitui `ml_api_reference.md` (mantido como `.legacy.md` para histórico).
 > Validado contra a documentação oficial do Mercado Livre via **MCP oficial** (`mcp.mercadolibre.com`)
-> em **2026-06-03** (auditoria ARCH-014). Antes de implementar/alterar qualquer chamada ML, consulte aqui.
+> em **2026-06-03** (auditoria ARCH-014) e **reverificado em 2026-06-08** (ver `_audit/reverificacao_mcp_2026-06-08.md`).
+> Antes de implementar/alterar qualquer chamada ML, consulte aqui.
+>
+> **Atualizações da reverificação 2026-06-08:** (1) `send_claim_message` é ❌ DIVERGENTE — o POST oficial é
+> `/post-purchase/v1/claims/{id}/actions/send-message` com `{receiver_role, message}` (o `/messages` é só GET);
+> (2) `create_price_discount_promotion` e `delete_price_discount_promotion` enviam `user_id` **inexistente** na
+> doc — remover (no delete, `promotion_type` **é válido**); (3) `get_item_questions` → usar `item_id` (a doc oficial é ambígua: tabela diz `item`, exemplo usa `item_id`).
 > Espelho no cérebro: `Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/02 - API Mercado Livre/Endpoints Usados.md`.
 
 Base URL: `https://api.mercadolibre.com` · Cliente: `backend/app/mercadolivre/client.py` (`MLClient._request`).
@@ -44,8 +50,8 @@ Docs oficiais (paths do MCP, idioma pt_br): citados em cada bloco como **[doc: <
 | Método | Endpoint | Status | Nota |
 |---|---|---|---|
 | get_item_promotions | GET /seller-promotions/items/{id}?app_version=v2 | ✅ OK | Retorna todas as ofertas do item (PRICE_DISCOUNT, DEAL, DOD, LIGHTNING, SELLER_CAMPAIGN, MARKETPLACE_CAMPAIGN, VOLUME, SMART, BANK, SELLER_COUPON_CAMPAIGN...). Campos: `type, status(candidate/started/pending), price, original_price, min/max/suggested_discounted_price`. |
-| create_price_discount_promotion | POST /seller-promotions/items/{id}?user_id={seller} body {promotion_type:PRICE_DISCOUNT, deal_price, start_date, finish_date} | ⚠️ CONFIRMAR | Estrutura plausível; **a página `desconto-individua` (Ofrecer desconto individual) deve confirmar o body exato** antes de produção. `app_version=v2` recomendado. Validar com curl (item de teste). |
-| delete_price_discount_promotion | DELETE /seller-promotions/items/{id}?user_id&promotion_type | ❌ DIVERGENTE | O **delete massivo oficial** é `DELETE /seller-promotions/items/{id}?app_version=v2` (sem `user_id`/`promotion_type`); remove todas exceto DOD/LIGHTNING e responde `{successful_ids, errors}`. Delete individual de PRICE_DISCOUNT está na página `desconto-individua`. Corrigir assinatura. |
+| create_price_discount_promotion | POST /seller-promotions/items/{id}?user_id={seller} body {promotion_type:PRICE_DISCOUNT, deal_price, start_date, finish_date} | 🔧 CORRIGIR (reverif. 2026-06-08) | Body **confirmado** (`{deal_price, top_deal_price?, start_date, finish_date, promotion_type:"PRICE_DISCOUNT"}`). **Remover `?user_id`** — não existe na doc oficial; usar só `?app_version=v2`. Regras: 5–80%, reputação verde, item ativo/novo, máx 14 dias. [doc: desconto-individua] |
+| delete_price_discount_promotion | DELETE /seller-promotions/items/{id}?user_id&promotion_type | 🔧 CORRIGIR (reverif. 2026-06-08) | **`promotion_type` É válido** (delete individual oficial: `?promotion_type=PRICE_DISCOUNT&app_version=v2`). **Remover apenas `user_id`** (não existe na doc). Delete massivo = sem `promotion_type` → remove todas exceto DOD/LIGHTNING, resposta `{successful_ids, errors}`. [doc: desconto-individua, gerenciar-ofertas] |
 | create_promotion | POST /seller-promotions/users/{seller} (antigo) | ⛔ DEPRECADO | Path/body errados (`/users/{id}` é GET de convites, não criação). Já lança NotImplementedError. **Remover.** |
 | update_promotion | PUT /seller-promotions/{id} (antigo) | ⛔ DEPRECADO | Oficial confirma: PRICE_DISCOUNT/DOD/LIGHTNING **não editam via PUT — deletar e recriar.** Já lança NotImplementedError. **Remover.** |
 | (não implementado) | GET /seller-promotions/users/{id}?app_version=v2 | ➕ FALTANTE | Lista convites/campanhas do vendedor (DEAL, MARKETPLACE_CAMPAIGN, VOLUME...). Útil p/ módulo de promoções. |
@@ -86,7 +92,7 @@ Docs oficiais (paths do MCP, idioma pt_br): citados em cada bloco como **[doc: <
 | get_my_open_mediations | GET /post-purchase/v1/claims/search?status=opened&stage=dispute | ⚠️ PARCIAL | `stage=dispute` válido; ainda assim adicionar `players.user_id`+`role`. |
 | get_returns | GET /post-purchase/v1/claims/search?claim_type=return | ❌ DIVERGENTE (grave) | **`claim_type` NÃO existe na API** → provável 400 silencioso em prod. Correto: `type=return` (+ `players.user_id`+`players.role=respondent`). Para os dados da devolução em si (envio de retorno, `refund_at`), usar **`GET /post-purchase/v2/claims/{id}/returns`**. [fundamentalista] |
 | get_claim_detail | GET /post-purchase/v1/claims/{id} | ✅ OK | Há também `/{id}/detail`, `/{id}/actions-history`, `/{id}/status-history`, `/{id}/affects-reputation` (úteis p/ reputação). |
-| send_claim_message | POST /post-purchase/v1/claims/{id}/messages body {message} | ⚠️ CONFIRMAR | A ação depende de `available_actions` (`send_message_to_complainant`/`send_message_to_mediator`). Validar receiver/role e formato na página `gerenciar-mensagem-de-uma-eclamacao`. |
+| send_claim_message | POST /post-purchase/v1/claims/{id}/messages body {message} | ❌ DIVERGENTE (reverif. 2026-06-08) | **Path errado: `/messages` é só GET.** POST oficial = `POST /post-purchase/v1/claims/{id}/actions/send-message` body `{receiver_role, message, attachments?}`. `receiver_role` ∈ {complainant, respondent, mediator} **obrigatório**, derivado de `available_actions`. Resposta 201. |
 | get_messages | GET /messages/packs/{pack}/sellers/{seller}?tag=post_sale | ⚠️ PARCIAL | Falta `?tag=post_sale`. GET marca como lido — usar `mark_as_read=false` quando não quiser. `order_id` usa o mesmo path `/packs`. |
 | get_messages (order) | GET /messages/orders/{id} | ⚠️ VERIFICAR | Doc prioriza `/packs/{pack}/sellers/{seller}`; usar order_id dentro do path de packs. |
 | send_message | POST /messages/packs/{pack}/sellers/{seller}?tag=post_sale body {from{user_id}, to{user_id}, text} | ❌ DIVERGENTE/BUG | **Falta o campo `to.user_id` (obrigatório).** Desde **02/02/2026 (MLB)** `to.user_id` deve ser o **ID do Agente do Brasil = `3037675074`** (não o comprador). Sem `to` → 400. Limite 350 chars. Adicionar `?tag=post_sale`. |

@@ -110,9 +110,8 @@ async def sync_claims_for_account(
     updated = 0
     errors = 0
 
-    statuses_to_search = [
-        "open", "opened", "waiting_for_seller_response", "closed"
-    ]
+    # Doc oficial: status de claim válido é apenas opened|closed.
+    statuses_to_search = ["opened", "closed"]
 
     try:
         async with MLClient(account.access_token, ml_account_id=str(account.id)) as client:
