@@ -51,20 +51,9 @@
       "WebFetch(domain:tiny.com.br)",
       "Bash(mkdir -p ~/.claude/hooks)",
       "Bash(cp ~/.claude/skills/git-guardrails-claude-code/scripts/block-dangerous-git.sh ~/.claude/hooks/block-dangerous-git.sh)",
-      "Bash(chmod +x ~/.claude/hooks/block-dangerous-git.sh)"
-    ]
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'git commit'; then cd /c/Users/Maikeo/MSM_Imports_Mercado_Livre/msm_pro && python obsidian_brain.py --update-metrics 2>/dev/null || true; fi"
-          }
-        ]
-      }
+      "Bash(chmod +x ~/.claude/hooks/block-dangerous-git.sh)",
+      "Bash(curl -s -X POST https://msmpro-production.up.railway.app/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"maikeo@msmrp.com\",\"password\":\"Msm@2026\"}')",
+      "mcp__obsidian__vault_list"
     ]
   },
   "enableAllProjectMcpServers": true,
@@ -72,5 +61,38 @@
     "msm-database",
     "mercadolibre",
     "mercadolibre-official"
-  ]
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /c/Users/Maikeo/MSM_Imports_Mercado_Livre/MSM_Pro/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /c/Users/Maikeo/MSM_Imports_Mercado_Livre/MSM_Pro/.claude/hooks/before-prompt.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'git commit'; then cd /c/Users/Maikeo/MSM_Imports_Mercado_Livre/MSM_Pro && python obsidian_brain.py --update-metrics 2>/dev/null || true; fi"
+          }
+        ]
+      }
+    ]
+  }
 }

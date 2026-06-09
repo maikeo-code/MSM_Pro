@@ -11,8 +11,8 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-VAULT = Path("C:/Users/Maikeo/MSM_Imports_Mercado_Livre/Obsidium/MSM PRO")
-PROJECT = Path("C:/Users/Maikeo/MSM_Imports_Mercado_Livre/msm_pro")
+VAULT = Path("C:/Users/Maikeo/MSM_Imports_Mercado_Livre/Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro")
+PROJECT = Path("C:/Users/Maikeo/MSM_Imports_Mercado_Livre/MSM_Pro")
 TODAY = datetime.now().strftime("%Y-%m-%d")
 YESTERDAY = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 TOMORROW = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")

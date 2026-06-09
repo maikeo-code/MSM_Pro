@@ -57,3 +57,8 @@ _auto_learning/backups/
 data/
 CLAUDE_backup_*.md
 *.jpg
+
+# Coverage binaries e locks de sessao
+.coverage
+backend/.coverage
+.claude/scheduled_tasks.lock

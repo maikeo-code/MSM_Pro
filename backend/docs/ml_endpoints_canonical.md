@@ -42,8 +42,9 @@ Docs oficiais (paths do MCP, idioma pt_br): citados em cada bloco como **[doc: <
 
 | Método | Endpoint | Status | Nota |
 |---|---|---|---|
-| get_item_visits | GET /items/{id}/visits/time_window?last&unit=day | ✅ OK | Visitas por janela. |
-| get_listing_visits / get_items_visits_bulk | GET /visits/items?ids&date_from&date_to | ✅ OK | Bulk, chunks de 50 ids. Datas YYYY-MM-DD. |
+| get_item_visits | GET /items/{id}/visits/time_window?last&unit=day | ✅ OK | `results[].total` = total **por dia** (incremental). |
+| get_item_visits_on_day | GET /items/{id}/visits/time_window?last=1&unit=day&ending={dia+1} | ✅ OK (2026-06-09) | **Forma correta de "visitas de UM dia"**. `ending` é exclusivo → dia D usa ending=D+1. `results[0].total` = visitas de D. |
+| get_items_visits_bulk / get_listing_visits | GET /visits/items?ids&date_from&date_to | ❌ DIVERGENTE (2026-06-09) | **`/visits/items?ids=` retorna o LIFETIME (2 anos) e IGNORA date_from/date_to** (doc `recurso-visits`). Era a causa de visitas acumuladas gravadas como "do dia". Para intervalo de datas o endpoint oficial é `GET /items/visits?ids=` (path invertido) e aceita **só 1 id** por vez. Para visitas diárias usar `get_item_visits_on_day` (time_window). Sync já migrado. |
 
 ## BLOCO C — Promoções do vendedor  [doc: gerenciar-ofertas, desconto-individua]
 
