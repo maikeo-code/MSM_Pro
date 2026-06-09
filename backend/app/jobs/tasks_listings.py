@@ -389,10 +389,14 @@ async def _sync_listing_snapshot_async(
             else:
                 snapshot_captured_at = now_utc
 
+            # Filtra pelo snapshot_day (dia BRT canônico). O filtro antigo comparava
+            # cast(captured_at, Date) em UTC — mas captured_at é gravado às 23:59 BRT
+            # (= dia seguinte em UTC), então NUNCA encontrava o snapshot do dia e
+            # acabava INSERINDO duplicado. snapshot_day == snapshot_date é consistente.
             existing_snap_result = await db.execute(
                 select(ListingSnapshot).where(
                     ListingSnapshot.listing_id == listing.id,
-                    cast(ListingSnapshot.captured_at, Date) == snapshot_date,
+                    ListingSnapshot.snapshot_day == snapshot_date,
                 ).order_by(ListingSnapshot.captured_at.desc()).limit(1)
             )
             existing_snap = existing_snap_result.scalar_one_or_none()
@@ -418,6 +422,7 @@ async def _sync_listing_snapshot_async(
             else:
                 snapshot = ListingSnapshot(
                     listing_id=listing.id,
+                    snapshot_day=snapshot_date,
                     price=price,
                     visits=visits,
                     sales_today=sales_today,

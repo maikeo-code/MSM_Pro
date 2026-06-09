@@ -1,9 +1,9 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, event, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -94,6 +94,13 @@ class Listing(Base):
 class ListingSnapshot(Base):
     __tablename__ = "listing_snapshots"
 
+    # Invariante: no máximo 1 snapshot por anúncio por dia (BRT). Impede a
+    # duplicação que inflava KPIs/visitas quando o sync diário + horário +
+    # backfill criavam vários snapshots no mesmo dia. Migration 0033.
+    __table_args__ = (
+        UniqueConstraint("listing_id", "snapshot_day", name="uq_listing_snapshot_day"),
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
@@ -103,6 +110,8 @@ class ListingSnapshot(Base):
         nullable=False,
         index=True,
     )
+    # Dia (BRT) ao qual o snapshot pertence — chave de unicidade por dia.
+    snapshot_day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     visits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     sales_today: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -125,6 +134,29 @@ class ListingSnapshot(Base):
 
     def __repr__(self) -> str:
         return f"<ListingSnapshot listing_id={self.listing_id} price={self.price} at={self.captured_at}>"
+
+
+# Fuso BRT (Brasil não usa DST desde 2019 → offset fixo -3 é seguro e IMMUTABLE).
+_BRT = timezone(timedelta(hours=-3))
+
+
+@event.listens_for(ListingSnapshot, "before_insert", propagate=True)
+def _populate_snapshot_day(mapper, connection, target: "ListingSnapshot") -> None:
+    """Garante snapshot_day (NOT NULL) derivando de captured_at no fuso BRT.
+
+    Produção (tasks_listings) seta snapshot_day explicitamente; este listener cobre
+    qualquer outro caminho (service_sync, testes, scripts) sem precisar replicar a
+    lógica em cada lugar. O dia é o dia LOCAL (BRT), consistente com a migration 0033.
+    """
+    if getattr(target, "snapshot_day", None) is not None:
+        return
+    ca = getattr(target, "captured_at", None)
+    if ca is not None:
+        if ca.tzinfo is None:
+            ca = ca.replace(tzinfo=timezone.utc)
+        target.snapshot_day = ca.astimezone(_BRT).date()
+    else:
+        target.snapshot_day = datetime.now(_BRT).date()
 
 
 class Order(Base):
