@@ -581,6 +581,45 @@ class TestGetReturns:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# get_item_visits_on_day (visitas REAIS do dia via time_window — não lifetime)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestGetItemVisitsOnDay:
+
+    @pytest.mark.asyncio
+    async def test_usa_time_window_com_ending_exclusivo_e_total_do_dia(self):
+        from datetime import date
+        client = _client()
+        client._request = AsyncMock(return_value={
+            "results": [{"date": "2026-06-08T00:00:00Z", "total": 42}]
+        })
+        v = await client.get_item_visits_on_day("MLB1", date(2026, 6, 8))
+        assert v == 42
+        call = client._request.call_args
+        assert "/items/MLB1/visits/time_window" in call[0][1]
+        # ending é exclusivo → para o dia 08, ending = 09
+        assert call[1]["params"]["ending"] == "2026-06-09"
+        assert call[1]["params"]["last"] == 1
+        assert call[1]["params"]["unit"] == "day"
+
+    @pytest.mark.asyncio
+    async def test_sem_resultados_retorna_zero(self):
+        from datetime import date
+        client = _client()
+        client._request = AsyncMock(return_value={"results": []})
+        assert await client.get_item_visits_on_day("MLB1", date(2026, 6, 8)) == 0
+
+    @pytest.mark.asyncio
+    async def test_erro_retorna_zero(self):
+        from datetime import date
+        from app.mercadolivre.client import MLClientError
+        client = _client()
+        client._request = AsyncMock(side_effect=MLClientError("boom"))
+        assert await client.get_item_visits_on_day("MLB1", date(2026, 6, 8)) == 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # get_shipment
 # ═══════════════════════════════════════════════════════════════════════════════
 

@@ -197,29 +197,12 @@ async def _sync_listing_snapshot_async(
             if visits_override is not None:
                 visits = visits_override
             elif snapshot_date < date_alias_top.today():
-                # Backfill: snapshot e de um dia passado. Busca visitas do dia
-                # EXATO via /visits/items (bulk para 1 item) com date_from=date_to=snapshot_date.
-                # NAO usar get_item_visits(days=1) que retorna ultimas 24h.
+                # Backfill: snapshot de um dia passado. Visitas do dia EXATO via
+                # time_window (results[].total = total do dia). NÃO usar /visits/items
+                # (get_items_visits_bulk): retorna lifetime de 2 anos e ignora datas.
+                # Por isso o antigo safeguard >3000 foi removido — não pegamos mais lifetime.
                 try:
-                    mlb_norm = listing.mlb_id.upper().replace("-", "")
-                    if not mlb_norm.startswith("MLB"):
-                        mlb_norm = f"MLB{mlb_norm}"
-                    bulk = await client.get_items_visits_bulk(
-                        [mlb_norm],
-                        date_from=snapshot_date.isoformat(),
-                        date_to=snapshot_date.isoformat(),
-                    )
-                    visits = int(bulk.get(mlb_norm, 0) or 0)
-                    # SAFEGUARD: > 3000 visitas em 1 dia para 1 item e
-                    # implausivel (>2 visitas/min 24/7). Quando ML responde
-                    # /visits/items com 1 unico item e date_from=date_to,
-                    # parece retornar lifetime — descarta.
-                    if visits > 3000:
-                        logger.warning(
-                            f"Backfill visits ABSURDO para {listing.mlb_id} em "
-                            f"{snapshot_date}: {visits} — usando 0 (provavel lifetime)"
-                        )
-                        visits = 0
+                    visits = await client.get_item_visits_on_day(listing.mlb_id, snapshot_date)
                 except Exception:
                     logger.debug(f"Backfill visits failed para {listing.mlb_id} em {snapshot_date}")
             else:
@@ -568,18 +551,24 @@ async def _sync_all_snapshots_async():
 
                 client = MLClient(account.access_token, ml_account_id=str(account.id))
                 try:
-                    # Buscar visitas do DIA ANTERIOR (completo)
-                    bulk_result = await client.get_items_visits_bulk(
-                        mlb_ids, date_from=yesterday_str, date_to=yesterday_str
-                    )
-                    visits_map.update(bulk_result)
+                    # Visitas do DIA ANTERIOR, por item, via time_window (total do dia).
+                    # NÃO usar get_items_visits_bulk (/visits/items) aqui: aquele endpoint
+                    # retorna o lifetime de 2 anos e ignora as datas — gravava acumulado
+                    # como "visitas do dia". time_window.results[].total é o total do dia.
+                    ok = 0
+                    for mid in mlb_ids:
+                        try:
+                            visits_map[mid] = await client.get_item_visits_on_day(mid, yesterday)
+                            ok += 1
+                        except Exception:
+                            pass  # task fará fallback individual
                     logger.info(
-                        f"Visitas bulk OK para conta {account_id} (dia anterior {yesterday_str}): "
-                        f"{len(bulk_result)} itens retornados"
+                        f"Visitas por dia OK para conta {account_id} ({yesterday_str}): "
+                        f"{ok}/{len(mlb_ids)} itens"
                     )
                 except Exception as e:
                     logger.warning(
-                        f"Falha no bulk de visitas para conta {account_id}: {e} — "
+                        f"Falha ao buscar visitas para conta {account_id}: {e} — "
                         "tasks usarão chamada individual como fallback"
                     )
                 finally:

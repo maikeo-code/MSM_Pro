@@ -1,6 +1,6 @@
 import asyncio
 import time
-from datetime import date
+from datetime import date, timedelta
 
 import httpx
 
@@ -254,6 +254,38 @@ class MLClient:
             params={"last": days, "unit": "day"},
         )
         return response.get("results", [])
+
+    async def get_item_visits_on_day(self, mlb_id: str, day: date) -> int:
+        """
+        Visitas REAIS de um anúncio em um DIA específico (incremental, não acumulado).
+        GET /items/{id}/visits/time_window?last=1&unit=day&ending={day+1}
+
+        Doc oficial (recurso-visits): em time_window, `results[].total` é o total
+        DAQUELE dia. `ending` é exclusivo — para o dia D, ending=D+1 e last=1 → results=[D].
+        IMPORTANTE: NÃO usar /visits/items?ids=... para isto: aquele endpoint retorna
+        o total de 2 ANOS (lifetime) e ignora date_from/date_to — era a causa de
+        visitas infladas/acumuladas gravadas como "visitas do dia".
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+        ending = (day + timedelta(days=1)).isoformat()
+        try:
+            resp = await self._request(
+                "GET",
+                f"/items/{item_id}/visits/time_window",
+                params={"last": 1, "unit": "day", "ending": ending},
+            )
+        except MLClientError:
+            return 0
+        results = resp.get("results") if isinstance(resp, dict) else None
+        if results:
+            # Procura o bucket do dia exato; senão usa o primeiro.
+            for bucket in results:
+                if str(bucket.get("date", "")).startswith(day.isoformat()):
+                    return int(bucket.get("total", 0) or 0)
+            return int(results[0].get("total", 0) or 0)
+        return 0
 
     async def get_item_orders_by_status(
         self,
