@@ -12,6 +12,7 @@ from sqlalchemy import cast, Date, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import ML_FEES_FLOAT
+from app.vendas.metrics import aggregate_metrics
 from app.vendas.models import Listing, ListingSnapshot, Order
 
 
@@ -586,185 +587,10 @@ async def _kpi_single_day(
     dt,
     total_anuncios: int | None = None,
 ) -> dict:
-    """KPI para um único dia (último snapshot por listing).
-
-    total_anuncios: se fornecido, usa esse valor para "anuncios" (universo de
-    listings ativos), em vez de contar snapshots do dia. Evita números
-    incoerentes quando o sync do dia foi parcial ou ainda não rodou.
+    """KPI para um único dia. Wrapper fino sobre a fonte única de agregação
+    (app.vendas.metrics) — NÃO adicionar lógica de agregação aqui.
     """
-    latest_snap_subq = (
-        select(
-            ListingSnapshot.listing_id,
-            func.max(ListingSnapshot.captured_at).label("max_captured_at"),
-        )
-        .where(
-            ListingSnapshot.listing_id.in_(listing_ids),
-            cast(ListingSnapshot.captured_at, Date) == dt,
-        )
-        .group_by(ListingSnapshot.listing_id)
-        .subquery()
-    )
-
-    result = await db.execute(
-        select(
-            func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label("vendas"),
-            func.coalesce(func.sum(ListingSnapshot.visits), 0).label("visitas"),
-            func.count(func.distinct(ListingSnapshot.listing_id)).label("anuncios"),
-            func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.stock), 0).label("valor_estoque"),
-            func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.sales_today), 0).label("receita"),
-            func.coalesce(func.sum(ListingSnapshot.orders_count), 0).label("pedidos"),
-            func.coalesce(func.sum(func.coalesce(ListingSnapshot.revenue, ListingSnapshot.price * ListingSnapshot.sales_today)), 0).label("receita_total"),
-            func.coalesce(func.sum(ListingSnapshot.cancelled_orders), 0).label("cancelados"),
-            func.coalesce(func.sum(ListingSnapshot.cancelled_revenue), 0).label("cancelados_valor"),
-            func.coalesce(func.sum(ListingSnapshot.returns_count), 0).label("devolucoes_qtd"),
-            func.coalesce(func.sum(ListingSnapshot.returns_revenue), 0).label("devolucoes_valor"),
-        )
-        .join(
-            latest_snap_subq,
-            (ListingSnapshot.listing_id == latest_snap_subq.c.listing_id)
-            & (ListingSnapshot.captured_at == latest_snap_subq.c.max_captured_at),
-        )
-        .where(
-            ListingSnapshot.listing_id.in_(listing_ids),
-            cast(ListingSnapshot.captured_at, Date) == dt,
-        )
-    )
-    row = result.fetchone()
-    vendas = int(row.vendas) if row else 0
-    visitas = int(row.visitas) if row else 0
-    pedidos = int(row.pedidos) if row else 0
-    receita_total = float(row.receita_total) if row else 0.0
-    cancelados = int(row.cancelados) if row else 0
-    cancelados_valor = float(row.cancelados_valor) if row else 0.0
-    devolucoes_qtd = int(row.devolucoes_qtd) if row else 0
-    devolucoes_valor = float(row.devolucoes_valor) if row else 0.0
-
-    # Fallback Orders: se não há snapshot confiável para este dia, agrega
-    # das Orders backfilled. Recupera vendas/pedidos/receita.
-    #
-    # CRÍTICO (ciclo 558): Quando o fallback aciona, as visitas do snapshot
-    # (se houver) são descartadas. Snapshots parciais/corrompidos podem ter
-    # visits=0,1,2 enquanto Orders reais têm 44 vendas — isso gerava conversão
-    # absurda (4400%). Se estamos usando Orders como fonte de vendas, visitas
-    # e conversão ficam marcadas como indisponíveis (0) para esse dia, em vez
-    # de contaminar o dashboard com dados inconsistentes.
-    orders_fallback_ativo = False
-    # Fallback Orders: comparar em UTC para evitar bug de timezone
-    dt_utc_start = datetime.combine(dt, time.min, tzinfo=BRT).astimezone(timezone.utc)
-    dt_utc_end = datetime.combine(dt, time.max, tzinfo=BRT).astimezone(timezone.utc)
-
-    orders_fallback = await db.execute(
-        select(
-            func.coalesce(func.sum(Order.quantity), 0).label("vendas"),
-            func.count(Order.id).label("pedidos"),
-            func.coalesce(func.sum(Order.total_amount), 0).label("receita_total"),
-        ).where(
-            Order.listing_id.in_(listing_ids),
-            Order.order_date >= dt_utc_start,
-            Order.order_date <= dt_utc_end,
-            Order.payment_status.notin_(["cancelled", "refunded", "rejected"]),
-        )
-    )
-    ofb = orders_fallback.fetchone()
-    if ofb and (int(ofb.vendas) > vendas or int(ofb.pedidos) > pedidos):
-        vendas = max(vendas, int(ofb.vendas))
-        pedidos = max(pedidos, int(ofb.pedidos))
-        receita_total = max(receita_total, float(ofb.receita_total))
-        orders_fallback_ativo = True
-
-    # Quando o fallback Orders ativou, a `receita` (calculada do snapshot via
-    # price * sales_today) tambem pode estar zerada/incompleta. Preferimos a
-    # receita real dos Orders nessa situacao para o dashboard nao mostrar R$ 0
-    # quando ha vendas reais.
-    receita_orders = float(ofb.receita_total) if ofb else 0.0
-
-    # Proteção: zera visitas apenas se snapshot está claramente corrompido
-    # (visitas < vendas — impossível). Se fallback Orders ativou mas visitas
-    # do snapshot são plausíveis (>= vendas reais), preserva visitas e
-    # recalcula conversão com as vendas corrigidas do fallback.
-    if vendas > 0 and visitas > 0 and visitas < vendas:
-        visitas = 0
-        conversao = 0.0
-    else:
-        conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
-    preco_medio = round(receita_total / vendas, 2) if vendas > 0 else 0.0
-    preco_medio_por_venda = round(receita_total / pedidos, 2) if pedidos > 0 else 0.0
-    total_pedidos_com_cancelados = pedidos + cancelados
-    taxa_cancelamento = round(cancelados / total_pedidos_com_cancelados * 100, 2) if total_pedidos_com_cancelados > 0 else 0.0
-    vendas_concluidas = round(receita_total - cancelados_valor - devolucoes_valor, 2)
-
-    receita_dia = float(row.receita) if row else 0.0
-    # Se Orders tem receita maior (mais confiavel), usa Orders.
-    if receita_orders > receita_dia:
-        receita_dia = receita_orders
-
-    # Valor estoque é POSIÇÃO PONTUAL — para cada listing, usa o último
-    # snapshot com captured_at <= fim_do_dia. Isso evita subestimar o estoque
-    # quando o sync do dia foi parcial (ex: anteontem com só 12/374 listings)
-    # ou ainda não rodou ("Hoje" antes das 06:00 BRT).
-    valor_estoque = 0.0
-    if listing_ids:
-        dt_end = datetime.combine(dt, time.max, tzinfo=BRT).astimezone(timezone.utc)
-        per_listing_latest = (
-            select(
-                ListingSnapshot.listing_id,
-                func.max(ListingSnapshot.captured_at).label("max_captured_at"),
-            )
-            .where(
-                ListingSnapshot.listing_id.in_(listing_ids),
-                ListingSnapshot.captured_at <= dt_end,
-            )
-            .group_by(ListingSnapshot.listing_id)
-            .subquery()
-        )
-        estoque_result = await db.execute(
-            select(
-                func.coalesce(
-                    func.sum(ListingSnapshot.price * ListingSnapshot.stock), 0
-                ).label("valor_estoque"),
-            )
-            .join(
-                per_listing_latest,
-                (ListingSnapshot.listing_id == per_listing_latest.c.listing_id)
-                & (ListingSnapshot.captured_at == per_listing_latest.c.max_captured_at),
-            )
-            .where(ListingSnapshot.listing_id.in_(listing_ids))
-        )
-        est_row = estoque_result.fetchone()
-        if est_row:
-            valor_estoque = float(est_row.valor_estoque)
-
-    # Anúncios: prefere o universo total de listings ativos (constante entre
-    # períodos). Cai para o COUNT do snapshot só se total_anuncios não foi
-    # informado (compatibilidade).
-    if total_anuncios is not None:
-        anuncios_count = total_anuncios
-    else:
-        anuncios_count = int(row.anuncios) if row else 0
-
-    return {
-        "vendas": vendas,
-        "visitas": visitas,
-        "conversao": conversao,
-        "anuncios": anuncios_count,
-        "valor_estoque": valor_estoque,
-        "receita": receita_dia,
-        "pedidos": pedidos,
-        "receita_total": receita_total,
-        "preco_medio": preco_medio,
-        "taxa_cancelamento": taxa_cancelamento,
-        "preco_medio_por_venda": preco_medio_por_venda,
-        "vendas_concluidas": vendas_concluidas,
-        "cancelamentos_valor": cancelados_valor,
-        "devolucoes_valor": devolucoes_valor,
-        "devolucoes_qtd": devolucoes_qtd,
-        # Single-day: media = total (1 dia unico)
-        "dias_no_periodo": 1,
-        "vendas_media_dia": float(vendas),
-        "visitas_media_dia": float(visitas),
-        "pedidos_media_dia": float(pedidos),
-        "receita_media_dia": round(receita_total, 2),
-    }
+    return await aggregate_metrics(db, listing_ids, dt, dt, total_anuncios=total_anuncios)
 
 
 async def _kpi_date_range(
@@ -774,155 +600,10 @@ async def _kpi_date_range(
     date_to,
     total_anuncios: int | None = None,
 ) -> dict:
-    """KPI para um intervalo de dias (último snapshot por listing por dia, somados).
-
-    total_anuncios: se fornecido, usa esse valor para "anuncios" (universo de
-    listings ativos), em vez de contar snapshots do intervalo.
+    """KPI para um intervalo de dias. Wrapper fino sobre a fonte única de
+    agregação (app.vendas.metrics) — NÃO adicionar lógica de agregação aqui.
     """
-    # Subquery: último snapshot de cada listing em cada dia do intervalo
-    latest_per_day = (
-        select(
-            ListingSnapshot.listing_id,
-            cast(ListingSnapshot.captured_at, Date).label("snap_date"),
-            func.max(ListingSnapshot.captured_at).label("max_captured_at"),
-        )
-        .where(
-            ListingSnapshot.listing_id.in_(listing_ids),
-            cast(ListingSnapshot.captured_at, Date) >= date_from,
-            cast(ListingSnapshot.captured_at, Date) <= date_to,
-        )
-        .group_by(ListingSnapshot.listing_id, cast(ListingSnapshot.captured_at, Date))
-        .subquery()
-    )
-
-    result = await db.execute(
-        select(
-            func.coalesce(func.sum(ListingSnapshot.sales_today), 0).label("vendas"),
-            func.coalesce(func.sum(ListingSnapshot.visits), 0).label("visitas"),
-            func.count(func.distinct(ListingSnapshot.listing_id)).label("anuncios"),
-            func.coalesce(func.sum(ListingSnapshot.price * ListingSnapshot.sales_today), 0).label("receita"),
-            func.coalesce(func.sum(ListingSnapshot.orders_count), 0).label("pedidos"),
-            func.coalesce(func.sum(func.coalesce(ListingSnapshot.revenue, ListingSnapshot.price * ListingSnapshot.sales_today)), 0).label("receita_total"),
-            func.coalesce(func.sum(ListingSnapshot.cancelled_orders), 0).label("cancelados"),
-            func.coalesce(func.sum(ListingSnapshot.cancelled_revenue), 0).label("cancelados_valor"),
-            func.coalesce(func.sum(ListingSnapshot.returns_count), 0).label("devolucoes_qtd"),
-            func.coalesce(func.sum(ListingSnapshot.returns_revenue), 0).label("devolucoes_valor"),
-        )
-        .join(
-            latest_per_day,
-            (ListingSnapshot.listing_id == latest_per_day.c.listing_id)
-            & (ListingSnapshot.captured_at == latest_per_day.c.max_captured_at),
-        )
-        .where(
-            ListingSnapshot.listing_id.in_(listing_ids),
-        )
-    )
-    row = result.fetchone()
-    vendas = int(row.vendas) if row else 0
-    visitas = int(row.visitas) if row else 0
-    conversao = round((vendas / visitas * 100), 2) if visitas > 0 else 0.0
-    pedidos = int(row.pedidos) if row else 0
-    receita_total = float(row.receita_total) if row else 0.0
-    cancelados = int(row.cancelados) if row else 0
-    cancelados_valor = float(row.cancelados_valor) if row else 0.0
-    devolucoes_qtd = int(row.devolucoes_qtd) if row else 0
-    devolucoes_valor = float(row.devolucoes_valor) if row else 0.0
-
-    # Orders garantem contagem perfeita se snapshots perdem dados
-    # Converter range BRT para UTC (portável)
-    range_utc_start = datetime.combine(date_from, time.min, tzinfo=BRT).astimezone(timezone.utc)
-    range_utc_end = datetime.combine(date_to, time.max, tzinfo=BRT).astimezone(timezone.utc)
-
-    orders_query = await db.execute(
-        select(
-            func.coalesce(func.sum(Order.quantity), 0).label("vendas"),
-            func.count(Order.id).label("pedidos"),
-            func.coalesce(func.sum(Order.total_amount), 0).label("receita_total"),
-        ).where(
-            Order.listing_id.in_(listing_ids),
-            Order.order_date >= range_utc_start,
-            Order.order_date <= range_utc_end,
-            Order.payment_status.notin_(["cancelled", "refunded", "rejected"]),
-        )
-    )
-    ofb = orders_query.fetchone()
-    receita_orders_range = float(ofb.receita_total) if ofb else 0.0
-    if ofb and (int(ofb.vendas) > vendas or int(ofb.pedidos) > pedidos):
-        vendas = max(vendas, int(ofb.vendas))
-        pedidos = max(pedidos, int(ofb.pedidos))
-        receita_total = max(receita_total, receita_orders_range)
-
-    # receita do snapshot (price * sales_today) ja foi calculada acima como row.receita.
-    # Se Orders tem mais receita real, usa-a (evita R$ 0 quando ha vendas).
-    receita_snapshot = float(row.receita) if row else 0.0
-    receita_final = max(receita_snapshot, receita_orders_range)
-
-    preco_medio = round(receita_total / vendas, 2) if vendas > 0 else 0.0
-    preco_medio_por_venda = round(receita_total / pedidos, 2) if pedidos > 0 else 0.0
-    total_pedidos_com_cancelados = pedidos + cancelados
-    taxa_cancelamento = round(cancelados / total_pedidos_com_cancelados * 100, 2) if total_pedidos_com_cancelados > 0 else 0.0
-    vendas_concluidas = round(receita_total - cancelados_valor - devolucoes_valor, 2)
-
-    # ─── Medias diarias (Tema 2) ──────────────────────────────────────────
-    # Quando o periodo e > 1 dia, "vendas" e "visitas" sao SOMATORIOS do
-    # intervalo. Para comparar com dias individuais (hoje/ontem) o dashboard
-    # precisa de medias diarias. Calculamos aqui e devolvemos no payload.
-    dias_no_periodo = (date_to - date_from).days + 1
-    if dias_no_periodo < 1:
-        dias_no_periodo = 1
-    vendas_media_dia = round(vendas / dias_no_periodo, 2)
-    visitas_media_dia = round(visitas / dias_no_periodo, 2)
-    pedidos_media_dia = round(pedidos / dias_no_periodo, 2)
-    receita_media_dia = round(receita_total / dias_no_periodo, 2)
-
-    # Valor estoque = snapshot mais recente disponível no intervalo (ponto no tempo, não acumulado)
-    # BUG 4 FIX: usar a data mais recente com snapshot, não date_to que pode estar sem dados
-    latest_date_result = await db.execute(
-        select(func.max(cast(ListingSnapshot.captured_at, Date)))
-        .where(
-            ListingSnapshot.listing_id.in_(listing_ids),
-            cast(ListingSnapshot.captured_at, Date) >= date_from,
-            cast(ListingSnapshot.captured_at, Date) <= date_to,
-        )
-    )
-    latest_date = latest_date_result.scalar()
-    if latest_date:
-        today_kpi = await _kpi_single_day(db, listing_ids, latest_date)
-        valor_estoque = today_kpi["valor_estoque"]
-    else:
-        valor_estoque = 0.0
-
-    # Anúncios: prefere o universo total de listings ativos (constante entre
-    # períodos). Cai para o COUNT do snapshot só se total_anuncios não foi
-    # informado.
-    if total_anuncios is not None:
-        anuncios_count = total_anuncios
-    else:
-        anuncios_count = int(row.anuncios) if row else 0
-
-    return {
-        "vendas": vendas,
-        "visitas": visitas,
-        "conversao": conversao,
-        "anuncios": anuncios_count,
-        "valor_estoque": valor_estoque,
-        "receita": receita_final,
-        "pedidos": pedidos,
-        "receita_total": receita_total,
-        "preco_medio": preco_medio,
-        "taxa_cancelamento": taxa_cancelamento,
-        "preco_medio_por_venda": preco_medio_por_venda,
-        "vendas_concluidas": vendas_concluidas,
-        "cancelamentos_valor": cancelados_valor,
-        "devolucoes_valor": devolucoes_valor,
-        "devolucoes_qtd": devolucoes_qtd,
-        # Medias diarias (Tema 2) — usadas para comparacao dia a dia
-        "dias_no_periodo": dias_no_periodo,
-        "vendas_media_dia": vendas_media_dia,
-        "visitas_media_dia": visitas_media_dia,
-        "pedidos_media_dia": pedidos_media_dia,
-        "receita_media_dia": receita_media_dia,
-    }
+    return await aggregate_metrics(db, listing_ids, date_from, date_to, total_anuncios=total_anuncios)
 
 
 def _period_to_dates(period: str, today: date) -> tuple[date, date, str]:
@@ -1038,19 +719,19 @@ async def get_kpi_by_period(db: AsyncSession, user_id: UUID, ml_account_id: UUID
     yesterday = today - timedelta(days=1)
     anteontem = today - timedelta(days=2)
 
-    # Busca listings ATIVOS do usuário (opcional: filtra por conta ML).
-    # Filtrar por status="active" garante que "Anuncios" reflita o universo
-    # real do vendedor, e não pausados/encerrados que ainda têm snapshots.
-    query = select(Listing.id).where(
-        Listing.user_id == user_id,
-        Listing.status == "active",
-    )
+    # Universo das MÉTRICAS = TODOS os listings do usuário (qualquer status).
+    # Vendas de um anúncio pausado/encerrado hoje aconteceram quando ele estava
+    # ativo — filtrar por status aqui fazia o summary divergir de /kpi/daily e
+    # da tabela Order (ex.: 107 vs 119 vendas no mesmo dia).
+    # Apenas o card "Anuncios" usa a contagem de ativos (total_anuncios).
+    query = select(Listing.id, Listing.status).where(Listing.user_id == user_id)
     if ml_account_id is not None:
         query = query.where(Listing.ml_account_id == ml_account_id)
 
     listings_result = await db.execute(query)
-    listing_ids = [row[0] for row in listings_result.fetchall()]
-    total_anuncios = len(listing_ids)
+    rows = listings_result.fetchall()
+    listing_ids = [row[0] for row in rows]
+    total_anuncios = sum(1 for row in rows if row[1] == "active")
 
     empty = {
         "vendas": 0, "visitas": 0, "conversao": 0.0, "anuncios": 0,

@@ -149,18 +149,21 @@ def test_kpi_single_day_has_orders_fallback():
     ListingSnapshot do dia não existe. Validamos via introspeção
     do source para evitar dependência de Postgres-specific cast.
     """
-    from app.vendas import service_kpi
-    src = inspect.getsource(service_kpi._kpi_single_day)
+    # Fase 2 (fonte única): _kpi_single_day é wrapper de aggregate_metrics —
+    # a lógica de fallback vive em app.vendas.metrics. O comportamento é
+    # validado com dados reais em tests/test_metrics_parity.py
+    # (test_orders_vence_quando_snapshot_subnotifica, test_pedidos_cancelados_ficam_fora).
+    from app.vendas import metrics, service_kpi
+
+    wrapper_src = inspect.getsource(service_kpi._kpi_single_day)
+    assert "aggregate_metrics" in wrapper_src, "wrapper deve delegar à fonte única"
+
+    src = inspect.getsource(metrics.aggregate_metrics)
     assert "Order" in src, "deve referenciar Order no fallback"
     # Filtro de status: exclui cancelled/refunded/rejected (abordagem broad
     # adotada no fix do bug KPI 3->2). 'approved' sozinho era muito restritivo.
     assert "cancelled" in src and "refunded" in src, (
         "deve excluir payment_status cancelled/refunded"
-    )
-    # Fallback Orders aciona sempre que Orders > snapshot (em vendas ou pedidos),
-    # nao apenas quando snapshot == 0. Abordagem mais robusta contra snapshots parciais.
-    assert "orders_fallback_ativo" in src, (
-        "deve marcar fallback Orders quando dados divergem dos snapshots"
     )
 
 
