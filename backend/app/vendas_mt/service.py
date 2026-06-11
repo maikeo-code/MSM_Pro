@@ -94,7 +94,8 @@ async def _montar_venda(
     qtd = item0.get("quantity") or 1
 
     pago = float(order.get("total_amount") or 0)
-    tarifa = sum(float(p.get("marketplace_fee") or 0) for p in (order.get("payments") or []))
+    # Tarifa de Venda ML = soma dos sale_fee dos order_items (mesma fonte do sync de Pedidos).
+    tarifa = sum(float(oi.get("sale_fee") or 0) for oi in itens)
     frete = await _frete_real(client, (order.get("shipping") or {}).get("id"))
 
     custo = float(custos[sku]) * qtd if sku and sku in custos else None
