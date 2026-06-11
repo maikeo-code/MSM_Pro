@@ -13,6 +13,7 @@ import {
   Megaphone,
   BarChart3,
   ShoppingCart,
+  Store,
   Headphones,
   BarChart2,
   PieChart,
@@ -44,6 +45,7 @@ const menuSections = [
     section: "OPERAÇÕES",
     items: [
       { to: "/pedidos", label: "Pedidos", icon: ShoppingCart },
+      { to: "/vendas-mt", label: "Vendas (MT)", icon: Store },
       { to: "/atendimento", label: "Atendimento", icon: Headphones },
       { to: "/perguntas", label: "Perguntas", icon: MessageCircleQuestion },
     ],

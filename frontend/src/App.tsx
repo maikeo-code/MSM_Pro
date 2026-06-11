@@ -17,6 +17,7 @@ import Layout from "@/components/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
+const VendasMT = lazy(() => import("@/pages/VendasMT"));
 const PriceSuggestions = lazy(() => import("@/pages/PriceSuggestions"));
 const Notificacoes = lazy(() => import("@/pages/Notificacoes"));
 const Financeiro = lazy(() => import("@/pages/Financeiro"));
@@ -42,6 +43,14 @@ function App() {
             <Route path="/anuncios" element={<Anuncios />} />
             <Route path="/anuncios/:mlbId" element={<AnuncioDetalhe />} />
             <Route path="/pedidos" element={<Pedidos />} />
+            <Route
+              path="/vendas-mt"
+              element={
+                <Suspense fallback={<div className="p-8 text-gray-400">Carregando...</div>}>
+                  <VendasMT />
+                </Suspense>
+              }
+            />
             <Route path="/atendimento" element={<Atendimento />} />
             <Route path="/perguntas" element={<Perguntas />} />
             <Route

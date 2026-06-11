@@ -264,6 +264,11 @@ function QuestionDetail({ question, tab, accountId }: QuestionDetailProps) {
     },
   });
 
+  // Resetar a avaliacao ao trocar de pergunta (estado interno do detalhe)
+  useEffect(() => {
+    setUserRating(null);
+  }, [question?.id]);
+
   const handleUseAISuggestion = () => {
     if (suggestMutation.data?.suggestion) {
       setResposta(suggestMutation.data.suggestion);
@@ -598,12 +603,7 @@ export default function Perguntas() {
   useEffect(() => {
     setSelectedQuestionId(null);
     setOffset(0);
-    setUserRating(null);
   }, [tab, activeAccountId]);
-
-  useEffect(() => {
-    setUserRating(null);
-  }, [selectedQuestionId]);
 
   return (
     <div className="p-6 space-y-6 h-full">
