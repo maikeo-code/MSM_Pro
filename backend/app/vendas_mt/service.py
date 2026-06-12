@@ -105,7 +105,8 @@ async def _montar_venda(
     qtd = item0.get("quantity") or 1
 
     total = float(order.get("total_amount") or 0)  # valor dos produtos (base imposto/margem)
-    pago = float(order.get("paid_amount") or total)  # o que o comprador pagou
+    cupom = float((order.get("coupon") or {}).get("amount") or 0)  # desconto de cupom
+    pago = float(order.get("paid_amount") or total) - cupom  # o que o comprador pagou (líquido de cupom)
     frete_comprador = sum(
         float(p.get("shipping_cost") or 0) for p in (order.get("payments") or [])
     )

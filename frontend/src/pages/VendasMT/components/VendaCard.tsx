@@ -54,10 +54,11 @@ export default function VendaCard({ v }: { v: Venda }) {
         <Linha label="💳 Pago comprador" valor={brl(v.pago)} forte />
         <Linha label="🚚 Frete" valor={brl(v.frete)} cor="text-[#D43B4F]" />
         <Linha label="🤝 Tarifa de Venda ML" valor={brl(v.tarifaML)} cor="text-[#D43B4F]" />
-        <div className="my-1 border-t border-[#0891b2]/30" />
-        <Linha label="👛 Lucro Bruto" valor={brl(v.lucroBruto)} cor="text-[#0891b2]" forte />
+        {/* Lucro Bruto + Custo/Imposto só aparecem quando o SKU tem custo cadastrado (igual ao Turbo) */}
         {v.temCusto ? (
           <>
+            <div className="my-1 border-t border-[#0891b2]/30" />
+            <Linha label="👛 Lucro Bruto" valor={brl(v.lucroBruto)} cor="text-[#0891b2]" forte />
             <Linha label="Custo do Produto" valor={brl(v.custoProduto)} cor="text-[#D43B4F]" />
             <Linha label="Imposto do Produto" valor={brl(v.imposto)} cor="text-[#D43B4F]" />
           </>
