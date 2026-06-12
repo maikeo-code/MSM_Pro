@@ -87,23 +87,41 @@ async def _frete_real(client: MLClient, shipment_id) -> float:
 async def _montar_venda(
     client: MLClient, order: dict, custos: dict[str, Decimal], aliquota: float
 ) -> VendaMTOut:
+    """Monta uma venda com a fórmula EXATA do Mercado Turbo (validada por diff 20/20 pedidos):
+
+    pago        = paid_amount (o que o comprador pagou, já com cupom/frete comprador)
+    frete       = custo do vendedor (shipments/costs) + frete pago pelo comprador
+    tarifa      = soma dos order_items[].sale_fee
+    lucroBruto  = pago - frete - tarifa
+    custo       = Product.cost * qtd  (só p/ SKU cadastrado)
+    imposto     = total_amount * aliquota  (só p/ SKU cadastrado — como no Turbo)
+    lucro       = lucroBruto - custo - imposto
+    margem%     = lucro / total_amount * 100
+    """
     itens = order.get("order_items") or [{}]
     item0 = itens[0] if itens else {}
     prod = item0.get("item") or {}
     sku = prod.get("seller_sku")
     qtd = item0.get("quantity") or 1
 
-    pago = float(order.get("total_amount") or 0)
+    total = float(order.get("total_amount") or 0)  # valor dos produtos (base imposto/margem)
+    pago = float(order.get("paid_amount") or total)  # o que o comprador pagou
+    frete_comprador = sum(
+        float(p.get("shipping_cost") or 0) for p in (order.get("payments") or [])
+    )
+    seller_frete = await _frete_real(client, (order.get("shipping") or {}).get("id"))
+    frete = seller_frete + frete_comprador  # linha "Frete" do Turbo
+
     # Tarifa de Venda ML = soma dos sale_fee dos order_items (mesma fonte do sync de Pedidos).
     tarifa = sum(float(oi.get("sale_fee") or 0) for oi in itens)
-    frete = await _frete_real(client, (order.get("shipping") or {}).get("id"))
 
-    custo = float(custos[sku]) * qtd if sku and sku in custos else None
-    imposto = pago * aliquota if aliquota else None
+    configurado = bool(sku and sku in custos)  # SKU tem Custo & Imposto cadastrado
+    custo = float(custos[sku]) * qtd if configurado else None
+    imposto = total * aliquota if (configurado and aliquota) else None
 
-    receita_liquida = pago - tarifa - (imposto or 0.0)
-    lucro = receita_liquida - (custo or 0.0) - frete
-    margem = (lucro / pago * 100) if pago else None
+    lucro_bruto = pago - frete - tarifa
+    lucro = lucro_bruto - (custo or 0.0) - (imposto or 0.0)
+    margem = (lucro / total * 100) if total else None
 
     dt = order.get("date_created")
     status = (order.get("shipping") or {}).get("status") or order.get("status")
@@ -115,13 +133,15 @@ async def _montar_venda(
         titulo=prod.get("title") or "(sem título)",
         data=dt,
         status=_STATUS_LABEL.get(status, status),
-        total=pago,
-        produtos=pago,
+        total=total,
+        pago=pago,
+        produtos=total,
         tarifaML=-tarifa if tarifa else None,
-        imposto=-imposto if imposto is not None else None,
-        receitaLiquida=receita_liquida,
-        custoProduto=-custo if custo is not None else None,
         frete=-frete if frete else None,
+        lucroBruto=lucro_bruto,
+        custoProduto=-custo if custo is not None else None,
+        imposto=-imposto if imposto is not None else None,
+        receitaLiquida=lucro_bruto,
         lucro=lucro,
         margem=margem,
         temCusto=custo is not None,

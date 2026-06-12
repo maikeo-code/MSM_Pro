@@ -14,15 +14,17 @@ class VendaMTOut(BaseModel):
     titulo: str
     data: str | None = None
     status: str | None = None
-    total: float
-    produtos: float
+    total: float          # valor dos produtos (base de imposto e margem)
+    pago: float           # o que o comprador pagou (paid_amount) — linha "Pago comprador" do Turbo
+    produtos: float       # compat (== total)
     tarifaML: float | None = None
-    imposto: float | None = None
-    receitaLiquida: float | None = None
+    frete: float | None = None        # custo do vendedor + frete pago pelo comprador
+    lucroBruto: float | None = None   # pago - frete - tarifa
     custoProduto: float | None = None
-    frete: float | None = None
+    imposto: float | None = None      # 8,5% do total, só quando SKU configurado (como no Turbo)
+    receitaLiquida: float | None = None  # compat (== lucroBruto)
     lucro: float | None = None
-    margem: float | None = None
+    margem: float | None = None       # lucro / total * 100
     temCusto: bool = False
 
 

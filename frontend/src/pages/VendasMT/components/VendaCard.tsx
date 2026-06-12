@@ -49,17 +49,17 @@ export default function VendaCard({ v }: { v: Venda }) {
         </button>
       </div>
 
-      {/* coluna financeira — o "que sobra da venda" */}
+      {/* coluna financeira — estrutura EXATA do Mercado Turbo */}
       <div className="w-60 shrink-0 px-4 py-3 bg-[#E4E2E9]/40">
-        <Linha label="Valor produtos" valor={brl(v.produtos)} />
-        <Linha label="Tarifa de Venda ML" valor={brl(v.tarifaML)} cor="text-[#D43B4F]" />
-        <Linha label="Imposto do Produto" valor={brl(v.imposto)} cor="text-[#D43B4F]" />
-        <div className="my-1 border-t border-[#33313B]/10" />
-        <Linha label="Receita líquida" valor={brl(v.receitaLiquida)} forte />
+        <Linha label="💳 Pago comprador" valor={brl(v.pago)} forte />
+        <Linha label="🚚 Frete" valor={brl(v.frete)} cor="text-[#D43B4F]" />
+        <Linha label="🤝 Tarifa de Venda ML" valor={brl(v.tarifaML)} cor="text-[#D43B4F]" />
+        <div className="my-1 border-t border-[#0891b2]/30" />
+        <Linha label="👛 Lucro Bruto" valor={brl(v.lucroBruto)} cor="text-[#0891b2]" forte />
         {v.temCusto ? (
           <>
             <Linha label="Custo do Produto" valor={brl(v.custoProduto)} cor="text-[#D43B4F]" />
-            <Linha label="Valor do Frete" valor={brl(v.frete)} cor="text-[#D43B4F]" />
+            <Linha label="Imposto do Produto" valor={brl(v.imposto)} cor="text-[#D43B4F]" />
           </>
         ) : null}
         <button

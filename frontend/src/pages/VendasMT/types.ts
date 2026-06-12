@@ -7,13 +7,15 @@ export interface Venda {
   data: string | null;
   status: string | null;
   margem: number | null;
-  total: number;
-  produtos: number;
+  total: number;          // valor dos produtos (base de imposto e margem)
+  pago: number;           // o que o comprador pagou (paid_amount) — "Pago comprador"
+  produtos: number;       // compat (== total)
   tarifaML: number | null;
-  imposto: number | null;
-  receitaLiquida: number | null;
+  frete: number | null;           // custo vendedor + frete pago pelo comprador
+  lucroBruto: number | null;      // pago - frete - tarifa
   custoProduto: number | null;
-  frete: number | null;
+  imposto: number | null;
+  receitaLiquida: number | null;  // compat (== lucroBruto)
   lucro: number | null;
   temCusto: boolean;
   impostoPct?: number | null;
