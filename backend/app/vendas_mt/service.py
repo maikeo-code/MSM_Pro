@@ -105,8 +105,10 @@ async def _montar_venda(
     qtd = item0.get("quantity") or 1
 
     total = float(order.get("total_amount") or 0)  # valor dos produtos (base imposto/margem)
-    cupom = float((order.get("coupon") or {}).get("amount") or 0)  # desconto de cupom
-    pago = float(order.get("paid_amount") or total) - cupom  # o que o comprador pagou (líquido de cupom)
+    # pago = paid_amount (fonte autoritativa do ML; já líquido de descontos relevantes ao vendedor).
+    # NÃO subtrair coupon.amount: cupons financiados pelo ML não reduzem o que o vendedor recebe
+    # (subtrair quebrava pedidos como #4418888 -> lucro negativo).
+    pago = float(order.get("paid_amount") or total)
     frete_comprador = sum(
         float(p.get("shipping_cost") or 0) for p in (order.get("payments") or [])
     )
@@ -139,7 +141,8 @@ async def _montar_venda(
         produtos=total,
         tarifaML=-tarifa if tarifa else None,
         frete=-frete if frete else None,
-        lucroBruto=lucro_bruto,
+        # Lucro Bruto só é exibido quando há custo (igual ao Turbo: sem custo, lucro == bruto)
+        lucroBruto=lucro_bruto if custo is not None else None,
         custoProduto=-custo if custo is not None else None,
         imposto=-imposto if imposto is not None else None,
         receitaLiquida=lucro_bruto,
