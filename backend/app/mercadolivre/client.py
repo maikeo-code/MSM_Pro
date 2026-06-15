@@ -694,20 +694,31 @@ class MLClient:
             return {}
 
     async def get_listing_fees(
-        self, price: float, category_id: str, listing_type_id: str
+        self,
+        price: float,
+        category_id: str,
+        listing_type_id: str,
+        logistic_type: str | None = None,
+        shipping_mode: str | None = None,
+        billable_weight: int | None = None,
     ) -> dict:
         """
         Busca taxa real do ML por categoria e tipo de anúncio.
-        GET /sites/MLB/listing_prices?price={price}&category_id={cat}&listing_type_id={type}
+        GET /sites/MLB/listing_prices?price&category_id&listing_type_id[&logistic_type&shipping_mode&billable_weight]
         Retorna: {percentage_fee: float, fixed_fee: float, sale_fee_amount: float}
+
+        Doc oficial (comissao-por-vender): desde 02/03/2026 (BR) o `fixed_fee` depende de
+        `logistic_type`+`shipping_mode`(+`billable_weight`). SEM esses params o fixed_fee
+        NÃO bate com o cobrado. São opcionais p/ compatibilidade; passe-os quando o
+        logistic_type do anúncio estiver disponível para precisão total.
 
         Args:
             price: Preço do anúncio em R$
-            category_id: ID da categoria do anúncio (ex: "MLB1000")
-            listing_type_id: Tipo de anúncio (ex: "bronze", "silver", "gold")
-
-        Returns:
-            Dict com percentual_fee, fixed_fee e sale_fee_amount
+            category_id: ID da categoria (ex: "MLB1000")
+            listing_type_id: Tipo de anúncio (gold_special/gold_pro/...)
+            logistic_type: drop_off/cross_docking/self_service/fulfillment/... (opcional)
+            shipping_mode: me2/me1/custom (opcional)
+            billable_weight: peso faturável em gramas (opcional; obrigatório só na Argentina)
         """
         try:
             params = {
@@ -715,6 +726,12 @@ class MLClient:
                 "category_id": category_id,
                 "listing_type_id": listing_type_id,
             }
+            if logistic_type:
+                params["logistic_type"] = logistic_type
+            if shipping_mode:
+                params["shipping_mode"] = shipping_mode
+            if billable_weight is not None:
+                params["billable_weight"] = billable_weight
             data = await self._request("GET", "/sites/MLB/listing_prices", params=params)
 
             # data pode ser uma lista — filtrar pelo listing_type_id correto
@@ -757,10 +774,12 @@ class MLClient:
         from decimal import Decimal as _Decimal
 
         try:
+            # Doc oficial (custos-de-envio): com verbose=true vem `coverage.all_country.discount`.
+            # O vendedor paga `list_cost − discount`; sem verbose o desconto era ignorado.
             params = {
                 "item_id": item_id,
                 "free_shipping": "true",
-                "verbose": "false",
+                "verbose": "true",
             }
             if listing_type_id:
                 params["listing_type_id"] = listing_type_id
@@ -769,14 +788,14 @@ class MLClient:
             data = await self._request(
                 "GET", f"/users/{seller_id}/shipping_options/free", params=params
             )
-            cost = (
-                (data or {})
-                .get("coverage", {})
-                .get("all_country", {})
-                .get("list_cost")
-            )
+            all_country = (data or {}).get("coverage", {}).get("all_country", {})
+            cost = all_country.get("list_cost")
             if cost is not None:
                 value = _Decimal(str(cost))
+                # subtrai o desconto do ML (se houver) — é o que o vendedor realmente paga
+                discount = all_country.get("discount")
+                if discount is not None:
+                    value = value - _Decimal(str(discount))
                 return value if value >= 0 else None
         except MLClientError:
             pass
@@ -1059,10 +1078,28 @@ class MLClient:
     async def get_shipment(self, shipment_id: int | str) -> dict:
         """
         Busca dados de um envio pelo ID.
-        GET /shipments/{shipment_id}
-        Retorna dados incluindo cost_components (sender_cost), base_cost, etc.
+        GET /shipments/{shipment_id}  (header x-format-new: true)
+
+        Doc oficial (custos-de-envio / gerenciar-devolucoes): SEM o header
+        `x-format-new: true` o `cost_components.sender_cost` vinha 0/None — o frete real
+        pago pelo vendedor não era retornado. O custo faturado mais preciso é
+        `GET /shipments/{id}/costs` → `senders[].cost` (ver get_shipment_costs).
         """
-        return await self._request("GET", f"/shipments/{shipment_id}")
+        return await self._request(
+            "GET",
+            f"/shipments/{shipment_id}",
+            headers={"x-format-new": "true"},
+        )
+
+    async def get_shipment_costs(self, shipment_id: int | str) -> dict:
+        """
+        Custo real faturado de um envio (mais preciso que get_shipment).
+        GET /shipments/{shipment_id}/costs → {senders: [{cost, ...}], receivers: [...]}
+
+        `senders[].cost` = custo real do frete pago pelo vendedor (já com desconto).
+        É a fonte usada pela aba Vendas (MT). Falha-segura: relança MLClientError ao caller.
+        """
+        return await self._request("GET", f"/shipments/{shipment_id}/costs")
 
     async def get_received_questions(
         self, status: str = "UNANSWERED", offset: int = 0, limit: int = 50
