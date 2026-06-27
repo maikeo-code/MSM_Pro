@@ -363,6 +363,31 @@ async def get_dashboard_extra_cards(
     return await get_extra_cards(db, current_user.id, ml_account_id=ml_account_id)
 
 
+@router.get("/audit/parity")
+async def get_parity_audit(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    date_iso: str | None = Query(default=None, description="Dia BRT a auditar (YYYY-MM-DD). Padrao: ontem."),
+    sample_items: int = Query(default=5, ge=1, le=40, description="Qtd de anuncios na amostra de visitas/estoque/preco."),
+):
+    """Audita paridade dos dados do MSM_Pro contra a API REAL do Mercado Livre.
+
+    Para cada conta ML, busca os numeros reais no ML (orders, visits, item,
+    seller_reputation) e compara com o que o MSM_Pro persiste — veredito
+    PASS/FAIL por metrica. Read-only. Fonte da verdade = ML (principio mestre).
+    """
+    from datetime import date as _date, datetime as _dt, timedelta as _td, timezone as _tz
+
+    from app.vendas.service_parity_audit import run_parity_audit
+
+    brt = _tz(_td(hours=-3))
+    if date_iso:
+        target_day = _date.fromisoformat(date_iso)
+    else:
+        target_day = (_dt.now(brt) - _td(days=1)).date()
+    return await run_parity_audit(db, current_user.id, target_day, sample_items=sample_items)
+
+
 
 
 
