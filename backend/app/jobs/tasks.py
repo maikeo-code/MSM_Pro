@@ -215,11 +215,19 @@ def sync_reputation(self):
 
 # --- Task: Sincronizar pedidos individuais ---
 
-@celery_app.task(name="app.jobs.tasks.sync_orders", bind=True)
+@celery_app.task(
+    name="app.jobs.tasks.sync_orders",
+    bind=True,
+    soft_time_limit=1200,
+    time_limit=1320,
+)
 def sync_orders(self):
     """
     Sincroniza pedidos individuais dos ultimos 2 dias.
     Uses Redis lock to prevent duplicate execution.
+
+    Time limit elevado (20min): cada pedido faz get_shipment sequencial p/ frete
+    real; com volume de varios dias o default global de 300s estourava (retry-loop).
     """
     async def _run():
         if not await acquire_task_lock("sync_orders", timeout=600):
@@ -427,6 +435,8 @@ def runtime_watcher(self):
     bind=True,
     max_retries=2,
     default_retry_delay=120,
+    soft_time_limit=1500,
+    time_limit=1620,
 )
 def backfill_orders_after_reconnect(self, ml_account_id: str, days_to_backfill: int = 7):
     """
