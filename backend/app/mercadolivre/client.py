@@ -791,11 +791,13 @@ class MLClient:
             all_country = (data or {}).get("coverage", {}).get("all_country", {})
             cost = all_country.get("list_cost")
             if cost is not None:
+                # Doc oficial (custos-de-envio): com verbose=true o `list_cost` JÁ vem
+                # LÍQUIDO do desconto do ML (ex.: custo bruto 200, desconto 40% →
+                # list_cost=120 + coverage.discount={rate:0.4, promoted_amount:200}).
+                # `coverage.discount.promoted_amount` é o valor BRUTO (informativo) — NÃO
+                # subtrair. O que o vendedor realmente paga = list_cost. Espelha o painel
+                # do vendedor (aba Anúncios → "você paga pelo frete").
                 value = _Decimal(str(cost))
-                # subtrai o desconto do ML (se houver) — é o que o vendedor realmente paga
-                discount = all_country.get("discount")
-                if discount is not None:
-                    value = value - _Decimal(str(discount))
                 return value if value >= 0 else None
         except MLClientError:
             pass
