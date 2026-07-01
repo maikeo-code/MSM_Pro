@@ -73,6 +73,39 @@ def extract_seller_shipping_cost(
     return value
 
 
+async def fetch_seller_shipping_cost(
+    client,
+    shipment_id,
+    logistic_type: Optional[str] = None,
+) -> Decimal:
+    """Custo REAL do frete pago pelo vendedor — mesma fonte da aba Vendas (MT).
+
+    Fonte da verdade: GET /shipments/{id}/costs -> soma de `senders[].cost`
+    (inclui desconto do ML). O antigo GET /shipments/{id} + cost_components.sender_cost
+    retornava 0/None (frete "grátis" falso -> margem inflada). Ver canônico
+    ml_endpoints_canonical.md (BLOCO D) e [[bug-orders-frete-comissao]].
+
+    Regras: Full (fulfillment) = 0 (faturado à parte); negativos clampados a 0;
+    qualquer falha -> 0 (falha-segura, não quebra o sync).
+    """
+    import logging
+
+    if logistic_type == "fulfillment":
+        return Decimal("0")
+    if not shipment_id:
+        return Decimal("0")
+    try:
+        costs = await client.get_shipment_costs(shipment_id)
+        senders = (costs or {}).get("senders") or []
+        total = sum(Decimal(str(s.get("cost") or 0)) for s in senders)
+        return total if total > 0 else Decimal("0")
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).debug(
+            "frete real indisponível p/ shipment %s: %s", shipment_id, exc
+        )
+        return Decimal("0")
+
+
 async def _create_sync_log(db, task_name: str, ml_account_id=None):
     """Cria um SyncLog com status 'running' e faz flush para obter o id."""
     from app.core.models import SyncLog

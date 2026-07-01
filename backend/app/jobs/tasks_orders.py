@@ -17,7 +17,11 @@ from app.core.database import AsyncSessionLocal
 from app.mercadolivre.client import MLClient, MLClientError
 from app.vendas.models import Listing
 
-from .tasks_helpers import _create_sync_log, _finish_sync_log, extract_seller_shipping_cost
+from .tasks_helpers import (
+    _create_sync_log,
+    _finish_sync_log,
+    fetch_seller_shipping_cost,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -161,24 +165,14 @@ async def _sync_orders_async():
                                 # Busca custo real de frete via /shipments/{id}
                                 # IMPORTANTE: usa logistic_type para distinguir Full
                                 # (cost zero por shipment) e ME2/Flex.
-                                shipping_cost = Decimal("0")
+                                # Frete real do vendedor via /shipments/{id}/costs
+                                # (senders[].cost) — mesma cadeia da aba Vendas (MT).
+                                # O antigo /shipments/{id}+sender_cost vinha 0 (margem inflada).
                                 shipment_id = shipping_data.get("id")
                                 shipment_logistic_type = shipping_data.get("logistic_type")
-                                if shipment_id:
-                                    try:
-                                        shipment_detail = await client.get_shipment(shipment_id)
-                                        # Override logistic_type se shipment trouxer mais detalhe
-                                        eff_logistic = (
-                                            shipment_detail.get("logistic_type")
-                                            or shipment_logistic_type
-                                        )
-                                        shipping_cost = extract_seller_shipping_cost(
-                                            shipment_detail, eff_logistic
-                                        )
-                                    except Exception as e:
-                                        logger.debug(
-                                            f"Nao conseguiu buscar frete do shipment {shipment_id}: {e}"
-                                        )
+                                shipping_cost = await fetch_seller_shipping_cost(
+                                    client, shipment_id, shipment_logistic_type
+                                )
                                 delivery_date = None
                                 delivery_date_str = (
                                     shipping_data.get("date_delivered")
@@ -471,26 +465,13 @@ async def _backfill_orders_after_reconnect_async(
                                 or "to_be_agreed"
                             )
 
-                            # Busca custo real de frete via /shipments/{id}
-                            shipping_cost = Decimal("0")
+                            # Frete real do vendedor via /shipments/{id}/costs
+                            # (senders[].cost) — mesma cadeia da aba Vendas (MT).
                             shipment_id = shipping_data.get("id")
                             shipment_logistic_type = shipping_data.get("logistic_type")
-                            if shipment_id:
-                                try:
-                                    shipment_detail = await client.get_shipment(
-                                        shipment_id
-                                    )
-                                    eff_logistic = (
-                                        shipment_detail.get("logistic_type")
-                                        or shipment_logistic_type
-                                    )
-                                    shipping_cost = extract_seller_shipping_cost(
-                                        shipment_detail, eff_logistic
-                                    )
-                                except Exception as e:
-                                    logger.debug(
-                                        f"Nao conseguiu buscar frete do shipment {shipment_id}: {e}"
-                                    )
+                            shipping_cost = await fetch_seller_shipping_cost(
+                                client, shipment_id, shipment_logistic_type
+                            )
 
                             delivery_date = None
                             delivery_date_str = (
