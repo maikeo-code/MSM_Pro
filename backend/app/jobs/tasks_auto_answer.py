@@ -112,9 +112,9 @@ async def _auto_answer_high_confidence_async() -> dict:
 
                     await answer_question_and_track(
                         db=db,
-                        question=question,
+                        question_id=question.id,
+                        text=suggestion,
                         account=account,
-                        answer_text=suggestion,
                         source="ai_auto",
                     )
                     total_sent += 1

@@ -119,10 +119,15 @@ async def fetch_and_save_reputation(
     late_value = delayed_data.get("value", 0)
     mediations_value = mediations_data.get("value", 0) if isinstance(mediations_data, dict) else 0
 
-    # Transacoes — usar completed como base dos 60d se disponivel
-    # transactions.total e ALL-TIME, nao 60 dias
-    # O ML nao retorna "60d" diretamente; usamos nossos snapshots como fonte
-    completed = transactions.get("completed", 0)
+    # Vendas 60d REAIS do painel ML: seller_reputation.metrics.sales.completed
+    # (janela de 60 dias — é o número que o painel do vendedor exibe).
+    # transactions.completed é ALL-TIME (histórico total) — NÃO representa 60d.
+    # Antes usávamos transactions.completed aqui: inflava ~5x (ex.: 10.686 vs 2.037 real).
+    sales_metrics = metrics.get("sales", {}) or {}
+    completed_60d = sales_metrics.get("completed")
+    completed = (
+        completed_60d if completed_60d is not None else transactions.get("completed", 0)
+    )
     canceled = transactions.get("canceled", 0)
 
     # Nivel e power seller
