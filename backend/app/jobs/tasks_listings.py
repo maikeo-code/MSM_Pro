@@ -170,18 +170,27 @@ async def _sync_listing_snapshot_async(
                     except Exception:
                         logger.debug(f"Não conseguiu buscar promoções para {listing.mlb_id}")
 
-            # Busca taxa real via API listing_prices (atualiza no listing)
+            # Comissão ESTIMADA via listing_prices. Usa o listing_type_id REAL do
+            # item + logistic_type + shipping_mode=me2 (desde 02/03/2026 o ML exige
+            # esses params, senão a comissão diverge do painel — validado 01/07).
+            # Full com desconto de comissão não é refletido aqui; nesse caso a % real
+            # das vendas (abaixo) sobrescreve o valor. listing_type_raw é reaproveitado
+            # no cálculo de frete grátis mais adiante.
+            listing_type_raw = "gold_special"  # default classico
+            if listing.listing_type == "premium":
+                listing_type_raw = "gold_pro"
+            elif listing.listing_type == "full":
+                listing_type_raw = "gold_pro"
             if category_id and listing.listing_type:
-                listing_type_raw = "gold_special"  # default classico
-                if listing.listing_type == "premium":
-                    listing_type_raw = "gold_pro"
-                elif listing.listing_type == "full":
-                    listing_type_raw = "gold_pro"
+                _ship_meta = item_data.get("shipping") or {}
+                _real_lt = item_data.get("listing_type_id") or listing_type_raw
                 try:
                     fees_data = await client.get_listing_fees(
                         price=float(price),
                         category_id=category_id,
-                        listing_type_id=listing_type_raw,
+                        listing_type_id=_real_lt,
+                        logistic_type=_ship_meta.get("logistic_type"),
+                        shipping_mode="me2",
                     )
                     if fees_data.get("sale_fee_amount"):
                         listing.sale_fee_amount = Decimal(str(fees_data["sale_fee_amount"]))
@@ -301,6 +310,11 @@ async def _sync_listing_snapshot_async(
                 logger.debug(f"Nao conseguiu buscar pedidos pagos para {listing.mlb_id}")
 
             avg_selling_price = (revenue / sales_today) if sales_today > 0 else None
+            # NOTA (01/07): a comissão ESTIMADA vem de listing_prices+logistic_type
+            # (exato p/ casos padrão — 6/9 anúncios batem o painel). Anúncios Full com
+            # desconto de comissão divergem (listing_prices dá a cheia); a comissão
+            # REAL desses vem de order_items.sale_fee na venda (usada na margem). O
+            # override por % média das vendas foi testado e PIORA os casos padrão.
 
             # Busca pedidos CANCELADOS (conta pedidos + soma valor)
             cancelled_orders = 0
