@@ -35,9 +35,15 @@ async def _sync_orders_async():
     """
     from app.vendas.models import Order
 
-    date_from = (datetime.now(timezone.utc) - timedelta(days=2)).strftime(
-        "%Y-%m-%dT%H:%M:%S.000-03:00"
+    # Janela ancorada no INÍCIO DO DIA BRT, 3 dias atrás — garante que os dias
+    # recentes fiquem COMPLETOS. O código antigo usava now(utc) formatado como
+    # "-03:00" (fuso incorreto) e 2 dias exatos: quando rodava à noite, perdia
+    # pedidos das primeiras horas do dia mais antigo (divergência -2 vs painel ML).
+    _BRT = timezone(timedelta(hours=-3))
+    _start_brt = (datetime.now(_BRT) - timedelta(days=3)).replace(
+        hour=0, minute=0, second=0, microsecond=0
     )
+    date_from = _start_brt.strftime("%Y-%m-%dT%H:%M:%S.000-03:00")
 
     async with AsyncSessionLocal() as db:
         sync_log = await _create_sync_log(db, "sync_orders")
@@ -353,11 +359,14 @@ async def _backfill_orders_after_reconnect_async(
                 f"Iniciando backfill de {days_to_backfill} dias para {account.nickname}"
             )
 
-            # Data do backfill: de N dias atrás até agora
-            date_to = datetime.now(timezone.utc)
-            date_from = date_to - timedelta(days=days_to_backfill)
-
-            # Formato ISO para API ML (com timezone)
+            # Data do backfill: de N dias atrás (início do dia BRT) até agora.
+            # Usa BRT real (o código antigo formatava now(utc) como "-03:00" —
+            # fuso incorreto que deslocava a janela em 3h).
+            _BRT = timezone(timedelta(hours=-3))
+            date_to = datetime.now(_BRT)
+            date_from = (date_to - timedelta(days=days_to_backfill)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
             date_from_str = date_from.strftime("%Y-%m-%dT%H:%M:%S.000-03:00")
             date_to_str = date_to.strftime("%Y-%m-%dT%H:%M:%S.000-03:00")
 
