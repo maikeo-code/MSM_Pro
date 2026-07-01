@@ -21,11 +21,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import MLAccount
 from app.mercadolivre.client import MLClient
 from app.reputacao.models import ReputationSnapshot
+from app.vendas.constants import CANCEL_STATUSES, NON_SALE_PAYMENT_STATUSES
 from app.vendas.models import Listing, ListingSnapshot, Order
 
 logger = logging.getLogger(__name__)
 BRT = timezone(timedelta(hours=-3))
-CANCEL_STATUSES = ["cancelled", "refunded", "rejected"]
 
 
 def _verdict(app_val, ml_val, tol: float = 0.0) -> str:
@@ -165,7 +165,7 @@ async def _audit_sales(db, client, acc: MLAccount, day: date) -> list[dict]:
                 Order.ml_account_id == acc.id,
                 Order.order_date >= s_utc,
                 Order.order_date <= e_utc,
-                Order.payment_status.notin_(CANCEL_STATUSES),
+                Order.payment_status.notin_(NON_SALE_PAYMENT_STATUSES),
             )
         )
     ).one()

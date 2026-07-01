@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import MLAccount
 from app.mercadolivre.client import MLClient
+from app.vendas.constants import NON_SALE_PAYMENT_STATUSES
 from app.vendas.models import Order
 
 logger = logging.getLogger(__name__)
@@ -238,7 +239,7 @@ async def _sales_sparkline_7d(db: AsyncSession, ml_account_id: UUID) -> list[dic
             Order.ml_account_id == ml_account_id,
             Order.order_date >= start_dt,
             Order.order_date <= end_dt,
-            Order.payment_status.notin_(["cancelled", "refunded", "rejected"]),
+            Order.payment_status.notin_(NON_SALE_PAYMENT_STATUSES),
         )
     )
     rows = (await db.execute(stmt)).all()

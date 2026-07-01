@@ -176,7 +176,8 @@ async def test_guarda_anti_corrupcao_visitas_menor_que_vendas(db):
 
 @pytest.mark.asyncio
 async def test_pedidos_cancelados_ficam_fora(db):
-    """Orders cancelled/refunded/rejected não entram na reconciliação."""
+    """Orders cancelled/rejected ficam fora. REFUNDED conta (espelha o painel do
+    ML: a venda aconteceu; o reembolso é devolução marcada à parte). 2026-07-01."""
     user, ml = await _setup_user(db)
     l1 = _listing(user, ml, "MLB1")
     db.add(l1)
@@ -186,13 +187,14 @@ async def test_pedidos_cancelados_ficam_fora(db):
     db.add_all([
         _order(l1, ml, dia, qty=2, amount="200", status="approved"),
         _order(l1, ml, dia, qty=9, amount="900", status="cancelled"),
-        _order(l1, ml, dia, qty=9, amount="900", status="refunded"),
+        _order(l1, ml, dia, qty=3, amount="300", status="refunded"),
     ])
     await db.commit()
 
     kpi = await aggregate_metrics(db, [l1.id], dia, dia)
-    assert kpi["vendas"] == 2
-    assert kpi["pedidos"] == 1
+    # approved (2) + refunded (3) contam; cancelled fica fora.
+    assert kpi["vendas"] == 5
+    assert kpi["pedidos"] == 2
 
 
 @pytest.mark.asyncio

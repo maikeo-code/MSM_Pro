@@ -23,6 +23,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.vendas.constants import NON_SALE_PAYMENT_STATUSES
 from app.vendas.models import ListingSnapshot, Order
 
 BRT = timezone(timedelta(hours=-3))
@@ -112,7 +113,7 @@ async def aggregate_metrics(
             Order.listing_id.in_(listing_ids),
             Order.order_date >= range_utc_start,
             Order.order_date <= range_utc_end,
-            Order.payment_status.notin_(["cancelled", "refunded", "rejected"]),
+            Order.payment_status.notin_(NON_SALE_PAYMENT_STATUSES),
         )
     )
     ofb = orders_result.fetchone()

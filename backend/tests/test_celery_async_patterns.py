@@ -160,10 +160,16 @@ def test_kpi_single_day_has_orders_fallback():
 
     src = inspect.getsource(metrics.aggregate_metrics)
     assert "Order" in src, "deve referenciar Order no fallback"
-    # Filtro de status: exclui cancelled/refunded/rejected (abordagem broad
-    # adotada no fix do bug KPI 3->2). 'approved' sozinho era muito restritivo.
-    assert "cancelled" in src and "refunded" in src, (
-        "deve excluir payment_status cancelled/refunded"
+    # Filtro de status via constante única NON_SALE_PAYMENT_STATUSES.
+    # Regra (2026-07-01, espelha o painel do ML): cancelled/rejected ficam fora;
+    # REFUNDED conta (a venda aconteceu; devolução é marcada à parte).
+    assert "NON_SALE_PAYMENT_STATUSES" in src, "deve filtrar por status de venda"
+    from app.vendas.constants import NON_SALE_PAYMENT_STATUSES
+
+    assert "cancelled" in NON_SALE_PAYMENT_STATUSES
+    assert "rejected" in NON_SALE_PAYMENT_STATUSES
+    assert "refunded" not in NON_SALE_PAYMENT_STATUSES, (
+        "refunded deve CONTAR como venda (espelha o ML)"
     )
 
 

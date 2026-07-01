@@ -306,7 +306,7 @@ async def list_listings(
         )
         .where(
             Order.listing_id.in_(listing_ids),
-            Order.payment_status.notin_(["cancelled", "refunded", "rejected"]),
+            Order.payment_status.notin_(NON_SALE_PAYMENT_STATUSES),
             Order.order_date >= orders_utc_start,
             Order.order_date <= orders_utc_end,
         )
