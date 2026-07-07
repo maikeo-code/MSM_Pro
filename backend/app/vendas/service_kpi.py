@@ -12,6 +12,7 @@ from sqlalchemy import cast, Date, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import ML_FEES_FLOAT
+from app.vendas.constants import NON_SALE_PAYMENT_STATUSES
 from app.vendas.metrics import aggregate_metrics
 from app.vendas.models import Listing, ListingSnapshot, Order
 
