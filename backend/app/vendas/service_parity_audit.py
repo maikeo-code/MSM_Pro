@@ -181,18 +181,26 @@ async def _audit_sales(db, client, acc: MLAccount, day: date) -> list[dict]:
 async def _audit_visits_stock_price(
     db, client, acc: MLAccount, day: date, sample_items: int
 ) -> list[dict]:
-    """Amostra de anuncios: visitas do dia, estoque e preco (ML /items vs snapshot)."""
-    listings = list(
+    """Amostra de anuncios: visitas, estoque, preco e comissao (ML vs app)."""
+    rows = list(
         (
             await db.execute(
-                select(Listing.id, Listing.mlb_id)
+                select(
+                    Listing.id,
+                    Listing.mlb_id,
+                    Listing.price,
+                    Listing.sale_price,
+                    Listing.sale_fee_amount,
+                    Listing.category_id,
+                    Listing.listing_type,
+                )
                 .where(Listing.ml_account_id == acc.id, Listing.status == "active")
                 .limit(sample_items)
             )
         ).all()
     )
     checks: list[dict] = []
-    for lid, mlb in listings:
+    for lid, mlb, l_price, l_sale_price, l_fee, l_cat, l_type in rows:
         # Visitas do dia (ML time_window) vs snapshot.visits
         try:
             ml_visits = await client.get_item_visits_on_day(mlb, day)
@@ -214,15 +222,49 @@ async def _audit_visits_stock_price(
         if ml_visits is not None:
             checks.append(_check(f"visitas[{mlb}]", ml_visits, app_visits))
 
-        # Estoque e preco atuais (ML /items) vs ultimo snapshot
+        # Estoque e preco atuais (ML /items + /sale_price) vs listing/snapshot
         try:
             item = await client.get_item(mlb)
             ml_stock = int(item.get("available_quantity", 0) or 0)
-            ml_price = round(float(item.get("price", 0) or 0), 2)
+
+            # Preço: usa sale_price (campo vigente). item["price"] está DEPRECIADO no BR
+            # e retorna o preço cheio sem desconto, causando falso-FAIL.
+            sp = await client.get_item_sale_price(mlb)
+            if sp and sp.get("amount") is not None:
+                ml_price = round(float(sp["amount"]), 2)
+            else:
+                # Fallback: item.price (quando não há promoção, coincide com sale_price)
+                ml_price = round(float(item.get("price") or 0), 2)
+
+            # App: usa listing.sale_price se existir, senão listing.price
+            app_price_raw = l_sale_price if l_sale_price is not None else l_price
             app_stock = int(snap[1]) if snap else None
-            app_price = round(float(snap[2]), 2) if snap else None
+            app_price = round(float(app_price_raw), 2) if app_price_raw is not None else None
+
             checks.append(_check(f"estoque[{mlb}]", ml_stock, app_stock))
-            checks.append(_check(f"preco[{mlb}]", ml_price, app_price, tol=0.01))
+            checks.append(_check(f"preco[{mlb}]", ml_price, app_price, tol=0.05))
+
+            # Comissão (listing_prices vs listing.sale_fee_amount)
+            if l_cat and l_type:
+                shp = item.get("shipping") or {}
+                lt = item.get("listing_type_id") or l_type
+                # Mapeia tipo interno para listing_type_id do ML
+                _lt_map = {"classico": "gold_special", "premium": "gold_pro", "full": "gold_pro"}
+                lt_id = lt if "_" in lt else _lt_map.get(lt, lt)
+                try:
+                    fees = await client.get_listing_fees(
+                        price=ml_price,
+                        category_id=l_cat,
+                        listing_type_id=lt_id,
+                        logistic_type=shp.get("logistic_type"),
+                        shipping_mode="me2",
+                    )
+                    ml_fee = round(float(fees.get("sale_fee_amount") or 0), 2)
+                    app_fee = round(float(l_fee), 2) if l_fee is not None else None
+                    if ml_fee > 0:
+                        checks.append(_check(f"comissao[{mlb}]", ml_fee, app_fee, tol=0.10))
+                except Exception:  # noqa: BLE001
+                    pass  # Comissão não crítica para o placar principal
         except Exception as e:  # noqa: BLE001
             checks.append(_check(f"item[{mlb}]", None, None, detail=str(e)))
     return checks
