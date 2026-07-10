@@ -194,6 +194,7 @@ async def list_ml_accounts(
     """
     from sqlalchemy import func
 
+    from app.core.models import SyncLog
     from app.vendas.models import Listing
 
     result = await db.execute(
@@ -203,6 +204,21 @@ async def list_ml_accounts(
         )
     )
     accounts = result.scalars().all()
+
+    # Ultimo sync bem-sucedido por conta (E18): uma query so, sem N+1. Tasks
+    # globais (ml_account_id NULL) nao contam — last_sync reflete syncs da conta.
+    last_sync_result = await db.execute(
+        select(
+            SyncLog.ml_account_id,
+            func.max(SyncLog.finished_at).label("last_sync"),
+        )
+        .where(
+            SyncLog.status == "success",
+            SyncLog.ml_account_id.isnot(None),
+        )
+        .group_by(SyncLog.ml_account_id)
+    )
+    last_sync_by_account = {row[0]: row[1] for row in last_sync_result.fetchall()}
 
     # Enriquece cada conta com dados adicionais
     enriched_accounts = []
@@ -226,7 +242,7 @@ async def list_ml_accounts(
                 is_active=account.is_active,
                 created_at=account.created_at,
                 active_listings_count=active_listings,
-                last_sync_at=None,  # pode ser implementado com sync_logs no futuro
+                last_sync_at=last_sync_by_account.get(account.id),
                 needs_reauth=bool(account.needs_reauth),
             )
         )
