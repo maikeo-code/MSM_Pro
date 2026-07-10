@@ -113,10 +113,12 @@ celery_app.conf.beat_schedule = {
             "expires": 3600,
         },
     },
-    # Sincroniza reputacao do vendedor as 06:30 BRT (09:30 UTC)
-    "sync-reputation-daily": {
+    # Sincroniza reputacao do vendedor a cada 3h (minuto 30) — antes era 1x/dia
+    # (06:30 BRT), o que deixava vendas_60d desatualizado vs painel do ML (o valor
+    # metrics.sales.completed muda ao longo do dia). Chamada leve (/users/{id}). E14.
+    "sync-reputation-3h": {
         "task": "app.jobs.tasks.sync_reputation",
-        "schedule": crontab(hour=9, minute=30),
+        "schedule": crontab(minute=30, hour="*/3"),
         "options": {
             "expires": 3600,
         },
