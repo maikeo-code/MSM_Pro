@@ -907,7 +907,14 @@ class MLClient:
         date_from: date,
         date_to: date,
     ) -> dict:
-        """Busca visitas em um período (legado)."""
+        """LEGADO — NÃO CONECTAR EM PRODUÇÃO (EC2).
+
+        Usa `/visits/items` que IGNORA date_from/date_to e retorna visitas
+        LIFETIME (acumulado de anos), não do período. Foi a causa do bug histórico
+        de visitas infladas (>100k/dia). Para visitas de um dia use
+        `get_item_visits_on_day` (endpoint `/items/{id}/visits/time_window`).
+        Mantido só por compat de teste; sem call-sites em app/. Ver cheat-sheet ML.
+        """
         item_id = mlb_id.upper().replace("-", "")
         if not item_id.startswith("MLB"):
             item_id = f"MLB{item_id}"
