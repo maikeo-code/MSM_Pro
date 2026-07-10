@@ -205,20 +205,28 @@ async def list_ml_accounts(
     )
     accounts = result.scalars().all()
 
-    # Ultimo sync bem-sucedido por conta (E18): uma query so, sem N+1. Tasks
-    # globais (ml_account_id NULL) nao contam — last_sync reflete syncs da conta.
+    # Ultimo sync bem-sucedido por conta (E18): uma query so, sem N+1.
+    # As tasks de dados diarias (sync_orders, sync_all_snapshots) sao GLOBAIS
+    # (ml_account_id NULL) e cobrem TODAS as contas — logo o "ultimo sync" de uma
+    # conta e o mais recente entre o sync especifico dela e o ultimo sync global.
+    # Sem incluir o global, o campo mostrava so o backfill por-conta (raro) e ficava
+    # dias atrasado mesmo com dado sincronizado hoje (falso alarme de "dado congelado").
     last_sync_result = await db.execute(
         select(
             SyncLog.ml_account_id,
             func.max(SyncLog.finished_at).label("last_sync"),
         )
-        .where(
-            SyncLog.status == "success",
-            SyncLog.ml_account_id.isnot(None),
-        )
+        .where(SyncLog.status == "success")
         .group_by(SyncLog.ml_account_id)
     )
-    last_sync_by_account = {row[0]: row[1] for row in last_sync_result.fetchall()}
+    last_sync_map = {row[0]: row[1] for row in last_sync_result.fetchall()}
+    global_last_sync = last_sync_map.get(None)
+
+    def _account_last_sync(account_id: UUID):
+        candidates = [
+            d for d in (last_sync_map.get(account_id), global_last_sync) if d is not None
+        ]
+        return max(candidates) if candidates else None
 
     # Enriquece cada conta com dados adicionais
     enriched_accounts = []
@@ -242,7 +250,7 @@ async def list_ml_accounts(
                 is_active=account.is_active,
                 created_at=account.created_at,
                 active_listings_count=active_listings,
-                last_sync_at=last_sync_by_account.get(account.id),
+                last_sync_at=_account_last_sync(account.id),
                 needs_reauth=bool(account.needs_reauth),
             )
         )
