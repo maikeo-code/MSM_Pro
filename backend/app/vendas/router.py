@@ -301,7 +301,13 @@ async def get_kpi_summary(
     db: Annotated[AsyncSession, Depends(get_db)],
     ml_account_id: UUID | None = Query(default=None, description="Filtrar por conta ML especifica (opcional)"),
 ):
-    """Retorna KPIs agregados para hoje, ontem e anteontem.
+    """Retorna KPIs agregados num dict multiperiodo FIXO.
+
+    Contrato (E17): a resposta e sempre `{hoje, ontem, anteontem, 7dias, 30dias}`,
+    cada um um KpiPeriodOut. Este endpoint NAO aceita um parametro `period` — para
+    escolher UM periodo especifico use `/kpi/daily` (por dia) ou `/kpi/compare`
+    (comparacao 7d/15d/30d). Um `?period=` na querystring e ignorado pelo FastAPI,
+    de proposito: o front consome o dict inteiro de uma vez.
 
     Se ml_account_id for fornecido, filtra apenas os KPIs dessa conta ML.
     """
