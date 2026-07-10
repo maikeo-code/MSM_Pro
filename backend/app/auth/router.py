@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import service
@@ -436,33 +436,40 @@ async def ml_diagnostics(
             else:
                 token_status = "healthy"
 
-        # Obter último sync bem-sucedido
+        # Obter último sync de dados bem-sucedido. As tasks de dados (sync_all_snapshots,
+        # sync_orders) sao GLOBAIS (ml_account_id NULL) e cobrem todas as contas — filtrar
+        # so por ml_account_id == account.id deixava este campo SEMPRE null (o sync global
+        # nunca casava), escondendo o estado real. Igual ao fix do last_sync_at (E18):
+        # considera o sync desta conta OU o sync global mais recente.
         last_successful_sync = None
         try:
             sync_result = await db.execute(
-                select(SyncLog)
-                .where(
-                    SyncLog.ml_account_id == account.id,
-                    SyncLog.task_name == "sync_all_snapshots",
+                select(func.max(SyncLog.finished_at)).where(
                     SyncLog.status == "success",
+                    or_(
+                        SyncLog.ml_account_id == account.id,
+                        SyncLog.ml_account_id.is_(None),
+                    ),
                 )
-                .order_by(SyncLog.finished_at.desc())
-                .limit(1)
             )
-            last_sync = sync_result.scalar_one_or_none()
-            if last_sync and last_sync.finished_at:
-                last_successful_sync = last_sync.finished_at
+            last_successful_sync = sync_result.scalar_one_or_none()
         except Exception:
             pass
 
-        # Calcular dias desde último sync
+        # Sinal de "dados desatualizados": os syncs de dados rodam de hora em hora, entao
+        # >2h sem sync = 2+ ciclos perdidos (ex.: Celery parou em silencio com token saudavel).
+        # dias sao o caso severo; horas pegam o congelamento cedo.
         days_since_last_sync = None
         data_gap_warning = None
         if last_successful_sync:
-            days_diff = (now - last_successful_sync).days
+            gap = now - last_successful_sync
+            days_diff = gap.days
             days_since_last_sync = days_diff
+            hours_diff = gap.total_seconds() / 3600
             if days_diff > 2:
                 data_gap_warning = f"Sem sincronização há {days_diff} dias"
+            elif hours_diff > 2:
+                data_gap_warning = f"Sem sincronização há {int(hours_diff)}h — dados podem estar desatualizados"
 
         # Status do último refresh attempt
         last_refresh_success = True
