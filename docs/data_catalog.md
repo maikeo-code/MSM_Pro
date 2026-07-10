@@ -151,11 +151,75 @@ tornar canônica. Trava em **E96**. É o espelho contra o qual as telas agregada
 
 ---
 
-### Demais telas (E26-E36) — a preencher
+### E26 — Financeiro (`pages/Financeiro/index.tsx`) — preenchido 2026-07-10
+
+4 fontes no frontend: `getResumo`, `getTimeline`, `getDetalhado`, `getCashflow` (+ `/dre`, `/rentabilidade-sku`, `/tax-config` no backend). **Tela crítica — alvo central da Fase 6 (E74-E78).**
+
+**Resumo (`GET /financeiro/resumo` → `financeiro/service.py:110`):**
+
+| Campo | Fórmula (comentário do schema) | Fonte hoje | Status |
+|-------|-------------------------------|-----------|--------|
+| `vendas_brutas` | `SUM(revenue)` | 🔴 **ListingSnapshot.revenue** (não Order) | migra p/ aggregate_metrics **E76** |
+| `taxas_ml_total` | `SUM(taxa_ml_pct·revenue/100)` | Snapshot + Listing.sale_fee_pct | E76 |
+| `frete_total` | `SUM(avg_shipping_cost·orders_count)` | 🔴 Snapshot.orders_count | E76 |
+| `receita_liquida` | vendas − taxas − frete | derivado | E76 |
+| `custo_total` | `SUM(custo·unidades)` (só SKU vinculado) | Produto.custo | ✗ depende cadastro |
+| `margem_bruta`/`margem_pct` | receita_liq − custo | derivado | ✗ |
+| `total_pedidos`/`cancelamentos`/`devolucoes` | contagens | 🔴 Snapshot (não Order) | E76 |
+
+**Detalhado por SKU (`/financeiro/detalhado`:265) + Rentabilidade SKU (`/rentabilidade-sku`:826):** breakdown por listing — migra p/ `aggregate_metrics_by_listing` (**E77/E78**). **Timeline (`/timeline`:404):** série temporal, mesma fonte. **DRE (`/dre`:527):** linhas Receita/(-)Taxas/(-)Frete/(-)CMV/(-)Imposto — tem bloco `_aggregate` **DUPLICADO** com o resumo (consolidar em **E74**). **Cashflow (`/cashflow`:1029):** projeção de recebíveis D+8, usa `=="approved"` — **legítimo** para projeção (E73 decide manter + comentar).
+
+🔴 **Achado E26 (o mais importante da Fase 2):** TODO o Financeiro lê `revenue`/`orders_count` do
+**snapshot**, as MESMAS colunas duplicadas que causam a divergência (Falha estrutural 1). Por isso a
+receita do Financeiro pode não bater com o `/kpi/summary`. A migração inteira está mapeada na Fase 6
+(E74 dedup DUPLICADO, E75 fuso BRT, E76 resumo/DRE, E77 breakdown, E78 SKU). Fonte de custo/imposto
+(CMV + Simples 8,5%) fica por cima — só a base de receita/pedidos muda de fonte.
+
+---
+
+### E27-E29 — Intel/Analytics (7 painéis, `pages/Intel/`) — preenchido 2026-07-10
+
+7 painéis = 7 endpoints `GET /intel/analytics/*` = 7 services (mapa 1:1). **TODOS leem
+`ListingSnapshot.revenue`/`sales_today`** (colunas duplicadas) — migração na Fase 6 (E80-E86).
+
+| Painel (E) | Service call | Endpoint | Serviço | Fonte / problema | Migração |
+|------------|--------------|----------|---------|------------------|----------|
+| ABC (E27) | getABC | `/abc` | service_abc.py | Snapshot.revenue, window function por listing | E80 |
+| Pareto (E27) | getPareto | `/pareto` | service_pareto.py | Snapshot.revenue Σ por listing (core/long_tail) | E81 |
+| Distribuição (E28) | getDistribution | `/distribution` | service_distribution.py | 🔴 Σ Snapshot.revenue/sales_today **sem dedup** | E83 |
+| Forecast (E28) | getForecast | `/forecast/{mlb}` | service_forecast.py | 🔴 Σ sales_today por dia (captured_at) **sem dedup** | E85 |
+| Comparação (E29) | getComparison | `/comparison` | service_comparison.py | 🔴 Σ Snapshot.revenue/sales_today atual vs anterior | E82 |
+| Estoque/InventoryHealth (E29) | getInventoryHealth | `/inventory-health` | service_inventory.py | Snapshot.stock (último por listing) — ok p/ estoque | E84 (mín. dedup) |
+| Insights (E29) | getInsights | `/insights` | service_insights.py | deriva do Pareto/Snapshot | E86 |
+
+🔴 **Achado E27-E29:** Distribuição, Forecast e Comparação somam `sales_today`/`revenue` de MÚLTIPLOS
+snapshots sem `DISTINCT snapshot_day` → com dados legados (>1 snapshot/dia antes da constraint da
+Fase 2 antiga) **inflam**. InventoryHealth usa só o ÚLTIMO snapshot (estoque) — esse é seguro. Todos
+mapeados E80-E86.
+
+### E30 — Reputação (`pages/Reputacao/index.tsx`) — preenchido 2026-07-10
+
+Fonte: `GET /reputacao/current` (+`/history`, `/risk-simulator`) → `reputacao/service.py`.
+
+| Campo | Origem | Endpoint ML | Check | Status |
+|-------|--------|-------------|-------|--------|
+| Nível (cor/termômetro) | seller_reputation.level_id | `/users/{id}` | — | ✓ |
+| Vendas 60d (EXIBIDO) | `metrics.sales.completed` (espelho painel) | `/users/{id}` | `reputacao_vendas_60d` | ✓ 2/2 PASS (E13/E14) |
+| Reclamações/mediações | reputation.metrics.claims | `/users/{id}` | `reputacao_claims` | ✓ 2/2 PASS |
+| Atrasos/cancelamentos | reputation.metrics | `/users/{id}` | — | ✗ |
+| Contagem local (diagnóstico) | `calculate_orders_60d` (Order) | — | — | ✗ campo separado (não é o exibido) |
+
+✅ **Reputação = caso de sucesso da sessão:** E13 confirmou que o valor exibido já era `metrics.sales.completed`
+(espelho do painel); E14 (sync 3h) matou a defasagem. Baseline tinha reputação subcontando −46/−14;
+medição 2 (07-10): **4/4 PASS**. Trava em E99.
+
+---
+
+### Demais telas (E31-E36) — a preencher
 
 | Tela | Campo | Endpoint backend | Serviço:função | Tabela.coluna | Endpoint ML | Check | Status |
 |------|-------|------------------|----------------|---------------|-------------|-------|--------|
-| _(E26 Financeiro em diante)_ | | | | | | | |
+| _(E31 Concorrência em diante)_ | | | | | | | |
 
 ---
 
