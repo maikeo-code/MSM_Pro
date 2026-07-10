@@ -15,9 +15,70 @@
 > Formato por tela: campo exibido → endpoint backend → serviço:função → tabela.coluna →
 > endpoint ML → check/teste → status.
 
+### E20 — Dashboard (`pages/Dashboard/index.tsx`) — preenchido 2026-07-10
+
+5 fontes de dados: `getKpiSummary`, `getFunnel`, `getHeatmap`, `list` (tabela), `getDashboardExtraCards`.
+
+**KPI cards (topo) — todos de `kpi.hoje` via `GET /listings/kpi/summary`:**
+
+| Campo exibido | Fonte no payload | Serviço:função | Tabela.coluna | Endpoint ML | Check paridade | Status |
+|---------------|------------------|----------------|---------------|-------------|----------------|--------|
+| Pedidos Válidos | `kpi.hoje.pedidos` | service_kpi.get_kpi_by_period → metrics.aggregate_metrics | Order (count, status ∉ NON_SALE) | `/orders/search` | `pedidos_dia` | ✓ (⚠️ sobreconta +1 → Fase 4/E52) |
+| Unidades Vendidas | `kpi.hoje.vendas` | idem → `_kpi_single_day` | Order.quantity (Σ) | `/orders/search` | `unidades_dia` | ✓ (⚠️ +1 → Fase 4) |
+| Receita Total | `kpi.hoje.receita_total` | idem | Order.total_amount (Σ) | `/orders/search` | `receita_dia` | ✓ (⚠️ +R$ → Fase 4) |
+| Preço Médio | `kpi.hoje.preco_medio` | idem (derivado receita/unidades) | derivado | — | (sem check direto) | ✗ tem dono, sem check |
+| Conversão | `kpi.hoje.conversao` | idem (vendas/visitas) | Order + ListingSnapshot.visits | `/orders/search` + `/items/{id}/visits/time_window` | via visitas | ✗ derivado; visitas têm timing (Fase 3/E43) |
+
+**Tabela KPI multiperíodo (Hoje/Ontem/Anteontem/7d/30d)** — mesmo `/kpi/summary`; campos `vendas`/`visitas`/`receita` (ou `*_media_dia` no modo média) + `conversao`. Mesma origem/dono acima. ⚠️ Σ diária vs 7d/30d ainda pode divergir até E52 (max() não-aditivo — bug-kpi-inconsistencia-multitela).
+
+**Funil de Conversão** — `GET /listings/analytics/funnel` → `service_analytics.py:34`. 🔴 usa **dia UTC, sem filtro de status** → diverge do summary. Migração planejada **Fase 6/E69**.
+
+**Heatmap** — `GET /listings/analytics/heatmap` → `service_analytics.py:376`. ⚠️ filtra `payment_status=="approved"` (exclui refunded que deveria contar) → **Fase 6/E71**.
+
+**Tabela de anúncios** — `GET /listings` → `service_kpi.list_listings`. Colunas detalhadas em E21/E94.
+
+**Cards ML extras** — `GET /listings/dashboard/extra-cards` → `service_dashboard_cards.py`:
+
+| Card | Método cliente ML | Endpoint ML | Check | Status |
+|------|-------------------|-------------|-------|--------|
+| Reputação (nível, vendas 60d) | get_seller_reputation | `/users/{id}` | `reputacao_vendas_60d`, `reputacao_claims` | ✓ (E14 corrigiu — 4/4 PASS) |
+| Perguntas sem resposta | get_my_unanswered_questions | `/my/received_questions/search` | — | ✗ |
+| Reclamações abertas | get_my_open_claims | `/post-purchase/v1/claims/search` | — | ✗ |
+| Mediações abertas | get_my_open_mediations | `/post-purchase/v1/claims/search` | — | ✗ |
+| Mensagens não lidas | get_unread_messages_count | `/messages/unread` | — | ✗ |
+| Saldo Mercado Pago | get_mp_balance | `/users/{id}/mercadopago_account/balance` | — | ✗ (leitura de saldo — EC7) |
+| Estoque FULL | get_full_inventory_summary | `/users/{id}/fbm_stock/summary` | — | ✗ |
+| Sparkline vendas 7d/conta | `extraCards.accounts[].vendas_7d` | service_dashboard_cards:224 | ✓ constante (net_amount) | ✗ |
+
+---
+
+### E21 — Anúncios lista (`pages/Anuncios/index.tsx`) — preenchido 2026-07-10
+
+Fonte única: `GET /listings` → `service_kpi.list_listings`. Colunas da tabela:
+
+| Coluna exibida | Campo payload | Como é calculado (service_kpi) | Tabela.coluna | Endpoint ML | Check | Status |
+|----------------|---------------|-------------------------------|---------------|-------------|-------|--------|
+| Preço | `price` | Listing (sync) | Listing.price | `/items/{id}/sale_price` | `preco[mlb]` | ✓ 10/10 PASS |
+| Preço original | `original_price` | Listing | Listing.original_price | `/items/{id}` | — | ✗ |
+| **Você recebe** | `voce_recebe` | real: `Order.net_amount` médio/unid; fallback: preço − sale_fee_pct·preço − avg_shipping | Order.net_amount / Listing.sale_fee_pct+avg_shipping_cost | `/orders/search` + `/sites/MLB/listing_prices` | via comissão | ✗ crítico histórico (validar E94/EA16) |
+| Comissão | `sale_fee_amount`/`sale_fee_pct` | Listing (sync fees) | Listing.sale_fee_amount/pct | `/sites/MLB/listing_prices` (+logistic_type+me2) | `comissao[mlb]` | ✓ 10/10 PASS |
+| Frete | `avg_shipping_cost` | Listing (sync) | Listing.avg_shipping_cost | `/users/{id}/shipping_options/free` · `/shipments/{id}/costs`→senders.cost | — | ✗ sem check direto |
+| Estoque | `last_snapshot.stock` | último snapshot | ListingSnapshot.stock | `/items/{id}` (Σ variations, E9) | `estoque[mlb]` | ✓ 9/10 (E9) |
+| Dias p/ zerar | `dias_para_zerar` | stock / vendas_média_7snap | derivado | — | — | ✗ derivado |
+| Preço médio/venda | `avg_price_per_sale` | snap_revenue / orders_count | derivado | — | — | ✗ derivado |
+| Participação % | `participacao_pct` | rev_listing / Σrev_todos | derivado | — | — | ✗ derivado |
+| Quality score | `quality_score` | Listing | Listing.quality_score | `/items/{id}` | — | ✗ |
+| Var. vendas/receita | `vendas_variacao`/`receita_variacao` | metrics | Order | `/orders/search` | — | ✗ |
+
+⚠️ **`voce_recebe`** é o ponto de maior risco histórico (preço de tabela vs "você recebe" líquido). Trava definitiva em **E94** (characterization) e **EA16** (export == tela).
+
+---
+
+### Demais telas (E22-E36) — a preencher
+
 | Tela | Campo | Endpoint backend | Serviço:função | Tabela.coluna | Endpoint ML | Check | Status |
 |------|-------|------------------|----------------|---------------|-------------|-------|--------|
-| _(a preencher — E20 Dashboard em diante)_ | | | | | | | |
+| _(E22 Anúncio detalhe em diante)_ | | | | | | | |
 
 ---
 
