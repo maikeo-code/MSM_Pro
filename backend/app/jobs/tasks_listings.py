@@ -27,6 +27,19 @@ from .tasks_helpers import _create_sync_log, _finish_sync_log, extract_seller_sh
 logger = logging.getLogger(__name__)
 
 
+def stock_from_item(item_data: dict) -> int:
+    """Estoque total de um item do ML como o painel do vendedor exibe.
+
+    Se o item tem variações, o total é a SOMA de variations[].available_quantity
+    (o available_quantity do topo subconta itens com variação — ex.: ML=69 vs app=19).
+    Sem variações, usa o available_quantity do topo (inclui itens FULL simples). E9.
+    """
+    variations = item_data.get("variations") or []
+    if variations:
+        return sum(int(v.get("available_quantity") or 0) for v in variations)
+    return int(item_data.get("available_quantity") or 0)
+
+
 async def _sync_listing_snapshot_async(
     listing_id: str,
     visits_override: int | None = None,
@@ -104,7 +117,8 @@ async def _sync_listing_snapshot_async(
             # Busca dados do item
             item_data = await client.get_item(listing.mlb_id)
             price = Decimal(str(item_data.get("price", listing.price)))
-            stock = item_data.get("available_quantity", 0)
+            # Estoque total como o painel exibe (soma variações se houver). E9.
+            stock = stock_from_item(item_data)
             status = item_data.get("status", listing.status)
 
             # Extrai category_id e seller_sku do item
