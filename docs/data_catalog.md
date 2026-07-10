@@ -215,11 +215,64 @@ medição 2 (07-10): **4/4 PASS**. Trava em E99.
 
 ---
 
-### Demais telas (E31-E36) — a preencher
+### E31 — Concorrência (`pages/Concorrencia/index.tsx`) — preenchido 2026-07-10
+Fonte: `competitorsService.list/getHistory` → `GET /concorrencia/` (+`/listing/{id}`, `/sku/{id}`, `/{id}/history`) → `concorrencia/service.py`.
 
-| Tela | Campo | Endpoint backend | Serviço:função | Tabela.coluna | Endpoint ML | Check | Status |
-|------|-------|------------------|----------------|---------------|-------------|-------|--------|
-| _(E31 Concorrência em diante)_ | | | | | | | |
+| Campo | Origem | Endpoint ML | Status |
+|-------|--------|-------------|--------|
+| Preço do concorrente | Competitor snapshot | `/items/{id}/sale_price` | ✗ (E102) |
+| Posição/ranking | busca | `/sites/MLB/search` | ✗ EA13 valida |
+| Histórico de preço | CompetitorSnapshot série | — | ✗ |
+
+### E32 — Publicidade (`pages/Publicidade/index.tsx`) — preenchido 2026-07-10
+Fonte: `adsService.list/getCampanha/sync` → `GET /ads/` (+`/{campaign_id}`, `POST /sync`) → `ads/service.py`.
+
+| Campo | Origem | Endpoint ML | Status |
+|-------|--------|-------------|--------|
+| ROAS/ACOS geral e por campanha | AdsSnapshot (attributed_revenue/cost) | Product Ads v2 `prints/clicks/cost/roas/acos` | ✗ (E105) |
+| Impressões/cliques/gasto | AdsSnapshot | Product Ads v2 | ✗ |
+| `roas_target` | **vazio hoje** (idea: skill Amazon) | — | ✗ backlog |
+
+⚠️ **Decisão arquitetural:** API de Ads do ML é limitada → **fallback honesto** (nunca inventar ACOS). Trava E105.
+
+### E33 — Alertas + Notificações (`pages/Alertas`, `pages/Notificacoes`) — preenchido 2026-07-10
+`alertasService.*` → `GET/POST/PUT/DELETE /alertas` (+`/events`) → `alertas/service.py`. `notificationsService.*` → `GET /notifications` (+count/read). Valores monitorados = condições sobre Order/Snapshot; disparo avaliado por task. Status ✗ (trava E100/E107 — sem falso positivo com dado parcial).
+
+### E34 — Atendimento + Perguntas (`pages/Atendimento`, `pages/Perguntas`) — preenchido 2026-07-10
+`atendimentoService.*`+`claimsService.*` → `GET /atendimento/*` (15 endpoints). `perguntas` via mutations → `/perguntas/*` (7 endpoints).
+
+| Campo | Origem | Endpoint ML | Status |
+|-------|--------|-------------|--------|
+| SLA/tempos/contagens atendimento | claims/messages | `/post-purchase/v1/claims/search`, `/messages/*` | ✗ (E103) |
+| Perguntas (contagem, sync 15min) | Question DB | `/questions/search`, `/my/received_questions/search` | ✗ (E104) |
+| Auto-answer (só high-confidence) | IA | `/answers` | ✗ (E104) |
+
+### E35 — Produtos + Sugestões de Preço (`pages/Produtos`, `pages/PriceSuggestions`) — preenchido 2026-07-10
+`productsService.*` → `GET/POST/PUT/DELETE /produtos` (custo/SKU — alimenta margem). `pricingService` → `GET /intel/pricing/recommendations` (+generate/dismiss/daily-report/email).
+
+| Campo | Origem | Status |
+|-------|--------|--------|
+| Custo/SKU do produto | Produto.custo (cadastro manual) | ✗ base de toda margem (E101) |
+| Recomendação de preço | intel/pricing service | ✗ (E106 consultor não recalcula) |
+| Preço sugerido/simulado | pricing recommendation | ✗ |
+
+### E36 — Consolidação da Fase 2 (resumo por status) — preenchido 2026-07-10
+
+**17 telas mapeadas** (E20-E35). Contagem de campos por status:
+- ✓ **tem dono E check de paridade:** comissão, preço, estoque (E9), reputação (E14), pedidos (Order direto), Vendas MT (20/20).
+- ✗ **tem dono, FALTA check:** maioria dos derivados (preço médio, conversão, dias p/ zerar, participação), operacionais (atendimento, perguntas, ads, concorrência), custo/margem (dependem de cadastro).
+- 🔴 **órfão/duvidoso (= bugs a corrigir nas Fases 4-6):**
+  1. **Sobrecontagem de vendas** (KPI cards, tabela multiperíodo) → Fase 4/E52.
+  2. **Financeiro inteiro** lê `revenue`/`orders_count` do snapshot duplicado → Fase 6/E74-E78.
+  3. **Funil** dia-UTC-sem-status → E69. **Heatmap** approved-only → E71.
+  4. **Análise de Anúncios** visitas sem dedup → E79. **Intel** Distribuição/Forecast/Comparação sem dedup → E80-E86.
+  5. **Visitas** timing D-1 (transversal) → Fase 3/E43.
+
+**Conclusão da Fase 2:** a causa-raiz dos 🔴 é UMA só — **as 7 colunas de vendas duplicadas no
+ListingSnapshot** (Falha estrutural 1). Todas as telas que divergem leem dessas colunas ou de
+agregação não-aditiva sobre elas. Confirma a tese do plano: a Fase 4 (Order como dono único) +
+Fase 6 (migrar telas) resolvem a maioria dos 🔴 de uma vez. `voce_recebe` (E21) e as fórmulas de
+margem (E22/E24/E35) são risco separado, travado por characterization (E94/E101).
 
 ---
 
