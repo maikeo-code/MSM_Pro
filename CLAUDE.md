@@ -107,6 +107,29 @@ python obsidian_brain.py --daily-note      # daily note
 
 ---
 
+## Regras de execução do Plano Definitivo (Fable 5, 2026-07-09)
+
+> Plano completo: `docs/handoff/PLANO_DEFINITIVO_MSM_PRO.md` (161 etapas para estabilizar os dados —
+> "um fato, um dono", ingestão provada, catálogo completo). Contexto: `docs/handoff/HANDOFF_*.md` +
+> `docs/handoff/BRIEFING_FABLE5.md`. Ao executar QUALQUER etapa, seguir estas 9 regras:
+
+1. **1 etapa = 1 commit pequeno.** Mensagem: `fix|feat|test|refactor: [E##] descrição`.
+2. **Vermelho = reverter.** Teste quebrou sem intenção → reverter, NUNCA "ajustar o teste p/ passar".
+   Mudou número de propósito → atualizar golden master no MESMO commit, com justificativa.
+3. **Nada é pronto sem prova.** Cada etapa tem seção *Prova* — executar e mostrar a saída. Número tem
+   que bater com o painel do ML.
+4. **Antes de todo commit:** `cd backend && python -m pytest tests/test_metrics_characterization.py tests/test_metrics_parity.py -q`. O pre-commit já bloqueia (instale com `bash scripts/install_hooks.sh`).
+5. **Deploy = `git push origin main`** (Railway auto). NUNCA `railway up`. Após deploy: `/health` 200.
+6. **Endpoint ML novo/duvidoso → MCP oficial (`mercadolibre-official`) ANTES de codar.** Só a sessão
+   principal autentica no MCP — nunca delegar validação ML a subagente.
+7. **Ao terminar cada FASE:** atualizar o vault (Plano Mestre + Bugs + ADR) e reportar ao Maikeo.
+8. **Escopo travado:** sem poda, sem feature nova (fora do plano), sem reescrita. Remoção só com OK do Maikeo.
+9. **Travou >2 tentativas:** parar, registrar o bloqueio, perguntar ao Maikeo. Não inventar.
+
+Gate de paridade contra o ML real: `TOKEN="<jwt>" scripts/check_parity.sh`.
+
+---
+
 ## REGRA FINAL
 
 Se você está aqui sem ter lido o vault, **PARE**. Volte e leia. Sem cérebro, você quebra coisa.
