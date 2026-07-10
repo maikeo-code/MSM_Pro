@@ -74,11 +74,88 @@ Fonte única: `GET /listings` → `service_kpi.list_listings`. Colunas da tabela
 
 ---
 
-### Demais telas (E22-E36) — a preencher
+### E22 — Anúncio detalhe (`pages/Anuncios/AnuncioDetalhe.tsx` + 5 componentes) — preenchido 2026-07-10
+
+Tela mais densa: 6 fontes de dados + subcomponentes. mlbId da rota `/anuncios/:mlbId`.
+
+| Bloco / componente | Service call | Endpoint backend | Serviço:função | Tabela / ML | Check | Status |
+|--------------------|--------------|------------------|----------------|-------------|-------|--------|
+| KPIs + gráfico (vendas/visitas/preço) | `getAnalysis(mlb, days)` | `GET /listings/{mlb}/analysis` (router:875) | service `get_listing_analysis` | ListingSnapshot (série) + Order | via visitas/vendas | ✗ visitas timing (E43) |
+| `MetricasAvancadas` | (usa getAnalysis) | idem | idem | derivado | — | ✗ derivado |
+| `SearchPosition` | (dado interno da rota) | `GET /listings/{mlb}/search-position` (router:832) | service | `/sites/MLB/search` | — | ✗ EA13 valida ML |
+| `PriceBandsTable` | (via analysis/margem) | — | service_price | Listing/Order | — | ✗ |
+| `PriceHistory` | `getPriceHistory` | `GET /listings/{mlb}/price-history` (router:1002) | service | ListingSnapshot.price série | — | ✗ |
+| `CalculadoraMargem` | `getMargem(mlb, preco)` | `GET /listings/{mlb}/margem` (router:896) | service_price `calcular_margem` | Listing.sale_fee + custo (Produto) + frete | — | ✗ crítico: fórmula margem (trava E101) |
+| Saúde do anúncio | `getListingHealth(mlb)` | `GET /listings/{mlb}/health` (router:907) | service | Listing/Snapshot | — | 🟡 sem tela clara no plano — TEM (é este bloco) |
+| Vínculo SKU/custo | `productsService.list` + `linkSku` | `GET/POST /produtos` | produtos/service | Produto.custo | — | ✗ (alimenta margem) |
+| Concorrente + histórico | `competitorsService.listByListing`/`getHistory` | `GET /concorrencia/listing/{id}`, `/{id}/history` | concorrencia/service | Competitor snapshots | — | ✗ (E31/E102) |
+
+⚠️ **Achado E22:** `GET /{mlb}/health` estava marcado "🟡 sem tela clara" no inventário da Fase 2B —
+**confirmado que TEM tela** (bloco Saúde do anúncio no detalhe). Atualizar EA3.
+⚠️ **CalculadoraMargem** = fórmula preço−custo−taxa−frete; ponto de risco, trava em **E101**.
+
+---
+
+### E23 — Análise de Anúncios (`pages/AnaliseAnuncios/index.tsx`) — preenchido 2026-07-10
+
+Fonte única: `analysisService.getListingsAnalysis` → `GET /analise/listings` → `analise/service.py:get_analysis_listings`.
+
+| Campo | Cálculo | Tabela.coluna | Endpoint ML | Status |
+|-------|---------|---------------|-------------|--------|
+| Vendas (7/15/30d) | agregação por listing na janela | Order (via CTEs) | `/orders/search` | 🔴 usa `=="approved"` (exclui refunded) → **Fase 6/E72** |
+| Visitas (7/15/30d) | soma de snapshots | ListingSnapshot.visits | `/items/{id}/visits/time_window` | 🔴 **sem dedup por snapshot_day** (infla com legado) → **Fase 6/E79** |
+| Conversão | vendas/visitas | derivado | — | ✗ herda os 2 problemas acima |
+| ROAS/ACOS (se exibido) | ads | AdsSnapshot | Product Ads v2 | ✗ (E32) |
+
+⚠️ **Achado E23:** esta tela é um dos alvos centrais da Fase 6 (E72 filtro de status + E79 breakdown por
+listing com dedup). Números NÃO batem com a tela Vendas hoje por causa da falta de dedup de visitas.
+
+### E24 — Vendas MT (`pages/VendasMT/index.tsx` + `types.ts`) — preenchido 2026-07-10
+
+Fonte: `listVendasMT` → `GET /vendas-mt/` → `vendas_mt/service.py` (cadeia Mercado Turbo sobre a API ML).
+Decomposição financeira por venda (type `Venda`):
+
+| Campo | Significado | Origem ML | Status |
+|-------|-------------|-----------|--------|
+| `total`/`produtos` | valor dos produtos (base imposto/margem) | order_items | ✓ paridade fina 20/20 (06/2026) — trava E95 |
+| `pago` | paid_amount (o que o comprador pagou) | `/orders/{id}` paid_amount | ✓ |
+| `tarifaML` | comissão ML | order_items[].sale_fee | ✓ |
+| `frete` | custo vendedor + frete comprador | `/shipments/{id}/costs` senders.cost | ✓ (cheat-sheet) |
+| `lucroBruto`/`receitaLiquida` | pago − frete − tarifa | derivado | ✓ |
+| `custoProduto` | custo cadastrado (SKU) | Produto.custo | ✗ depende de cadastro |
+| `imposto`/`impostoPct` | Simples (8,5%) | tax-config | ✓ |
+| `margem`/`lucro` | lucroBruto − custo − imposto | derivado | ✗ (E101) |
+| `entrega` (Entrega) | dados logísticos | `/shipments/{id}` | ✗ |
+
+⚠️ VendasMT já atingiu **paridade fina 20/20 em 06/2026** — a Fase 8 (E95) TRAVA isso com characterization.
+
+### E25 — Pedidos (`pages/Pedidos/index.tsx`) — preenchido 2026-07-10
+
+Fonte: `listOrders` → `GET /listings/orders/` → `service` (query direto na tabela Order). 1 linha por pedido:
+
+| Coluna | Campo | Tabela.coluna | Endpoint ML | Status |
+|--------|-------|---------------|-------------|--------|
+| Data | `order_date` | Order.order_date | `/orders/search` | ✓ |
+| Anúncio/título | `mlb_id`/`item_title` | Order.mlb_id/item_title | `/orders/search` | ✓ |
+| Comprador | `buyer_nickname` | Order.buyer_nickname | `/orders/search` | ✓ |
+| Qtd | `quantity` | Order.quantity | `/orders/search` | ✓ |
+| Preço unit. | `unit_price` | Order.unit_price | `/orders/search` | ✓ |
+| Total | `total_amount` | Order.total_amount | `/orders/search` | ✓ |
+| Tarifa | `sale_fee` | Order.sale_fee | order_items[].sale_fee | ✓ |
+| Frete | `shipping_cost` | Order.shipping_cost | `/shipments/{id}/costs` senders.cost | ✓ |
+| Líquido | `net_amount` | Order.net_amount | derivado (total−fee−frete) | ✓ trava E96 |
+| Status pgto/envio | `payment_status`/`shipping_status` | Order.* | `/orders/search` + `/shipments/{id}` | ✓ |
+
+✅ **Pedidos é a tela mais "sã"**: lê Order direto, é a própria fonte da verdade que a Fase 4 vai
+tornar canônica. Trava em **E96**. É o espelho contra o qual as telas agregadas devem bater.
+
+---
+
+### Demais telas (E26-E36) — a preencher
 
 | Tela | Campo | Endpoint backend | Serviço:função | Tabela.coluna | Endpoint ML | Check | Status |
 |------|-------|------------------|----------------|---------------|-------------|-------|--------|
-| _(E22 Anúncio detalhe em diante)_ | | | | | | | |
+| _(E26 Financeiro em diante)_ | | | | | | | |
 
 ---
 
