@@ -11,11 +11,62 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.auth.models import MLAccount
 from app.core.database import AsyncSessionLocal
 from app.mercadolivre.client import MLClient, MLClientError
-from app.vendas.models import Listing
+from app.vendas.models import Listing, Order
+
+# Campos atualizados quando o pedido JA existe (status/financeiro mudam ate o envio
+# fechar). Fatos imutaveis (quantity, unit_price, total_amount, buyer, order_date,
+# ml_account_id, listing_id) NAO sao reescritos — setados so na criacao.
+_ORDER_UPDATE_FIELDS = (
+    "shipping_status", "payment_status", "sale_fee", "shipping_cost", "net_amount",
+)
+
+
+def _apply_order_update(order: "Order", values: dict) -> None:
+    """Atualiza um pedido existente com a semantica seletiva original."""
+    for f in _ORDER_UPDATE_FIELDS:
+        setattr(order, f, values[f])
+    if values.get("payment_date"):
+        order.payment_date = values["payment_date"]
+    if values.get("delivery_date"):
+        order.delivery_date = values["delivery_date"]
+    if not order.item_title and values.get("item_title"):
+        order.item_title = values["item_title"]
+
+
+async def _upsert_order(db, values: dict) -> str:
+    """Upsert de um pedido por ml_order_id, SEGURO contra race (E11).
+
+    Fonte unica p/ os 2 caminhos (sync normal + backfill), antes duplicados. Se dois
+    workers gravam o mesmo ml_order_id ao mesmo tempo, o INSERT do 2o viola a unique
+    constraint — em vez de perder o pedido (o codigo antigo so logava o erro), o
+    SAVEPOINT desfaz so a tentativa e caimos no UPDATE. Dialeto-agnostico (SQLite/PG).
+    Retorna "created" | "updated".
+    """
+    ml_order_id = values["ml_order_id"]
+    existing = (
+        await db.execute(select(Order).where(Order.ml_order_id == ml_order_id))
+    ).scalar_one_or_none()
+
+    if existing is None:
+        try:
+            async with db.begin_nested():  # SAVEPOINT
+                db.add(Order(**values))
+            return "created"
+        except IntegrityError:
+            # Outro worker inseriu no meio — recarrega e atualiza.
+            existing = (
+                await db.execute(select(Order).where(Order.ml_order_id == ml_order_id))
+            ).scalar_one_or_none()
+
+    if existing is not None:
+        _apply_order_update(existing, values)
+        return "updated"
+    return "created"
 
 from .tasks_helpers import (
     _create_sync_log,
@@ -210,53 +261,30 @@ async def _sync_orders_async():
                                 listing = listing_result.scalar_one_or_none()
                                 listing_id = listing.id if listing else None
 
-                                # Upsert: atualiza se ja existe, cria se nao existe
-                                existing_result = await db.execute(
-                                    select(Order).where(
-                                        Order.ml_order_id == ml_order_id
-                                    )
-                                )
-                                existing_order = existing_result.scalar_one_or_none()
-
-                                if existing_order:
-                                    # Atualiza status + valores financeiros (frete/taxa
-                                    # podem mudar ate o envio ser finalizado). Isso
-                                    # garante que net_amount sempre reflete o estado
-                                    # atual do ML.
-                                    existing_order.shipping_status = shipping_status
-                                    existing_order.payment_status = payment_status
-                                    if payment_date:
-                                        existing_order.payment_date = payment_date
-                                    if delivery_date:
-                                        existing_order.delivery_date = delivery_date
-                                    existing_order.sale_fee = sale_fee
-                                    existing_order.shipping_cost = shipping_cost
-                                    existing_order.net_amount = net_amount
-                                    if not existing_order.item_title and item_title:
-                                        existing_order.item_title = item_title
-                                    total_updated += 1
-                                else:
-                                    new_order = Order(
-                                        ml_order_id=ml_order_id,
-                                        ml_account_id=acc_id,
-                                        listing_id=listing_id,
-                                        mlb_id=mlb_id,
-                                        item_title=item_title,
-                                        buyer_nickname=buyer_nickname,
-                                        quantity=quantity,
-                                        unit_price=unit_price,
-                                        total_amount=total_amount,
-                                        sale_fee=sale_fee,
-                                        shipping_cost=shipping_cost,
-                                        net_amount=net_amount,
-                                        payment_status=payment_status,
-                                        shipping_status=shipping_status,
-                                        order_date=order_date,
-                                        payment_date=payment_date,
-                                        delivery_date=delivery_date,
-                                    )
-                                    db.add(new_order)
+                                # Upsert seguro contra race (E11) — fonte unica _upsert_order
+                                outcome = await _upsert_order(db, {
+                                    "ml_order_id": ml_order_id,
+                                    "ml_account_id": acc_id,
+                                    "listing_id": listing_id,
+                                    "mlb_id": mlb_id,
+                                    "item_title": item_title,
+                                    "buyer_nickname": buyer_nickname,
+                                    "quantity": quantity,
+                                    "unit_price": unit_price,
+                                    "total_amount": total_amount,
+                                    "sale_fee": sale_fee,
+                                    "shipping_cost": shipping_cost,
+                                    "net_amount": net_amount,
+                                    "payment_status": payment_status,
+                                    "shipping_status": shipping_status,
+                                    "order_date": order_date,
+                                    "payment_date": payment_date,
+                                    "delivery_date": delivery_date,
+                                })
+                                if outcome == "created":
                                     total_created += 1
+                                else:
+                                    total_updated += 1
 
                             except Exception as e:
                                 logger.error(
@@ -513,50 +541,30 @@ async def _backfill_orders_after_reconnect_async(
                             listing = listing_result.scalar_one_or_none()
                             listing_id = listing.id if listing else None
 
-                            # Upsert: atualiza se já existe, cria se não existe
-                            existing_result = await db.execute(
-                                select(Order).where(
-                                    Order.ml_order_id == ml_order_id
-                                )
-                            )
-                            existing_order = existing_result.scalar_one_or_none()
-
-                            if existing_order:
-                                # Atualiza status + valores financeiros
-                                existing_order.shipping_status = shipping_status
-                                existing_order.payment_status = payment_status
-                                if payment_date:
-                                    existing_order.payment_date = payment_date
-                                if delivery_date:
-                                    existing_order.delivery_date = delivery_date
-                                existing_order.sale_fee = sale_fee
-                                existing_order.shipping_cost = shipping_cost
-                                existing_order.net_amount = net_amount
-                                if not existing_order.item_title and item_title:
-                                    existing_order.item_title = item_title
-                                total_updated += 1
-                            else:
-                                new_order = Order(
-                                    ml_order_id=ml_order_id,
-                                    ml_account_id=account.id,
-                                    listing_id=listing_id,
-                                    mlb_id=mlb_id,
-                                    item_title=item_title,
-                                    buyer_nickname=buyer_nickname,
-                                    quantity=quantity,
-                                    unit_price=unit_price,
-                                    total_amount=total_amount,
-                                    sale_fee=sale_fee,
-                                    shipping_cost=shipping_cost,
-                                    net_amount=net_amount,
-                                    payment_status=payment_status,
-                                    shipping_status=shipping_status,
-                                    order_date=order_date,
-                                    payment_date=payment_date,
-                                    delivery_date=delivery_date,
-                                )
-                                db.add(new_order)
+                            # Upsert seguro contra race (E11) — fonte unica _upsert_order
+                            outcome = await _upsert_order(db, {
+                                "ml_order_id": ml_order_id,
+                                "ml_account_id": account.id,
+                                "listing_id": listing_id,
+                                "mlb_id": mlb_id,
+                                "item_title": item_title,
+                                "buyer_nickname": buyer_nickname,
+                                "quantity": quantity,
+                                "unit_price": unit_price,
+                                "total_amount": total_amount,
+                                "sale_fee": sale_fee,
+                                "shipping_cost": shipping_cost,
+                                "net_amount": net_amount,
+                                "payment_status": payment_status,
+                                "shipping_status": shipping_status,
+                                "order_date": order_date,
+                                "payment_date": payment_date,
+                                "delivery_date": delivery_date,
+                            })
+                            if outcome == "created":
                                 total_created += 1
+                            else:
+                                total_updated += 1
 
                         except Exception as e:
                             logger.error(
