@@ -47,3 +47,33 @@ TOKEN="<jwt>" scripts/check_parity.sh          # via GET /api/v1/listings/audit/
 ## Meta do plano
 - Paridade ≥98% nos checks estáveis (dias fechados/VERIFIED). Partida: **73,1%** nesta amostra.
 - Prioridade P0: eliminar a sobrecontagem de vendas da MSM_PRIME e a subcontagem de reputação.
+
+---
+
+## Medição 2 — 2026-07-10 (após E9/E11/E12/E14, dia auditado 2026-07-09, sample_items=5)
+
+**Paridade: 76,0%** (50 checks, 38 PASS, 12 FAIL) — subiu de 73,1%.
+
+### Vitórias validadas em prod (o trabalho da sessão funcionou)
+- **comissão 10/10 PASS · preço 10/10 PASS**
+- **reputação 4/4 PASS** — E14 (sync 3h) eliminou a subcontagem de reputação da medição 1.
+- **estoque 9/10 PASS** — E9 (soma de variações) eliminou 3 dos 4 FAILs de estoque. O único
+  restante (MLB5276909636: ml=109 app=110) é ±1 de timing (venda entre captura e auditoria).
+- **E12 backfill rodou sem IntegrityError** → prova do upsert E11 (reprocessou 7 dias de orders
+  já existentes; sob o código antigo cada duplicata dispararia IntegrityError).
+
+### Os 12 FAILs restantes = 2 problemas estruturais já mapeados
+1. **Sobrecontagem de vendas (6 FAIL)** — app conta **+1 pedido / +1 unidade** que o painel ML não
+   conta, nas DUAS contas, com receita a mais:
+   - MSM_PRIME: pedidos 51 vs 50 · unidades 55 vs 54 · receita R$3.485,62 vs R$3.433,81 (+51,81)
+   - MSMPRIME: pedidos 21 vs 20 · unidades 21 vs 20 · receita R$2.263,03 vs R$2.023,36 (+239,67)
+   → **Fase 4 (E52 — Order como fonte única)**, gated por Bloco A (backup+staging+shadow). É o bug
+   central do plano. Hipóteses a investigar em E49: fronteira de fuso BRT, status incluído a mais
+   (refunded conta no app), ou pack/carrinho contado como 2. NÃO corrigir fora da Fase 4.
+2. **Timing de visitas (5 FAIL)** — app conta a MENOS no D-1 (captura incompleta do dia): ex.
+   MLB6838273884 ml=9 app=7. → **Fase 3 (E43)**: tratar D-1 com tolerância/INFO, não FAIL.
+
+### Nota operacional (achado desta sessão)
+Dados de prod NÃO estão congelados — `/health/sync` mostra sync_orders + sync_all_snapshots
+rodando de hora em hora hoje. O "last_sync 07-07" que aparecia em `/ml/accounts` era bug de leitura
+(E18 filtrava ml_account_id NOT NULL, ignorando os syncs globais); corrigido no commit ba72c6b.
