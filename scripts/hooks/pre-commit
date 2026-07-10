@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Rede de regressao do Definition of Done: bloqueia commit se o NUCLEO de metricas
+# quebrar. Roda so o golden master + paridade (rapido, ~segundos) para o hook nunca
+# ser burlado por lentidao; a suite COMPLETA fica no CI (.github/workflows/ci.yml).
+# Path derivado do repo (nao hardcoded) para nao quebrar em outro checkout/maquina.
+#
+# VERSIONADO em scripts/hooks/pre-commit (fonte da verdade). Instale com:
+#   bash scripts/install_hooks.sh
+# O arquivo em .git/hooks/ nao vai pro git; este e a copia rastreavel.
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT/backend"
+echo "[pre-commit] Rodando testes do nucleo de metricas (rede de regressao)..."
+if ! python -m pytest tests/test_metrics_characterization.py tests/test_metrics_parity.py \
+      -q --tb=short --timeout=60; then
+  echo "X Nucleo de metricas quebrou. Commit BLOQUEADO."
+  echo "  Voce mudou um numero do dashboard. Se foi SEM querer: e regressao, reverta."
+  echo "  Se foi DE PROPOSITO: atualize o golden master no mesmo commit e justifique."
+  exit 1
+fi
+echo "OK Nucleo de metricas intacto. Commit liberado (CI roda a suite completa)."
