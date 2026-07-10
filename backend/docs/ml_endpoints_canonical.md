@@ -170,3 +170,21 @@ Revisão por 4 papéis (crítico=`qa`, criativo=`insights`, fundamentalista=`ml-
 5. **Docstrings:** métodos de promoção (linhas 421/466/494/524) ainda citam `docs/ml_api_reference.md` (aposentado) → adicionar atualização ao backlog P3.
 
 **Oportunidades de produto** levantadas pelo criativo (quick wins, baixo esforço/alto impacto): margem líquida com `/orders/{id}/discounts`; linha do tempo de preço com `/items/{id}/prices` (já implementado); simulador de risco com `/claims/{id}/affects-reputation`; vigia de preço via webhook `items_prices`. Detalhe e priorização no relatório da auditoria (não implementadas nesta entrega).
+
+---
+
+## Estoque de itens com variações (validado no MCP oficial — E8, 2026-07-10)
+
+**Regra:** para itens COM `variations`, o estoque que o painel do vendedor exibe é a **SOMA** de
+`variations[].available_quantity`. O `available_quantity` do topo do `/items/{id}` **subconta** itens
+com variação (bug real: painel ML=69 vs app=19, que lia só o topo). Sem variações, usar o
+`available_quantity` do topo (cobre itens FULL simples).
+
+Fonte: doc oficial "Variações" (path `variacoes`) — o exemplo de item simples traz `available_quantity`
+no topo; o de item com variações traz o estoque por variação. Confirmado contra evidência de 3 anúncios.
+
+Implementação: `backend/app/jobs/tasks_listings.py::stock_from_item()` (testes em `tests/test_stock_from_item.py`).
+
+FULL/fulfillment: o endpoint dedicado `/user-products/{id}/stock/fulfillment` (client `get_full_stock`,
+hoje sem uso) é para detalhe multi-armazém, não para o total do painel — não necessário para o total.
+Se algum item FULL específico divergir após E9, o harness de paridade (E42) revela e refinamos.
