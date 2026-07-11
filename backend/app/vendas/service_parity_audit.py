@@ -256,7 +256,13 @@ async def _audit_visits_stock_price(
         # Estoque e preco atuais (ML /items + /sale_price) vs listing/snapshot
         try:
             item = await client.get_item(mlb)
-            ml_stock = int(item.get("available_quantity", 0) or 0)
+            # Mesma regra do sync (E9): itens COM variacoes -> SOMA de
+            # variations[].available_quantity. Usar so o available_quantity do topo
+            # (como antes) reintroduzia no VERIFICADOR o bug que o E9 corrigiu no sync
+            # -> falso-FAIL em itens com variacao. E42.
+            from app.jobs.tasks_listings import stock_from_item
+
+            ml_stock = stock_from_item(item)
 
             # Preço: usa sale_price (campo vigente). item["price"] está DEPRECIADO no BR
             # e retorna o preço cheio sem desconto, causando falso-FAIL.

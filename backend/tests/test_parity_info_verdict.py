@@ -39,3 +39,23 @@ def test_verdict_tolerancia_relativa():
     assert _verdict(0, 0) == "PASS"
     assert _verdict(None, 100) == "NO_DATA"
     assert _verdict(100, None) == "ERROR"
+
+
+def test_harness_estoque_usa_soma_de_variacoes_E42():
+    """O harness deve computar ml_stock com a MESMA regra do sync (E9): itens com
+    variacoes -> soma. Se voltar a usar available_quantity do topo, reintroduz o bug
+    no verificador (falso-FAIL). Testa a fonte compartilhada."""
+    from app.jobs.tasks_listings import stock_from_item
+
+    item_com_variacoes = {
+        "available_quantity": 19,  # topo subconta
+        "variations": [
+            {"available_quantity": 20},
+            {"available_quantity": 30},
+            {"available_quantity": 19},
+        ],
+    }
+    assert stock_from_item(item_com_variacoes) == 69  # painel do ML
+
+    item_sem_variacoes = {"available_quantity": 33, "variations": []}
+    assert stock_from_item(item_sem_variacoes) == 33
