@@ -65,12 +65,27 @@ def _check(
     return out
 
 
+# Blocos auditaveis hoje. E38-E41 acrescentam shipping/questions/claims.
+ALL_BLOCKS = ("sales", "visits", "stock", "price", "fees", "reputation")
+_ITEM_BLOCKS = frozenset({"visits", "stock", "price", "fees"})  # compartilham o get_item
+
+
+def _normalize_blocks(blocks: set[str] | None) -> frozenset[str]:
+    """None/vazio -> todos. Ignora nomes desconhecidos (nunca quebra o placar)."""
+    if not blocks:
+        return frozenset(ALL_BLOCKS)
+    sel = frozenset(b.strip().lower() for b in blocks) & frozenset(ALL_BLOCKS)
+    return sel or frozenset(ALL_BLOCKS)
+
+
 async def run_parity_audit(
     db: AsyncSession,
     user_id: UUID,
     target_day: date,
     sample_items: int = 5,
+    blocks: set[str] | None = None,
 ) -> dict:
+    sel = _normalize_blocks(blocks)
     accounts = list(
         (
             await db.execute(
@@ -85,7 +100,7 @@ async def run_parity_audit(
     )
     results = []
     for acc in accounts:
-        results.append(await _audit_account(db, acc, target_day, sample_items))
+        results.append(await _audit_account(db, acc, target_day, sample_items, sel))
 
     checks = passed = failed = no_data = errors = info = 0
     for r in results:
@@ -110,6 +125,7 @@ async def run_parity_audit(
     return {
         "day": target_day.isoformat(),
         "sample_items": sample_items,
+        "blocks": sorted(sel),
         "accounts": results,
         "summary": {
             "checks": checks,
@@ -124,7 +140,7 @@ async def run_parity_audit(
 
 
 async def _audit_account(
-    db: AsyncSession, acc: MLAccount, day: date, sample_items: int
+    db: AsyncSession, acc: MLAccount, day: date, sample_items: int, sel: frozenset[str]
 ) -> dict:
     checks: list[dict] = []
     # Dia fechado = anterior a hoje (BRT). Visitas de um dia ainda em curso subcontam
@@ -132,11 +148,14 @@ async def _audit_account(
     day_closed = day < datetime.now(BRT).date()
     try:
         async with MLClient(access_token=acc.access_token, ml_account_id=acc.id) as client:
-            checks += await _audit_sales(db, client, acc, day)
-            checks += await _audit_visits_stock_price(
-                db, client, acc, day, sample_items, day_closed=day_closed
-            )
-            checks += await _audit_reputation(db, client, acc)
+            if "sales" in sel:
+                checks += await _audit_sales(db, client, acc, day)
+            if sel & _ITEM_BLOCKS:
+                checks += await _audit_visits_stock_price(
+                    db, client, acc, day, sample_items, day_closed=day_closed, sel=sel
+                )
+            if "reputation" in sel:
+                checks += await _audit_reputation(db, client, acc)
     except Exception as e:  # noqa: BLE001
         logger.exception("parity audit falhou acc=%s", acc.nickname)
         checks.append(_check("conexao_ml", None, None, detail=str(e)))
@@ -204,13 +223,24 @@ async def _audit_sales(db, client, acc: MLAccount, day: date) -> list[dict]:
 
 
 async def _audit_visits_stock_price(
-    db, client, acc: MLAccount, day: date, sample_items: int, day_closed: bool = True
+    db,
+    client,
+    acc: MLAccount,
+    day: date,
+    sample_items: int,
+    day_closed: bool = True,
+    sel: frozenset[str] = _ITEM_BLOCKS,
 ) -> list[dict]:
     """Amostra de anuncios: visitas, estoque, preco e comissao (ML vs app).
 
     day_closed=False (dia ainda em curso) -> checks de VISITAS viram INFO em vez de
     FAIL quando divergem (o snapshot do dia corrente e parcial). Estoque/preco/comissao
-    sao valores ATUAIS (nao dependem do dia) -> nao afetados por day_closed."""
+    sao valores ATUAIS (nao dependem do dia) -> nao afetados por day_closed.
+
+    sel = blocos pedidos (E37). Cada check e a chamada ML correspondente so acontecem
+    se o bloco esta em sel; com todos selecionados (padrao) o comportamento e identico."""
+    want_visits = "visits" in sel
+    want_item = bool(sel & {"stock", "price", "fees"})
     rows = list(
         (
             await db.execute(
@@ -230,12 +260,6 @@ async def _audit_visits_stock_price(
     )
     checks: list[dict] = []
     for lid, mlb, l_price, l_sale_price, l_fee, l_cat, l_type in rows:
-        # Visitas do dia (ML time_window) vs snapshot.visits
-        try:
-            ml_visits = await client.get_item_visits_on_day(mlb, day)
-        except Exception as e:  # noqa: BLE001
-            ml_visits = None
-            checks.append(_check(f"visitas[{mlb}]", None, None, detail=str(e)))
         snap = (
             await db.execute(
                 select(ListingSnapshot.visits, ListingSnapshot.stock, ListingSnapshot.price)
@@ -247,11 +271,22 @@ async def _audit_visits_stock_price(
                 .limit(1)
             )
         ).first()
-        app_visits = int(snap[0]) if snap else None
-        if ml_visits is not None:
-            checks.append(
-                _check(f"visitas[{mlb}]", ml_visits, app_visits, info=not day_closed)
-            )
+
+        # Visitas do dia (ML time_window) vs snapshot.visits
+        if want_visits:
+            try:
+                ml_visits = await client.get_item_visits_on_day(mlb, day)
+            except Exception as e:  # noqa: BLE001
+                ml_visits = None
+                checks.append(_check(f"visitas[{mlb}]", None, None, detail=str(e)))
+            app_visits = int(snap[0]) if snap else None
+            if ml_visits is not None:
+                checks.append(
+                    _check(f"visitas[{mlb}]", ml_visits, app_visits, info=not day_closed)
+                )
+
+        if not want_item:
+            continue
 
         # Estoque e preco atuais (ML /items + /sale_price) vs listing/snapshot
         try:
@@ -278,11 +313,13 @@ async def _audit_visits_stock_price(
             app_stock = int(snap[1]) if snap else None
             app_price = round(float(app_price_raw), 2) if app_price_raw is not None else None
 
-            checks.append(_check(f"estoque[{mlb}]", ml_stock, app_stock))
-            checks.append(_check(f"preco[{mlb}]", ml_price, app_price, tol=0.05))
+            if "stock" in sel:
+                checks.append(_check(f"estoque[{mlb}]", ml_stock, app_stock))
+            if "price" in sel:
+                checks.append(_check(f"preco[{mlb}]", ml_price, app_price, tol=0.05))
 
             # Comissão (listing_prices vs listing.sale_fee_amount)
-            if l_cat and l_type:
+            if "fees" in sel and l_cat and l_type:
                 shp = item.get("shipping") or {}
                 lt = item.get("listing_type_id") or l_type
                 # Mapeia tipo interno para listing_type_id do ML

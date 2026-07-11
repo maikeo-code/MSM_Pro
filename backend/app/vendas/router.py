@@ -375,12 +375,16 @@ async def get_parity_audit(
     db: Annotated[AsyncSession, Depends(get_db)],
     date_iso: str | None = Query(default=None, description="Dia BRT a auditar (YYYY-MM-DD). Padrao: ontem."),
     sample_items: int = Query(default=5, ge=1, le=40, description="Qtd de anuncios na amostra de visitas/estoque/preco."),
+    blocks: str | None = Query(default=None, description="Blocos a auditar, separados por virgula (sales,visits,stock,price,fees,reputation). Padrao: todos."),
 ):
     """Audita paridade dos dados do MSM_Pro contra a API REAL do Mercado Livre.
 
     Para cada conta ML, busca os numeros reais no ML (orders, visits, item,
     seller_reputation) e compara com o que o MSM_Pro persiste — veredito
     PASS/FAIL por metrica. Read-only. Fonte da verdade = ML (principio mestre).
+
+    `blocks` (E37): subconjunto de checks a rodar — ex. `?blocks=sales` audita so
+    vendas (rapido). Nomes desconhecidos sao ignorados; vazio = todos.
     """
     from datetime import date as _date, datetime as _dt, timedelta as _td, timezone as _tz
 
@@ -391,7 +395,10 @@ async def get_parity_audit(
         target_day = _date.fromisoformat(date_iso)
     else:
         target_day = (_dt.now(brt) - _td(days=1)).date()
-    return await run_parity_audit(db, current_user.id, target_day, sample_items=sample_items)
+    block_set = {b for b in (blocks.split(",") if blocks else []) if b.strip()} or None
+    return await run_parity_audit(
+        db, current_user.id, target_day, sample_items=sample_items, blocks=block_set
+    )
 
 
 

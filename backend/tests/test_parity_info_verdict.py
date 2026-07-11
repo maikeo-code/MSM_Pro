@@ -4,7 +4,12 @@ Visitas de um dia NAO FECHADO subcontam por natureza (snapshot parcial). Em vez 
 poluir o placar com FAIL, essas divergencias viram INFO e saem do denominador do
 parity_pct. Dia fechado continua PASS/FAIL normal. PASS nunca vira INFO.
 """
-from app.vendas.service_parity_audit import _check, _verdict
+from app.vendas.service_parity_audit import (
+    ALL_BLOCKS,
+    _check,
+    _normalize_blocks,
+    _verdict,
+)
 
 
 def test_check_info_converte_fail_em_info():
@@ -59,3 +64,25 @@ def test_harness_estoque_usa_soma_de_variacoes_E42():
 
     item_sem_variacoes = {"available_quantity": 33, "variations": []}
     assert stock_from_item(item_sem_variacoes) == 33
+
+
+# ─── E37: blocos plugaveis ──────────────────────────────────────────────────
+
+def test_normalize_blocks_none_vira_todos():
+    assert _normalize_blocks(None) == frozenset(ALL_BLOCKS)
+    assert _normalize_blocks(set()) == frozenset(ALL_BLOCKS)
+
+
+def test_normalize_blocks_subconjunto():
+    assert _normalize_blocks({"sales"}) == frozenset({"sales"})
+    assert _normalize_blocks({"sales", "reputation"}) == frozenset({"sales", "reputation"})
+
+
+def test_normalize_blocks_ignora_desconhecido_e_normaliza_caixa():
+    # nomes desconhecidos sao descartados; caixa e espacos normalizados.
+    assert _normalize_blocks({" Sales ", "banana"}) == frozenset({"sales"})
+
+
+def test_normalize_blocks_so_desconhecido_vira_todos():
+    # se sobrar vazio apos filtrar, roda todos (nunca placar vazio por engano).
+    assert _normalize_blocks({"banana", "xyz"}) == frozenset(ALL_BLOCKS)
