@@ -44,8 +44,21 @@ def _verdict(app_val, ml_val, tol: float = 0.0) -> str:
     return "PASS" if abs(a - m) / abs(m) <= tol else "FAIL"
 
 
-def _check(metric: str, ml_val, app_val, tol: float = 0.0, detail: str | None = None) -> dict:
+def _check(
+    metric: str,
+    ml_val,
+    app_val,
+    tol: float = 0.0,
+    detail: str | None = None,
+    info: bool = False,
+) -> dict:
+    """Monta um check. Se info=True, um veredito de discrepancia vira INFO em vez de
+    FAIL (E43): usado para metricas de um dia AINDA NAO FECHADO (o snapshot do dia
+    corrente e capturado no meio do dia -> subconta visitas por natureza, nao e bug).
+    PASS continua PASS; so a divergencia deixa de poluir o placar como FAIL."""
     v = _verdict(app_val, ml_val, tol)
+    if info and v == "FAIL":
+        v = "INFO"
     out = {"metric": metric, "ml": ml_val, "app": app_val, "verdict": v}
     if detail:
         out["detail"] = detail
@@ -74,7 +87,7 @@ async def run_parity_audit(
     for acc in accounts:
         results.append(await _audit_account(db, acc, target_day, sample_items))
 
-    checks = passed = failed = no_data = errors = 0
+    checks = passed = failed = no_data = errors = info = 0
     for r in results:
         for c in r["checks"]:
             checks += 1
@@ -85,9 +98,15 @@ async def run_parity_audit(
                 failed += 1
             elif v == "NO_DATA":
                 no_data += 1
+            elif v == "INFO":
+                info += 1
             else:
                 errors += 1
 
+    # parity_pct exclui APENAS os checks INFO (dia nao fechado — ruido de timing do dia
+    # corrente, E43). NO_DATA/ERROR permanecem no denominador como antes (nao alterar a
+    # semantica historica do placar). Quando info=0 o numero e identico ao baseline.
+    decisive = checks - info
     return {
         "day": target_day.isoformat(),
         "sample_items": sample_items,
@@ -97,8 +116,9 @@ async def run_parity_audit(
             "passed": passed,
             "failed": failed,
             "no_data": no_data,
+            "info": info,
             "errors": errors,
-            "parity_pct": round(passed / checks * 100, 1) if checks else None,
+            "parity_pct": round(passed / decisive * 100, 1) if decisive else None,
         },
     }
 
@@ -107,10 +127,15 @@ async def _audit_account(
     db: AsyncSession, acc: MLAccount, day: date, sample_items: int
 ) -> dict:
     checks: list[dict] = []
+    # Dia fechado = anterior a hoje (BRT). Visitas de um dia ainda em curso subcontam
+    # por natureza (snapshot capturado no meio do dia) -> viram INFO, nao FAIL (E43).
+    day_closed = day < datetime.now(BRT).date()
     try:
         async with MLClient(access_token=acc.access_token, ml_account_id=acc.id) as client:
             checks += await _audit_sales(db, client, acc, day)
-            checks += await _audit_visits_stock_price(db, client, acc, day, sample_items)
+            checks += await _audit_visits_stock_price(
+                db, client, acc, day, sample_items, day_closed=day_closed
+            )
             checks += await _audit_reputation(db, client, acc)
     except Exception as e:  # noqa: BLE001
         logger.exception("parity audit falhou acc=%s", acc.nickname)
@@ -179,9 +204,13 @@ async def _audit_sales(db, client, acc: MLAccount, day: date) -> list[dict]:
 
 
 async def _audit_visits_stock_price(
-    db, client, acc: MLAccount, day: date, sample_items: int
+    db, client, acc: MLAccount, day: date, sample_items: int, day_closed: bool = True
 ) -> list[dict]:
-    """Amostra de anuncios: visitas, estoque, preco e comissao (ML vs app)."""
+    """Amostra de anuncios: visitas, estoque, preco e comissao (ML vs app).
+
+    day_closed=False (dia ainda em curso) -> checks de VISITAS viram INFO em vez de
+    FAIL quando divergem (o snapshot do dia corrente e parcial). Estoque/preco/comissao
+    sao valores ATUAIS (nao dependem do dia) -> nao afetados por day_closed."""
     rows = list(
         (
             await db.execute(
@@ -220,7 +249,9 @@ async def _audit_visits_stock_price(
         ).first()
         app_visits = int(snap[0]) if snap else None
         if ml_visits is not None:
-            checks.append(_check(f"visitas[{mlb}]", ml_visits, app_visits))
+            checks.append(
+                _check(f"visitas[{mlb}]", ml_visits, app_visits, info=not day_closed)
+            )
 
         # Estoque e preco atuais (ML /items + /sale_price) vs listing/snapshot
         try:
