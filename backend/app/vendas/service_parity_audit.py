@@ -254,6 +254,11 @@ async def _audit_visits_stock_price(
                     Listing.listing_type,
                 )
                 .where(Listing.ml_account_id == acc.id, Listing.status == "active")
+                # ORDER BY estavel: sem isso o Postgres devolve anuncios DIFERENTES a
+                # cada chamada (LIMIT sem ordem = nao-deterministico) e o parity_pct
+                # oscilava (ex. 66-76% no MESMO dia) so pela amostra mudar. Amostra fixa
+                # torna o gate reproduzivel — pre-requisito p/ comparar antes/depois na Fase 4.
+                .order_by(Listing.mlb_id)
                 .limit(sample_items)
             )
         ).all()
