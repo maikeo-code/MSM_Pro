@@ -77,3 +77,43 @@ TOKEN="<jwt>" scripts/check_parity.sh          # via GET /api/v1/listings/audit/
 Dados de prod NÃO estão congelados — `/health/sync` mostra sync_orders + sync_all_snapshots
 rodando de hora em hora hoje. O "last_sync 07-07" que aparecia em `/ml/accounts` era bug de leitura
 (E18 filtrava ml_account_id NOT NULL, ignorando os syncs globais); corrigido no commit ba72c6b.
+
+---
+
+## Medição 3 — 2026-07-11 (amostra DETERMINÍSTICA, dia 07-09, sample_items=5)
+
+⚠️ **Correção metodológica:** a medição 2 (76%) NÃO era reproduzível — a amostra de anúncios usava
+`LIMIT 5` sem `ORDER BY`, então o Postgres devolvia anúncios diferentes a cada chamada e o número
+oscilava (medi 66%, 72%, 76% no MESMO dia). Corrigido no commit be0e574 (`order_by(mlb_id)`).
+**Número canônico agora é REPRODUTÍVEL** — auditei 2× e deu 60,0% idêntico.
+
+**Paridade reproduzível dia 07-09 = 60,0%** (30 PASS / 20 FAIL / 50 checks, amostra fixa 5 anúncios/conta).
+
+### Decomposição por bloco (honesta e reproduzível)
+| Bloco | PASS | FAIL | Leitura |
+|-------|------|------|---------|
+| comissao | 10 | 0 | ✅ perfeito |
+| preco | 10 | 0 | ✅ perfeito |
+| reputacao_claims | 2 | 0 | ✅ |
+| estoque | 6 | 4 | os 5 primeiros anúncios/conta (por mlb_id) têm mais divergência de estoque que a amostra aleatória de antes |
+| visitas | 2 | 8 | timing/captura D-1 — E43 só trata dia corrente; captura incompleta de D-1 é E63 (close_day) |
+| pedidos_dia | 0 | 2 | sobrecontagem estrutural → Fase 4/E52 |
+| unidades_dia | 0 | 2 | idem |
+| receita_dia | 0 | 2 | idem |
+| reputacao_vendas_60d | 0 | 2 | ⚠️ ver achado |
+
+### 3 achados desta medição
+1. **Amostra não-determinística** (harness) — JÁ CORRIGIDO (be0e574). O gate agora é reproduzível;
+   pré-requisito para comparar antes/depois na Fase 4.
+2. **`reputacao_vendas_60d` diverge ±0,07-0,8%** (MSM_PRIME ml=2214 app=2232; MSMPRIME ml=1353
+   app=1354). É janela deslizante de ~2000 vendas contra snapshot periódico + tolerância ZERO no
+   harness. NÃO mexer na tolerância ainda (mascararia o achado 3). Candidato a tol~1% DEPOIS de
+   confirmar o sync.
+3. **`sync_reputation` não grava SyncLog** — `_sync_reputation_async` não chama `_create_sync_log`,
+   então some do `/health/sync` (aparece "(nenhum)"). É lacuna de OBSERVABILIDADE (não prova que
+   parou, mas impede confirmar que roda). Pendência: adicionar SyncLog à task (igual às outras) para
+   tornar o E14 auditável. Prioridade média.
+
+### Nota de método
+O número de paridade depende de `sample_items` e do dia. Para comparação válida, fixar SEMPRE
+`sample_items=5&date_iso=<dia fechado>`. Baseline canônico reproduzível: **60,0% (07-09, sample 5)**.
