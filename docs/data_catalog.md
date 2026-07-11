@@ -282,9 +282,124 @@ margem (E22/E24/E35) são risco separado, travado por characterization (E94/E101
 > Formato: método+path → serviço:função → tabelas lidas/escritas → endpoint(s) ML → tela que usa →
 > teste → status (✓ / 🔴 órfão / 🟡 debug-interno).
 
-| Router | Método + Path | Serviço:função | Tabelas | Endpoint ML | Tela que usa | Teste | Status |
-|--------|---------------|----------------|---------|-------------|--------------|-------|--------|
-| _(a preencher — EA1 auth em diante)_ | | | | | | | |
+### EA1 — `auth/router.py` (18 endpoints) — preenchido 2026-07-10
+
+| Método + Path | Auth | Tela/uso | Nota / Status |
+|---------------|------|----------|---------------|
+| POST /register | pública | Login | ✓ público proposital |
+| POST /login | pública | Login | ✓ público proposital |
+| GET /me | user | (todas) | ✓ |
+| POST /refresh | user | axios interceptor | ✓ |
+| GET /ml/connect | user | Configurações | ✓ OAuth start |
+| GET /ml/callback | pública | (redirect OAuth) | ✓ público proposital (valida state) |
+| GET /ml/accounts | user | AccountSelector/Config | ✓ (E18 corrigido) |
+| POST /ml/accounts/{id}/refresh | user | Config | ✓ |
+| GET /ml/tokens-health | user | TokenHealthBanner | ✓ |
+| DELETE /ml/accounts/{id} | user | Config | ✓ |
+| GET /diagnostics | user | TokenHealthBanner | ✓ (E19a corrigido) |
+| GET/PUT /preferences | user | Config | ✓ |
+| POST /ml/accounts/{id}/backfill-orders | user | Config | ✓ (usado no E12) |
+| POST /debug/trigger-health-check | 🟡 user (NÃO admin) | — | ⚠️ ver achado |
+| POST /debug/trigger-task/{name} | 🟡 user (NÃO admin) | — | ⚠️ ver achado |
+| GET /debug/smtp-status | 🟡 user (NÃO admin) | — | ⚠️ ver achado |
+| POST /debug/send-test-email | 🟡 user (NÃO admin) | — | ⚠️ ver achado |
+
+⚠️ **ACHADO DE SEGURANÇA EA1/EA14:** os 4 `/debug/*` exigem autenticação (`Depends(get_current_user)`)
+mas **NÃO exigem admin** — qualquer usuário logado pode disparar. Mitigadores presentes: `trigger-task`
+tem **whitelist** (só 11 tarefas de sync internas — NÃO é execução arbitrária de código) e
+`send-test-email` só manda para o próprio e-mail do request. Dano real limitado, mas a superfície
+deveria ser admin-only. **Recomendação (decisão do Maikeo, EA12):** adicionar guard de admin OU
+remover em produção. NÃO implementado autonomamente (mudança de auth = sensível, escopo travado).
+Prioridade: média (não há user não-admin hoje além do Maikeo, mas fecha a porta para o futuro).
+
+### EA2-EA4 — `vendas/router.py` (31 endpoints, o maior) — preenchido 2026-07-10
+
+**EA2 — bloco KPI/analytics/sync (10):**
+| Método + Path | Serviço | Tela | Status |
+|---------------|---------|------|--------|
+| POST /sync | service_sync | Dashboard (botão) | ✓ |
+| POST /backfill-snapshots | router:59 | (operacional) | 🔴 usa `get_items_visits_bulk` LIFETIME → **E65 corrige** |
+| GET /kpi/summary | get_kpi_by_period | Dashboard | ✓ (E17 contrato) |
+| GET /kpi/compare | get_kpi_compare | Dashboard | ✓ |
+| GET /kpi/daily | metrics | Dashboard tabela | ✓ (⚠️ Σ≠summary até E52) |
+| GET /dashboard/extra-cards | service_dashboard_cards | Dashboard cards ML | ✓ |
+| GET /audit/parity | service_parity_audit | (harness) | ✓ NÃO migrar (verificador); E37 estende |
+| GET /analytics/funnel | service_analytics:34 | Dashboard funil | 🔴 UTC sem status → **E69** |
+| GET /analytics/heatmap | service_analytics:376 | Dashboard heatmap | 🔴 approved-only → **E71** |
+| GET /sales-trend | service_analytics | Dashboard | 🔴 → **E70** |
+
+**EA3 — bloco listing individual `/{mlb_id}/*` (11):**
+| Método + Path | Tela | Status |
+|---------------|------|--------|
+| GET /{mlb}/search-position | Detalhe (SearchPosition) | ✓ EA13 valida ML |
+| GET /{mlb} | Detalhe | ✓ |
+| GET /{mlb}/snapshots | Detalhe (gráfico) | ✓ |
+| GET /{mlb}/analysis | Detalhe KPIs | ✓ |
+| GET /{mlb}/margem | Detalhe (CalculadoraMargem) | ✓ E101 |
+| GET /{mlb}/health | Detalhe (Saúde) | ✅ **TEM tela** (corrige inventário "🟡 sem tela") |
+| PATCH /{mlb}/price | Detalhe | ✓ escrita |
+| POST /{mlb}/promotions | Detalhe | ✓ escrita |
+| POST /{mlb}/suggestion_apply | Detalhe | ✓ |
+| GET /{mlb}/price-history | Detalhe (PriceHistory) | ✓ |
+| POST /{mlb}/simulate-price | Detalhe (CalculadoraMargem) | ✅ **TEM caller** (corrige "🟡 sem tela") |
+| PATCH /{mlb}/sku | Detalhe/Produtos (linkSku) | ✓ |
+
+**EA4 — CRUD + export + repricing + coverage (10):**
+| Método + Path | Tela | Status |
+|---------------|------|--------|
+| GET / | Anúncios/Dashboard | ✓ (E21) |
+| POST / | (criar anúncio) | ✓ |
+| GET /export | (CSV) | ✓ EA16 valida == tela |
+| GET /orders/ | Pedidos | ✓ (E25) |
+| GET/POST/PUT/DELETE /repricing-rules[/{id}] | (repricing) | ✗ sem check |
+| GET /coverage | 🟡 **sem tela no frontend** (só operacional/debug) | 🟡 confirmado interno — OK ser órfão de tela |
+
+✅ **Achados EA2-EA4:** dos 3 endpoints que o inventário do plano marcou "🟡 sem tela clara",
+**`/health` e `/simulate-price` TÊM uso no frontend** (Detalhe do anúncio) — só `/coverage` é
+realmente sem-tela (operacional, aceitável). Corrige o inventário da Fase 2B.
+
+### EA5-EA11 — routers restantes (mapa de DADOS já na seção 1) — preenchido 2026-07-10
+
+O mapa campo→fonte de cada tela está na **seção 1** (E26-E35). Aqui o inventário de endpoints por
+router com a tela que consome e a pendência de migração (quando houver):
+
+| Router (EA) | Nº | Tela (seção 1) | Pendência |
+|-------------|-----|----------------|-----------|
+| financeiro (EA5) | 8 | E26 | 🔴 lê snapshot → Fase 6 E74-E78 |
+| intel/analytics (EA7) | 7 | E27-E29 | 🔴 sem dedup → E80-E86 |
+| intel/pricing (EA7) | 6 | E35 | ✗ recomendações (E106) |
+| alertas (EA8) | 7 | E33 | ✗ E100 (sem falso positivo) |
+| notifications (EA8) | 5 | E33 | ✓ |
+| perguntas (EA9) | 7 | E34 | ✗ E104 |
+| reputacao (EA9) | 4 | E30 | ✓ 4/4 PASS (E14) |
+| concorrencia (EA10) | 6 | E31 | ✗ E102 |
+| produtos (EA10) | 5 | E35 | ✗ base margem E101 |
+| consultor (EA11) | 2 | (chat) | ✗ E106 (nº citado == metrics.py) |
+| ads (EA11) | 3 | E32 | ✗ fallback honesto E105 |
+| analise (EA11) | 1 | E23 | 🔴 status+dedup → E72/E79 |
+| vendas_mt (EA11) | 1 | E24 | ✓ 20/20 → E95 |
+
+### EA15 — Cross-check de autenticação (124 endpoints) — ✅ PASSOU
+
+Verificado por grep de `get_current_user` em todos os 16 routers vs contagem de endpoints:
+**TODO endpoint exige autenticação**, exceto os 3 propositalmente públicos do auth:
+`POST /register`, `POST /login`, `GET /ml/callback` (OAuth redirect, valida `state`). Zero endpoint
+de dados exposto sem auth. Ressalva: os 4 `/debug/*` (EA1) têm auth mas **não** têm guard de admin —
+único ponto a endurecer (recomendação registrada em EA1, decisão do Maikeo).
+
+### EA13/EA6/EA16/EA17/EA18 — pendências desta fase (parciais)
+- **EA13** (validar endpoints ML de cada rota no MCP): os do cheat-sheet revalidados em EC9; o resto
+  fica para quando houver token de sessão + MCP estável (oficial está OK agora, dá p/ avançar).
+- **EA6** (`atendimento/templates-test` — nome de debug em produção): confirmar se é rota de teste
+  exposta; decidir remover/proteger/renomear (decisão do Maikeo).
+- **EA16** (export CSV == tela Anúncios): trava histórica do `item["price"]` cru — validar em E109.
+- **EA17** (cruzamento navegável telas↔endpoints↔métodos ML): seções 1+2+3 já existem; falta a
+  seção 4 tecer os 3 sentidos — fazer ao fim da fase.
+- **EA18** (resumo no vault): consolidar ao fechar a Fase 2B.
+
+**Status Fase 2B:** inventário dos 124 endpoints coberto (auth + tela + pendência). Achados de
+segurança (EA1 /debug, EA15 auth OK) e de inventário (/health e /simulate-price têm tela) registrados.
+Validações ML por-rota (EA13) e cruzamento final (EA17) ficam para uma passada com token+MCP.
 
 ---
 

@@ -188,3 +188,53 @@ Implementação: `backend/app/jobs/tasks_listings.py::stock_from_item()` (testes
 FULL/fulfillment: o endpoint dedicado `/user-products/{id}/stock/fulfillment` (client `get_full_stock`,
 hoje sem uso) é para detalhe multi-armazém, não para o total do painel — não necessário para o total.
 Se algum item FULL específico divergir após E9, o harness de paridade (E42) revela e refinamos.
+
+### Ressalva multiorigem / User Products (validado no MCP oficial — EC3, 2026-07-10)
+
+Fonte: FAQ oficial "Gestão de estoque multiorigem / User Products" (path
+`gestao-de-estoque-multiorigem-user-products`, atualizado 2026-05-05).
+
+**Fato confirmado:** em contas com **gestão multiorigem / warehouse_management** (que inclui itens
+geridos por depósito, ex. FULL), o `available_quantity` do `/items` **não é a fonte de escrita**
+(PUT é ignorado ou 200-sem-efeito) — o estoque vive nas `stock_locations` por `seller_warehouse`.
+
+**Impacto no MSM_Pro (LEITURA):** nós só LEMOS estoque (sync), não escrevemos. Para leitura, a soma de
+`variations[].available_quantity` (E9) continua batendo para itens normais/Flex — comprovado pela
+paridade medição 2 (estoque **9/10 PASS**). O risco fica restrito a itens **100% FULL sem variações**,
+onde o `available_quantity` do topo pode refletir o estoque do depósito ML com atraso de sync
+assíncrono (a doc cita processo que "pode levar mais de um dia"). 
+
+**Decisão (EC4):** NÃO mudar o E9 agora — a paridade não acusou FALHA sistemática em item FULL. Manter
+`get_full_stock` marcado como reserva. Se o harness (E42) acusar um item FULL divergindo de forma
+persistente (não ±1 de timing), aí sim ligar `get_full_stock` para aquele caso. Registrado para não
+reabrir a investigação do zero.
+
+**Como detectar item multiorigem** (se precisar no futuro): item tem `user_product_id` e
+`stock_locations` com `type: seller_warehouse`. Aí o total confiável vem de
+`/user-products/{user_product_id}/stock`, não do `/items`.
+
+---
+
+## Revalidação do cheat-sheet no MCP oficial (EC9, 2026-07-10)
+
+Reconferência dos endpoints que mais custaram retrabalho, contra a doc oficial atual.
+
+### Visitas — `/items/{id}/visits/time_window` ✅ CONFIRMADO (doc "Visitas", atualizada 2026-01-02)
+- Endpoint por dia: `GET /items/{item_id}/visits/time_window?last=N&unit=day&ending=YYYY-MM-DD`. `unit`
+  só aceita `day`. Máx. 150 dias. **1 item por vez** (erro `maximum amount of items to query is 1`).
+- **`ending` é EXCLUSIVO — CONFIRMADO pela doc:** exemplo oficial `ending=2021-08-06` com `last=2`
+  retorna dias **08-04 e 08-05** (NÃO 08-06). Nosso cheat-sheet (`ending={D+1}` para pegar o dia D)
+  está correto. `ending` só aceita `YYYY-MM-DD`.
+- **`/visits/items?ids=` = LIFETIME confirmado:** a doc diz textual "visitas totais dos **últimos dois
+  anos**". Proibido para visitas de dia. Reforça EC2 (`get_listing_visits` NÃO CONECTAR) e o E65
+  (trocar `get_items_visits_bulk` no backfill).
+- Implicação p/ a Fase 3/E43: como `time_window` fecha por dia calendário e nosso snapshot é capturado
+  em instante do dia, o D-corrente sempre subconta até o dia fechar — por isso E43 trata D-1 (fechado)
+  com tolerância 0 e o dia corrente como INFO. A doc valida essa escolha.
+
+### Demais do cheat-sheet — status
+- `sale_price` (`/items/{id}/sale_price`), `senders.cost` (`/shipments/{id}/costs`),
+  `listing_prices` (`/sites/MLB/listing_prices`): já validados nas auditorias ARCH-014 e de 30/06
+  (ver histórico acima neste doc); sem mudança de contrato observada. Reconfirmação pontual via curl
+  fica para EC9-b quando houver token de sessão à mão (não crítico — nenhum FAIL de preço/comissão na
+  paridade medição 2: preço 10/10, comissão 10/10 PASS).
