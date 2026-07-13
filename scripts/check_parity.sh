@@ -8,20 +8,25 @@
 # "MSM_Pro = espelho do painel do ML; divergência = bug do MSM_Pro".
 #
 # Uso:
-#   TOKEN="<jwt>" scripts/check_parity.sh                 # ontem, prod
+#   TOKEN="<jwt>" scripts/check_parity.sh                 # ontem, prod, blocos default
 #   TOKEN="<jwt>" scripts/check_parity.sh 2026-07-06      # dia específico
+#   TOKEN="<jwt>" BLOCKS=sales scripts/check_parity.sh    # só o bloco de vendas (rápido)
+#   TOKEN="<jwt>" BLOCKS=shipping scripts/check_parity.sh # frete/comissão/líquido por pedido
 #   TOKEN="<jwt>" BASE_URL=http://localhost:8000 scripts/check_parity.sh
 #
 # Variáveis:
 #   TOKEN        (obrigatório) JWT de um usuário com contas ML ativas
 #   BASE_URL     (opcional) padrão: https://msmpro-production.up.railway.app
-#   SAMPLE_ITEMS (opcional) padrão: 5  — qtd de anúncios na amostra
+#   SAMPLE_ITEMS (opcional) padrão: 5  — qtd de anúncios/pedidos na amostra
+#   BLOCKS       (opcional) subset a auditar, separado por vírgula (E37/E45).
+#                Ex.: sales,stock,price,fees,visits,reputation,shipping. Vazio = default.
 #
 # Códigos de saída: 0 = paridade total; 1 = houve FAIL; 2 = erro de uso/conexão.
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-https://msmpro-production.up.railway.app}"
 SAMPLE_ITEMS="${SAMPLE_ITEMS:-5}"
+BLOCKS="${BLOCKS:-}"
 DATE_ISO="${1:-}"
 
 # Interpretador Python: prefere python3, cai para python. Testa a EXECUCAO real
@@ -48,6 +53,9 @@ fi
 URL="${BASE_URL}/api/v1/listings/audit/parity?sample_items=${SAMPLE_ITEMS}"
 if [ -n "$DATE_ISO" ]; then
   URL="${URL}&date_iso=${DATE_ISO}"
+fi
+if [ -n "$BLOCKS" ]; then
+  URL="${URL}&blocks=${BLOCKS}"
 fi
 
 echo "[check_parity] Auditando ${URL}"
@@ -77,10 +85,13 @@ s = data.get("summary", {})
 failed = s.get("failed", 0)
 errors = s.get("errors", 0)
 
+blocks = data.get("blocks")
 print(f"\n=== Paridade MSM_Pro vs painel do ML — dia {data.get('day')} ===")
+if blocks:
+    print(f"  blocos: {', '.join(blocks)}")
 print(f"  checks={s.get('checks')} passed={s.get('passed')} "
-      f"failed={failed} no_data={s.get('no_data')} errors={errors} "
-      f"parity={s.get('parity_pct')}%\n")
+      f"failed={failed} info={s.get('info', 0)} no_data={s.get('no_data')} "
+      f"errors={errors} parity={s.get('parity_pct')}%\n")
 
 # Detalha cada divergência para o número aparecer na cara.
 for acc in data.get("accounts", []):
