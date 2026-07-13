@@ -153,3 +153,33 @@ amostra determinística (order_by mlb_id), bloco shipping novo. Números reprodu
 O harness agora é confiável (gate funciona, número reproduzível). Sobram exatamente 2 alvos
 estruturais: visitas (subcontam → Fase 5) e vendas (sobrecontam → Fase 4). Comissão, preço e o
 detalhe financeiro por pedido já espelham o painel do ML ao centavo.
+
+---
+
+## Investigação da sobrecontagem MSMPRIME (07-11) — diagnóstico p/ Fase 4/E49
+
+Dados reais dos pedidos do app (via `/listings/orders/`) para MSMPRIME em 07-11:
+- **15 pedidos**: 13 `approved` + **2 `refunded`** (sem duplicatas de ml_order_id).
+- App conta os 2 refunded como venda (regra "refunded conta" — constants NON_SALE_PAYMENT_STATUSES).
+
+### A matemática NÃO fecha só com refunded — há fuso envolvido
+- App total (harness): 15 pedidos / 24 un / R$1622,10.
+- App approved-only: 13 pedidos / 19 un / **R$1606,27**.
+- ML (painel): 14 pedidos / 20 un / **R$1532,62**.
+
+O ML tem MAIS pedidos que os approved (14 vs 13) mas MENOS receita (1532 vs 1606). Ou seja, ML e app
+contam **conjuntos parcialmente diferentes** — não é só "excluir os refunded". Combinação de:
+1. **Tratamento de refunded** — o painel do ML parece contar refunded de forma dependente de QUANDO o
+   reembolso ocorreu (mesmo dia da venda = não conta; dia posterior = conta), enquanto o app conta
+   todos. Decisão de produto pendente (já levantada no incidente 30/06).
+2. **Fronteira de fuso BRT/UTC** — pedidos perto da meia-noite entram em 07-11 de um lado e 07-12 do
+   outro. `Order.order_date` é UTC; o painel do ML é BRT. Um pedido às ~21-23h BRT pode divergir.
+
+### Implicação para a Fase 4 (E49-E52)
+A troca "Order como fonte aditiva única" precisa, no mesmo movimento, fixar DUAS regras:
+- **Status:** definir exatamente quais `payment_status` contam como venda no dia, espelhando a regra
+  do painel do ML para refunded (provavelmente: conta se o reembolso é posterior ao dia da venda).
+- **Fuso:** ancorar o dia da venda em BRT (início/fim do dia BRT), consistente com o painel.
+
+Sem resolver os DOIS, a paridade de vendas não fecha. Isso confirma que a sobrecontagem é semântica,
+não bug de contagem simples — e que o detalhe financeiro por pedido já está correto (shipping 18/18).
