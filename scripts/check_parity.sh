@@ -76,11 +76,14 @@ if [ -z "$RESP" ] || ! printf '%s' "$RESP" | grep -q '"summary"'; then
   exit 2
 fi
 
-# Parsing e veredito via python (sem depender de jq).
-echo "$RESP" | "$PYTHON" - <<'PY'
-import json, sys
+# Parsing e veredito via python (sem depender de jq). O corpo (RESP) vai por VARIAVEL
+# DE AMBIENTE, nao por pipe: 'python - <<PY' ja usa o stdin para LER O PROGRAMA (o
+# heredoc), entao um 'echo | python -' faria json.load(sys.stdin) receber vazio (o
+# heredoc vence o pipe). Bug pre-existente que fazia o script sempre falhar aqui.
+RESP="$RESP" "$PYTHON" - <<'PY'
+import json, os
 
-data = json.load(sys.stdin)
+data = json.loads(os.environ["RESP"])
 s = data.get("summary", {})
 failed = s.get("failed", 0)
 errors = s.get("errors", 0)
@@ -103,7 +106,7 @@ for acc in data.get("accounts", []):
 if failed and failed > 0:
     print(f"\nX PORTÃO BLOQUEADO: {failed} métrica(s) divergem do painel do ML. "
           f"NÃO declare a tarefa pronta — corrija a divergência primeiro.")
-    sys.exit(1)
+    raise SystemExit(1)
 
 print("\nOK Paridade total com o painel do ML. Portão liberado.")
 if errors and errors > 0:
