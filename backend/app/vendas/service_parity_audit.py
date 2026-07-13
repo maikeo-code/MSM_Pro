@@ -65,17 +65,26 @@ def _check(
     return out
 
 
-# Blocos auditaveis hoje. E38-E41 acrescentam shipping/questions/claims.
-ALL_BLOCKS = ("sales", "visits", "stock", "price", "fees", "reputation")
+# Blocos default (rodam quando ?blocks nao e passado). Rapidos/consolidados.
+DEFAULT_BLOCKS = ("sales", "visits", "stock", "price", "fees", "reputation")
+# "shipping" (E38-E40: frete/comissao/liquido POR PEDIDO) e OPT-IN: faz 1 chamada de
+# /shipments/{id}/costs por pedido amostrado -> pesado, fora do gate rapido. Rode com
+# ?blocks=shipping. E41 acrescenta questions/claims (tambem opt-in).
+_OPT_IN_BLOCKS = ("shipping",)
+KNOWN_BLOCKS = DEFAULT_BLOCKS + _OPT_IN_BLOCKS
+# Retrocompat: ALL_BLOCKS = os que rodam por padrao (nome antigo usado em testes).
+ALL_BLOCKS = DEFAULT_BLOCKS
 _ITEM_BLOCKS = frozenset({"visits", "stock", "price", "fees"})  # compartilham o get_item
 
 
 def _normalize_blocks(blocks: set[str] | None) -> frozenset[str]:
-    """None/vazio -> todos. Ignora nomes desconhecidos (nunca quebra o placar)."""
+    """None/vazio -> conjunto DEFAULT. Nomes validos (KNOWN) sao respeitados, mesmo os
+    opt-in (ex. ?blocks=shipping). Nomes desconhecidos sao descartados; se sobrar vazio,
+    volta ao DEFAULT (nunca placar vazio por engano)."""
     if not blocks:
-        return frozenset(ALL_BLOCKS)
-    sel = frozenset(b.strip().lower() for b in blocks) & frozenset(ALL_BLOCKS)
-    return sel or frozenset(ALL_BLOCKS)
+        return frozenset(DEFAULT_BLOCKS)
+    sel = frozenset(b.strip().lower() for b in blocks) & frozenset(KNOWN_BLOCKS)
+    return sel or frozenset(DEFAULT_BLOCKS)
 
 
 async def run_parity_audit(
@@ -154,6 +163,8 @@ async def _audit_account(
                 checks += await _audit_visits_stock_price(
                     db, client, acc, day, sample_items, day_closed=day_closed, sel=sel
                 )
+            if "shipping" in sel:
+                checks += await _audit_orders_detail(db, client, acc, day, sample_items)
             if "reputation" in sel:
                 checks += await _audit_reputation(db, client, acc)
     except Exception as e:  # noqa: BLE001
@@ -220,6 +231,73 @@ async def _audit_sales(db, client, acc: MLAccount, day: date) -> list[dict]:
         _check("unidades_dia", ml_unidades, app_unidades),
         _check("receita_dia", round(ml_receita, 2), app_receita, tol=0.01),
     ]
+
+
+async def _audit_orders_detail(
+    db, client, acc: MLAccount, day: date, sample_orders: int
+) -> list[dict]:
+    """Detalhe financeiro POR PEDIDO (bloco 'shipping', E38/E39/E40): comissao, frete e
+    liquido de uma amostra de pedidos do dia — ML real vs Order table.
+
+    - comissao ML = soma de order_items[].sale_fee (vem no payload de /orders/search).
+    - frete ML    = fetch_seller_shipping_cost(shipment_id) — MESMA fonte do sync
+                    (/shipments/{id}/costs -> senders.cost). 1 chamada extra por pedido
+                    -> por isso este bloco e opt-in (nao entra no gate rapido).
+    - liquido ML  = total_amount - comissao - frete.
+    Compara com Order.sale_fee / .shipping_cost / .net_amount. Tolerancia R$0,01 (fee/
+    liquido) e 5% no frete (o desconto de frete do ML varia com a data de captura)."""
+    from app.jobs.tasks_helpers import fetch_seller_shipping_cost
+
+    start = datetime.combine(day, time.min, tzinfo=BRT)
+    end = datetime.combine(day, time.max, tzinfo=BRT)
+
+    # Amostra de pedidos do dia (primeira pagina, ordenada pelo ML por data desc).
+    try:
+        resp = await client.get_orders(
+            acc.ml_user_id, start.isoformat(), end.isoformat(), offset=0, limit=50
+        )
+    except Exception as e:  # noqa: BLE001
+        return [_check("frete_pedido", None, None, detail=f"ML orders falhou: {e}")]
+
+    rows = resp.get("results", []) if isinstance(resp, dict) else []
+    # So pedidos que contam como venda, amostra estavel (ordena por ml_order_id).
+    sample = sorted(
+        (o for o in rows if o.get("status") not in CANCEL_STATUSES),
+        key=lambda o: str(o.get("id", "")),
+    )[:sample_orders]
+
+    checks: list[dict] = []
+    for o in sample:
+        ml_order_id = str(o.get("id", ""))
+        total = float(o.get("total_amount", 0) or 0)
+        ml_fee = round(
+            sum(float(oi.get("sale_fee", 0) or 0) for oi in o.get("order_items", [])), 2
+        )
+        shp = o.get("shipping") or {}
+        ship_id = shp.get("id")
+        ml_frete = float(await fetch_seller_shipping_cost(client, ship_id))
+        ml_liquido = round(total - ml_fee - ml_frete, 2)
+
+        order = (
+            await db.execute(
+                select(Order.sale_fee, Order.shipping_cost, Order.net_amount).where(
+                    Order.ml_order_id == ml_order_id
+                )
+            )
+        ).first()
+        if order is None:
+            checks.append(
+                _check(f"frete_pedido[{ml_order_id}]", None, None, detail="order ausente no app")
+            )
+            continue
+        app_fee = round(float(order[0]), 2)
+        app_frete = round(float(order[1]), 2)
+        app_liquido = round(float(order[2]), 2)
+
+        checks.append(_check(f"comissao_pedido[{ml_order_id}]", ml_fee, app_fee, tol=0.01))
+        checks.append(_check(f"frete_pedido[{ml_order_id}]", round(ml_frete, 2), app_frete, tol=0.05))
+        checks.append(_check(f"liquido_pedido[{ml_order_id}]", ml_liquido, app_liquido, tol=0.01))
+    return checks
 
 
 async def _audit_visits_stock_price(

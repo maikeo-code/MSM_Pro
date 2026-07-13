@@ -6,6 +6,8 @@ parity_pct. Dia fechado continua PASS/FAIL normal. PASS nunca vira INFO.
 """
 from app.vendas.service_parity_audit import (
     ALL_BLOCKS,
+    DEFAULT_BLOCKS,
+    KNOWN_BLOCKS,
     _check,
     _normalize_blocks,
     _verdict,
@@ -68,9 +70,9 @@ def test_harness_estoque_usa_soma_de_variacoes_E42():
 
 # ─── E37: blocos plugaveis ──────────────────────────────────────────────────
 
-def test_normalize_blocks_none_vira_todos():
-    assert _normalize_blocks(None) == frozenset(ALL_BLOCKS)
-    assert _normalize_blocks(set()) == frozenset(ALL_BLOCKS)
+def test_normalize_blocks_none_vira_default():
+    assert _normalize_blocks(None) == frozenset(DEFAULT_BLOCKS)
+    assert _normalize_blocks(set()) == frozenset(DEFAULT_BLOCKS)
 
 
 def test_normalize_blocks_subconjunto():
@@ -83,6 +85,21 @@ def test_normalize_blocks_ignora_desconhecido_e_normaliza_caixa():
     assert _normalize_blocks({" Sales ", "banana"}) == frozenset({"sales"})
 
 
-def test_normalize_blocks_so_desconhecido_vira_todos():
-    # se sobrar vazio apos filtrar, roda todos (nunca placar vazio por engano).
-    assert _normalize_blocks({"banana", "xyz"}) == frozenset(ALL_BLOCKS)
+def test_normalize_blocks_so_desconhecido_vira_default():
+    # se sobrar vazio apos filtrar, roda o DEFAULT (nunca placar vazio por engano).
+    assert _normalize_blocks({"banana", "xyz"}) == frozenset(DEFAULT_BLOCKS)
+
+
+def test_shipping_e_opt_in_fora_do_default():
+    # 'shipping' e um bloco valido (KNOWN) mas NAO roda por padrao (opt-in): faz 1
+    # chamada de /shipments/{id}/costs por pedido -> pesado, fora do gate rapido.
+    assert "shipping" in KNOWN_BLOCKS
+    assert "shipping" not in DEFAULT_BLOCKS
+    # pedido explicito respeita shipping
+    assert _normalize_blocks({"shipping"}) == frozenset({"shipping"})
+    # default NAO inclui shipping
+    assert "shipping" not in _normalize_blocks(None)
+
+
+def test_all_blocks_retrocompat_igual_default():
+    assert frozenset(ALL_BLOCKS) == frozenset(DEFAULT_BLOCKS)
