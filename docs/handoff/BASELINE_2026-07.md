@@ -117,3 +117,39 @@ oscilava (medi 66%, 72%, 76% no MESMO dia). Corrigido no commit be0e574 (`order_
 ### Nota de método
 O número de paridade depende de `sample_items` e do dia. Para comparação válida, fixar SEMPRE
 `sample_items=5&date_iso=<dia fechado>`. Baseline canônico reproduzível: **60,0% (07-09, sample 5)**.
+
+---
+
+## Medição 4 / BASELINE v2 (E48) — 2026-07-13, dia 07-11, ferramentas corrigidas
+
+Primeiro baseline com TODAS as ferramentas do harness corrigidas: script parseando (fix heredoc),
+amostra determinística (order_by mlb_id), bloco shipping novo. Números reproduzíveis.
+
+### Placar (dia 07-11, D-2, totalmente fechado)
+- **DEFAULT (6 blocos rápidos, sample 5): 68,0%** — 50 checks, 34 PASS, 16 FAIL.
+- **SHIPPING (frete/comissão/líquido por pedido, sample 3): 100,0%** — 18/18 PASS.
+
+### Decomposição dos 16 FAILs do default — 2 padrões sistemáticos
+| Bloco | Resultado | Padrão |
+|-------|-----------|--------|
+| comissao | 10/10 ✅ | perfeito |
+| preco | 10/10 ✅ | perfeito |
+| **shipping (opt-in)** | 18/18 ✅ | frete/comissão/líquido por pedido batem AO CENTAVO |
+| **visitas** | 9 FAIL | 🔴 **app < ML SEMPRE** (subcontagem sistemática, mesmo em dia fechado) |
+| **vendas** (pedidos/unid/receita) | 3 FAIL (MSMPRIME) | 🔴 **app > ML** (sobrecontagem) → Fase 4/E52 |
+| estoque | 3 FAIL (MSMPRIME) | 🟡 ±2-5 un (timing: estoque muda com vendas entre captura e auditoria) |
+| reputacao_vendas_60d | 1 FAIL | 🟡 2278 vs 2270 (±0,3%, janela deslizante) |
+
+### Os 2 problemas ESTRUTURAIS confirmados (tudo o mais é timing tolerável)
+1. **VISITAS subcontam sistematicamente** (app sempre MENOR que o ML), inclusive em dias fechados.
+   NÃO é o timing do dia corrente (E43 já trata isso). É captura incompleta do dia — o snapshot é
+   criado 1×/dia e parece perder visitas. Alvo: **E63 (close_day re-verifica visitas 100%)** e
+   **E65 (backfill usa time_window certo)**. Ex.: MLB4152674593 ML=20 app=16; MLB3884912872 ML=18 app=14.
+2. **VENDAS sobrecontam** na MSMPRIME (app conta +1 pedido, +4 unidades, +R$89). O detalhe financeiro
+   dos pedidos que existem é PERFEITO (shipping 100%) → o erro é de QUAIS pedidos entram na contagem,
+   não de valor. Alvo: **Fase 4 (Order como fonte aditiva única)**.
+
+### Conclusão do diagnóstico (Fases 0-3)
+O harness agora é confiável (gate funciona, número reproduzível). Sobram exatamente 2 alvos
+estruturais: visitas (subcontam → Fase 5) e vendas (sobrecontam → Fase 4). Comissão, preço e o
+detalhe financeiro por pedido já espelham o painel do ML ao centavo.
