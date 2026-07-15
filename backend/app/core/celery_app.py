@@ -87,6 +87,25 @@ celery_app.conf.beat_schedule = {
             "expires": 3600,
         },
     },
+    # Reconcilia status active<->paused a cada 2h (minuto 40, hora par — slot livre).
+    # LEVE (só IDs por status). Fecha o buraco em que anúncios reativados no ML
+    # ficavam presos como 'paused' no banco até o sync completo manual.
+    "reconcile-listing-status-2h": {
+        "task": "app.jobs.tasks.reconcile_listing_status",
+        "schedule": crontab(minute=40, hour="*/2"),
+        "options": {
+            "expires": 7200,
+        },
+    },
+    # Sync COMPLETO do catálogo 1x/dia às 08:00 UTC (05:00 BRT), antes do snapshot
+    # das 09:00 UTC — reconcilia active+paused+closed e refaz preço/taxas. Pesado.
+    "sync-all-listings-daily": {
+        "task": "app.jobs.tasks.sync_all_listings",
+        "schedule": crontab(hour=8, minute=0),
+        "options": {
+            "expires": 3600,
+        },
+    },
     # Renova tokens ML que vão expirar nas próximas 3 horas
     # Roda a cada 30 minutos para garantir que nunca perca a janela de renovação
     # (antes rodava 1x/hora no minuto 30, agora rodará nos minutos 0 e 30)

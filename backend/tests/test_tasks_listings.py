@@ -527,3 +527,109 @@ class TestSyncDailyScheduleTime:
         from app.core.celery_app import celery_app
 
         assert celery_app.conf.enable_utc is True
+
+    def test_reconcile_listing_status_no_schedule(self):
+        """reconcile-listing-status-2h deve estar no beat_schedule (fix reativação)."""
+        from app.core.celery_app import celery_app
+
+        beat_schedule = celery_app.conf.beat_schedule
+        assert "reconcile-listing-status-2h" in beat_schedule
+        assert (
+            beat_schedule["reconcile-listing-status-2h"]["task"]
+            == "app.jobs.tasks.reconcile_listing_status"
+        )
+
+    def test_sync_all_listings_no_schedule(self):
+        """sync-all-listings-daily deve estar no beat_schedule (catálogo 1x/dia)."""
+        from app.core.celery_app import celery_app
+
+        beat_schedule = celery_app.conf.beat_schedule
+        assert "sync-all-listings-daily" in beat_schedule
+        assert (
+            beat_schedule["sync-all-listings-daily"]["task"]
+            == "app.jobs.tasks.sync_all_listings"
+        )
+
+
+# ============================================================================
+# Teste 26: reconcile_listing_status corrige drift active<->paused
+# ============================================================================
+
+
+class TestReconcileListingStatus:
+    """Testa que o reconciliador leve corrige o status de anúncios reativados."""
+
+    @pytest.mark.asyncio
+    async def test_paused_reativado_vira_active(self):
+        """Listing 'paused' no banco que voltou a 'active' no ML deve ser corrigido."""
+        from app.jobs.tasks_listings import _reconcile_listing_status_async
+
+        account = _make_ml_account()
+        account.is_active = True
+        # Estava paused no banco; o ML agora retorna esse MLB em active.
+        listing = _make_listing(mlb_id="MLB4642444149", status="paused")
+
+        mock_accounts_result = MagicMock()
+        mock_accounts_result.scalars.return_value.all.return_value = [account]
+        mock_listings_result = MagicMock()
+        mock_listings_result.scalars.return_value.all.return_value = [listing]
+
+        mock_db = AsyncMock()
+        mock_db.execute = AsyncMock(
+            side_effect=[mock_accounts_result, mock_listings_result]
+        )
+        mock_db.commit = AsyncMock()
+        mock_db.__aenter__ = AsyncMock(return_value=mock_db)
+        mock_db.__aexit__ = AsyncMock(return_value=False)
+
+        mock_client = AsyncMock()
+        mock_client.get_user_listings = AsyncMock(
+            side_effect=[
+                {"results": ["MLB4642444149"]},  # active
+                {"results": []},  # paused
+            ]
+        )
+        mock_client.close = AsyncMock()
+
+        with patch("app.jobs.tasks_listings.AsyncSessionLocal", return_value=mock_db), \
+             patch("app.jobs.tasks_listings.MLClient", return_value=mock_client), \
+             patch("app.jobs.tasks_listings._create_sync_log", new_callable=AsyncMock, return_value=MagicMock()), \
+             patch("app.jobs.tasks_listings._finish_sync_log", new_callable=AsyncMock):
+            result = await _reconcile_listing_status_async()
+
+        assert listing.status == "active"
+        assert result["changed"] == 1
+
+    @pytest.mark.asyncio
+    async def test_resposta_vazia_nao_altera_status(self):
+        """Se o ML retorna vazio (erro/token), não reverte status (fail-safe)."""
+        from app.jobs.tasks_listings import _reconcile_listing_status_async
+
+        account = _make_ml_account()
+        account.is_active = True
+        listing = _make_listing(mlb_id="MLB4642444149", status="paused")
+
+        mock_accounts_result = MagicMock()
+        mock_accounts_result.scalars.return_value.all.return_value = [account]
+
+        mock_db = AsyncMock()
+        # Só a query de contas roda; a de listings não é alcançada pois damos continue.
+        mock_db.execute = AsyncMock(side_effect=[mock_accounts_result])
+        mock_db.commit = AsyncMock()
+        mock_db.__aenter__ = AsyncMock(return_value=mock_db)
+        mock_db.__aexit__ = AsyncMock(return_value=False)
+
+        mock_client = AsyncMock()
+        mock_client.get_user_listings = AsyncMock(
+            side_effect=[{"results": []}, {"results": []}]  # active vazio, paused vazio
+        )
+        mock_client.close = AsyncMock()
+
+        with patch("app.jobs.tasks_listings.AsyncSessionLocal", return_value=mock_db), \
+             patch("app.jobs.tasks_listings.MLClient", return_value=mock_client), \
+             patch("app.jobs.tasks_listings._create_sync_log", new_callable=AsyncMock, return_value=MagicMock()), \
+             patch("app.jobs.tasks_listings._finish_sync_log", new_callable=AsyncMock):
+            result = await _reconcile_listing_status_async()
+
+        assert listing.status == "paused"  # inalterado
+        assert result["changed"] == 0

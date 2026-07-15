@@ -41,6 +41,8 @@ from .tasks_daily_intel import _send_daily_intel_report_async
 from .tasks_digest import _send_weekly_digest_async
 from .tasks_helpers import run_async
 from .tasks_listings import (
+    _reconcile_listing_status_async,
+    _sync_all_listings_async,
     _sync_all_snapshots_async,
     _sync_listing_snapshot_async,
     _sync_recent_snapshots_async,
@@ -140,6 +142,60 @@ def sync_recent_snapshots():
         return run_async(_run())
     except Exception as exc:
         logger.error(f"Erro em sync_recent_snapshots: {exc}")
+        raise
+
+
+# --- Task: Reconciliar status active/paused (leve, a cada 2h) ---
+
+@celery_app.task(name="app.jobs.tasks.reconcile_listing_status")
+def reconcile_listing_status():
+    """Reconcilia Listing.status (active<->paused) contra o ML.
+
+    Corrige o drift em que anúncios reativados no ML ficavam presos como 'paused'
+    no banco. Leve: só busca IDs por status. Roda a cada 2h.
+    Uses Redis lock para evitar sobreposição entre workers.
+    """
+    async def _run():
+        if not await acquire_task_lock("reconcile_listing_status", timeout=600):
+            return {"status": "skipped", "reason": "lock_held"}
+        try:
+            return await _reconcile_listing_status_async()
+        finally:
+            await release_task_lock("reconcile_listing_status")
+
+    try:
+        return run_async(_run())
+    except Exception as exc:
+        logger.error(f"Erro em reconcile_listing_status: {exc}")
+        raise
+
+
+# --- Task: Sync completo do catálogo (active+paused+closed, 1x/dia) ---
+
+@celery_app.task(
+    name="app.jobs.tasks.sync_all_listings",
+    bind=True,
+    soft_time_limit=1500,
+    time_limit=1800,
+)
+def sync_all_listings(self):
+    """Sync completo do catálogo para todas as contas (reusa sync_listings_from_ml).
+
+    Pesado (refaz preço/taxas por anúncio) — roda 1x/dia às 08:00 UTC (05:00 BRT),
+    antes do snapshot diário. Time limit elevado (30min) pois percorre active+paused.
+    """
+    async def _run():
+        if not await acquire_task_lock("sync_all_listings", timeout=1800):
+            return {"status": "skipped", "reason": "lock_held"}
+        try:
+            return await _sync_all_listings_async()
+        finally:
+            await release_task_lock("sync_all_listings")
+
+    try:
+        return run_async(_run())
+    except Exception as exc:
+        logger.error(f"Erro em sync_all_listings: {exc}")
         raise
 
 

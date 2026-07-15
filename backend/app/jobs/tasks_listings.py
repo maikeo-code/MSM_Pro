@@ -642,6 +642,145 @@ async def _sync_all_snapshots_async():
             raise
 
 
+async def _reconcile_listing_status_async():
+    """Reconcilia Listing.status (active <-> paused) contra o ML — LEVE.
+
+    Corrige o drift em que um anúncio REATIVADO no ML continua 'paused' no banco.
+    Causa: os jobs de snapshot (_sync_all_snapshots_async / _sync_recent_snapshots_async)
+    só tocam Listing.status == 'active', então um paused reativado nunca era
+    reconferido — ficava congelado até alguém disparar o sync completo manual.
+
+    Estratégia leve: busca APENAS os IDs por status via /users/{id}/items/search
+    (retorna só ids — ~1 req por página de 50), monta os conjuntos active/paused e
+    corrige o par active<->paused dos listings da conta. NÃO refaz preço/taxas/
+    snapshot (isso é do sync completo) e NÃO fecha listings ausentes: um item em
+    under_review/inactive não aparece no /items/search e seria fechado por engano —
+    fechar é responsabilidade do sync completo (sync_listings_from_ml). Roda a cada
+    2h para propagar reativações em horas, não em 1 dia. Ver [[bug-reativacao-status-paused]].
+    """
+    async with AsyncSessionLocal() as db:
+        sync_log = await _create_sync_log(db, "reconcile_listing_status")
+        total_changed = 0
+        try:
+            accounts = (
+                await db.execute(
+                    select(MLAccount).where(MLAccount.is_active == True)  # noqa: E712
+                )
+            ).scalars().all()
+
+            for account in accounts:
+                if not account.access_token:
+                    continue
+                # MLClient com ml_account_id faz refresh automático em 401 —
+                # não precisamos renovar token explicitamente aqui.
+                client = MLClient(account.access_token, ml_account_id=str(account.id))
+                try:
+                    ids_by_status: dict[str, set[str]] = {"active": set(), "paused": set()}
+                    for st in ("active", "paused"):
+                        offset = 0
+                        while True:
+                            resp = await client.get_user_listings(
+                                account.ml_user_id, offset=offset, limit=50, status=st
+                            )
+                            page = resp.get("results", [])
+                            ids_by_status[st].update(page)
+                            if len(page) < 50:
+                                break
+                            offset += 50
+
+                    active_ids = ids_by_status["active"]
+                    paused_ids = ids_by_status["paused"]
+                    if not active_ids and not paused_ids:
+                        # Conta sem retorno (token/erro/sem anúncios) — não mexe,
+                        # para não reverter status por resposta vazia espúria.
+                        continue
+
+                    listings = (
+                        await db.execute(
+                            select(Listing).where(Listing.ml_account_id == account.id)
+                        )
+                    ).scalars().all()
+                    for lst in listings:
+                        new_status = None
+                        if lst.mlb_id in active_ids:
+                            new_status = "active"
+                        elif lst.mlb_id in paused_ids:
+                            new_status = "paused"
+                        # Ausente de ambos => não toca (pode ser closed/under_review).
+                        if new_status and new_status != lst.status:
+                            lst.status = new_status
+                            lst.updated_at = datetime.now(timezone.utc)
+                            total_changed += 1
+                    await db.commit()
+                    logger.info(
+                        f"Reconcile status conta {account.nickname}: "
+                        f"{len(active_ids)} active / {len(paused_ids)} paused no ML"
+                    )
+                except MLClientError as exc:
+                    logger.warning(
+                        f"Reconcile status falhou p/ conta {account.id}: {exc}"
+                    )
+                    await db.rollback()
+                except Exception as exc:
+                    logger.exception(
+                        f"Erro inesperado no reconcile da conta {account.id}: {exc}"
+                    )
+                    await db.rollback()
+                finally:
+                    await client.close()
+
+            await _finish_sync_log(db, sync_log, status="success", items=total_changed)
+            logger.info(f"Reconcile status concluído: {total_changed} listing(s) atualizados")
+            return {"success": True, "changed": total_changed}
+
+        except Exception as exc:
+            logger.error(f"Erro em _reconcile_listing_status_async: {exc}")
+            await _finish_sync_log(db, sync_log, status="failed", error=str(exc))
+            raise
+
+
+async def _sync_all_listings_async():
+    """Sync COMPLETO do catálogo para todas as contas — 1x/dia de madrugada.
+
+    Envelopa sync_listings_from_ml (reconcilia active+paused, refaz preço/taxas e
+    fecha anúncios ausentes) para TODOS os usuários com conta ML ativa. Complementa
+    o reconciliador leve horário: aquele mantém o status fresco em horas; este
+    garante o catálogo completo (novos anúncios, closed, preço) 1x/dia. Roda antes
+    do snapshot diário (08:00 UTC) para que reativações já estejam 'active' quando
+    o snapshot despachar. Ver [[bug-reativacao-status-paused]].
+    """
+    from app.vendas.service_sync import sync_listings_from_ml
+
+    async with AsyncSessionLocal() as db:
+        sync_log = await _create_sync_log(db, "sync_all_listings")
+        try:
+            user_rows = await db.execute(
+                select(MLAccount.user_id)
+                .where(MLAccount.is_active == True)  # noqa: E712
+                .distinct()
+            )
+            user_ids = [row[0] for row in user_rows.all()]
+
+            total = 0
+            for uid in user_ids:
+                try:
+                    res = await sync_listings_from_ml(db, uid)
+                    total += res.get("total", 0)
+                except Exception as exc:
+                    logger.warning(f"sync_all_listings falhou p/ user {uid}: {exc}")
+
+            await _finish_sync_log(db, sync_log, status="success", items=total)
+            logger.info(
+                f"Sync completo de catálogo: {total} listing(s) em {len(user_ids)} usuário(s)"
+            )
+            return {"success": True, "total": total, "users": len(user_ids)}
+
+        except Exception as exc:
+            logger.error(f"Erro em _sync_all_listings_async: {exc}")
+            await _finish_sync_log(db, sync_log, status="failed", error=str(exc))
+            raise
+
+
 async def _sync_recent_snapshots_async():
     """Sincroniza apenas anúncios que tiveram mudança nas últimas horas."""
     # Import local para evitar circular import (tasks.py importa esta função)
