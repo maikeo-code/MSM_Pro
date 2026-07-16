@@ -100,8 +100,10 @@ async def _collect_competitor_prices_async():
         client = MLClient(account.access_token, ml_account_id=str(account.id))
         ok = 0
         failed = 0
+        details: list[dict] = []
         try:
             for id_ml in COMPETITOR_TARGETS:
+                kind = "catalog" if is_catalog_id(id_ml) else "item"
                 try:
                     if is_catalog_id(id_ml):
                         data = await client.get_product(id_ml)
@@ -140,9 +142,17 @@ async def _collect_competitor_prices_async():
                         db, id_ml, today, price, sold, avail, status, is_buy_box
                     )
                     ok += 1
+                    details.append({
+                        "id_ml": id_ml, "kind": kind, "ok": True,
+                        "price": float(price) if price is not None else None,
+                    })
                 except Exception as exc:
                     failed += 1
                     logger.warning(f"Falha ao coletar concorrente {id_ml}: {exc}")
+                    details.append({
+                        "id_ml": id_ml, "kind": kind, "ok": False,
+                        "error": f"{type(exc).__name__}: {str(exc)[:180]}",
+                    })
 
             await db.commit()
             await _finish_sync_log(
@@ -151,7 +161,10 @@ async def _collect_competitor_prices_async():
             logger.info(
                 f"Coleta de concorrentes: {ok} ok, {failed} falha(s) em {today}"
             )
-            return {"success": True, "collected": ok, "failed": failed, "day": str(today)}
+            return {
+                "success": True, "collected": ok, "failed": failed,
+                "day": str(today), "details": details,
+            }
         except Exception as exc:
             logger.error(f"Erro em _collect_competitor_prices_async: {exc}")
             await db.rollback()
