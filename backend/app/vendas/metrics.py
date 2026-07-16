@@ -204,9 +204,15 @@ async def aggregate_metrics(
         round(cancelados / total_pedidos_com_cancelados * 100, 2) if total_pedidos_com_cancelados > 0 else 0.0
     )
     if settings.metrics_source == "order_additive":
-        # cancelados já excluídos de receita_total (query de Order c/ filtro NON_SALE);
-        # subtrair só devoluções (refunded contam na receita mas não são venda concluída).
-        vendas_concluidas = round(receita_total - devolucoes_valor, 2)
+        # E59 (provado contra o painel do ML em 14/07/2026): o ML mantém a venda
+        # reembolsada no total do DIA DA VENDA e lança a devolução no dia em que o
+        # reembolso foi PROCESSADO (painel MSM_PRIME 14/07: 1 pedido refunded no total,
+        # "vendas devolvidas" = 0 no dia). Como a tabela Order só tem a data da venda
+        # (não a do reembolso), NÃO dá p/ atribuir a devolução ao dia certo — então
+        # não subtraímos aqui. cancelados já saem de receita_total (filtro NON_SALE).
+        # Logo, vendas_concluidas = receita_total (espelha "vendas brutas" do painel).
+        # Descontar devolução pelo dia do reembolso fica p/ quando tivermos essa data.
+        vendas_concluidas = receita_total
     else:
         vendas_concluidas = round(receita_total - cancelados_valor - devolucoes_valor, 2)
 
