@@ -235,6 +235,17 @@ class MLClient:
         pid = product_id.upper().replace("-", "")
         return await self._request("GET", f"/products/{pid}")
 
+    async def get_product_items(self, product_id: str, limit: int = 50) -> dict:
+        """Lista as publicações que competem por um produto de catálogo.
+        GET /products/{id}/items  → results[] com item_id, seller_id, price,
+        available_quantity, shipping… (o vencedor tende a ser results[0]).
+        Funciona para itens de TERCEIROS (ao contrário de /items/{id}, que dá 403).
+        """
+        pid = product_id.upper().replace("-", "")
+        return await self._request(
+            "GET", f"/products/{pid}/items", params={"limit": limit}
+        )
+
     async def update_item_price(self, mlb_id: str, price: float) -> dict:
         """
         Altera o preço de um anúncio.

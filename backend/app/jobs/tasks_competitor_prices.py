@@ -110,25 +110,25 @@ async def _collect_competitor_prices_async():
                         bbw = data.get("buy_box_winner") or {}
                         price = bbw.get("price")
                         avail = bbw.get("available_quantity")
-                        # Se há vencedor de buy box o produto está ativo; senão usa
-                        # o status do produto (ou 'unknown').
                         status = "active" if bbw else (data.get("status") or "unknown")
                         is_buy_box = True
-                        # buy_box_winner NÃO expõe sold_quantity (confirmado na doc
-                        # oficial ML: concorrencia-em-catalogo). Busca no item vencedor
-                        # (1 call extra por catálogo — só 4 alvos). Falha aqui não
-                        # perde a linha: mantém price/available do buy_box_winner.
+                        # sold_quantity NÃO vem no buy_box_winner e get_item de
+                        # terceiro dá 403 — logo fica NULL para concorrente.
                         sold = None
-                        winner_item_id = bbw.get("item_id")
-                        if winner_item_id:
+                        # Fallback quando buy_box_winner vem vazio: /products/{id}/items
+                        # lista as publicações concorrentes (results[0] ~ vencedor).
+                        if price is None:
                             try:
-                                witem = await client.get_item(winner_item_id)
-                                sold = witem.get("sold_quantity")
-                                if avail is None:
-                                    avail = witem.get("available_quantity")
-                            except Exception:
+                                pit = await client.get_product_items(id_ml)
+                                results = pit.get("results") or []
+                                if results:
+                                    win = results[0]
+                                    price = win.get("price")
+                                    avail = win.get("available_quantity", avail)
+                                    status = "active"
+                            except Exception as exc:
                                 logger.debug(
-                                    f"Não obteve sold_quantity do vencedor {winner_item_id}"
+                                    f"/products/{id_ml}/items falhou: {exc}"
                                 )
                     else:
                         data = await client.get_item(id_ml)
