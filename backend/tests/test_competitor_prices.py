@@ -91,11 +91,14 @@ class TestCollectCompetitorPrices:
         mock_db = _make_db_upsert_miss()
 
         mock_client = AsyncMock()
+        # get_item serve tanto p/ item direto quanto p/ o item vencedor do catálogo
+        # (buy_box_winner NÃO expõe sold_quantity — vem daqui).
         mock_client.get_item = AsyncMock(return_value={
             "price": 99.90, "sold_quantity": 12, "available_quantity": 5, "status": "active",
         })
+        # buy_box_winner real: tem item_id/price/available_quantity, SEM sold_quantity.
         mock_client.get_product = AsyncMock(return_value={
-            "buy_box_winner": {"price": 55.50, "sold_quantity": 3, "available_quantity": 8},
+            "buy_box_winner": {"item_id": "MLBWINNER1", "price": 55.50, "available_quantity": 8},
         })
         mock_client.close = AsyncMock()
 
@@ -110,9 +113,9 @@ class TestCollectCompetitorPrices:
 
         assert result["success"] is True
         assert result["collected"] == 11
-        # 7 itens (10díg: Cesto 5 + Kit6 2) + 4 catálogo (Kit5: 3×8díg + 1 MLBU)
-        assert mock_client.get_item.call_count == 7
+        # 4 catálogo → 4 get_product; get_item = 7 itens diretos + 4 vencedores = 11
         assert mock_client.get_product.call_count == 4
+        assert mock_client.get_item.call_count == 11
         # Catálogo grava is_buy_box=True; item False
         catalog_rows = [r for r in added if r.is_buy_box]
         item_rows = [r for r in added if not r.is_buy_box]
@@ -121,6 +124,9 @@ class TestCollectCompetitorPrices:
         # Preço convertido para Decimal
         assert item_rows[0].price == Decimal("99.90")
         assert catalog_rows[0].price == Decimal("55.50")
+        # sold_quantity do catálogo vem do get_item do vencedor (12), não do bbw
+        assert catalog_rows[0].sold_quantity == 12
+        assert catalog_rows[0].available_quantity == 8  # do buy_box_winner
 
     @pytest.mark.asyncio
     async def test_falha_em_um_nao_derruba_os_demais(self):

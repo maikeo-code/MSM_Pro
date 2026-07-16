@@ -107,12 +107,27 @@ async def _collect_competitor_prices_async():
                         data = await client.get_product(id_ml)
                         bbw = data.get("buy_box_winner") or {}
                         price = bbw.get("price")
-                        sold = bbw.get("sold_quantity")
                         avail = bbw.get("available_quantity")
                         # Se há vencedor de buy box o produto está ativo; senão usa
                         # o status do produto (ou 'unknown').
                         status = "active" if bbw else (data.get("status") or "unknown")
                         is_buy_box = True
+                        # buy_box_winner NÃO expõe sold_quantity (confirmado na doc
+                        # oficial ML: concorrencia-em-catalogo). Busca no item vencedor
+                        # (1 call extra por catálogo — só 4 alvos). Falha aqui não
+                        # perde a linha: mantém price/available do buy_box_winner.
+                        sold = None
+                        winner_item_id = bbw.get("item_id")
+                        if winner_item_id:
+                            try:
+                                witem = await client.get_item(winner_item_id)
+                                sold = witem.get("sold_quantity")
+                                if avail is None:
+                                    avail = witem.get("available_quantity")
+                            except Exception:
+                                logger.debug(
+                                    f"Não obteve sold_quantity do vencedor {winner_item_id}"
+                                )
                     else:
                         data = await client.get_item(id_ml)
                         price = data.get("price")
