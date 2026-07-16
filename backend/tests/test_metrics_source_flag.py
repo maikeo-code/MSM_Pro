@@ -164,3 +164,30 @@ async def test_order_additive_fallback_sem_orders(db, monkeypatch):
     # Sem order → fallback ao snapshot (10 vendas legadas).
     assert kpi["vendas"] == 10
     assert kpi["receita"] == 1000.0
+
+
+@pytest.mark.asyncio
+async def test_order_additive_e_aditivo(db, monkeypatch):
+    """E54: Σ(cada dia) == janela inteira — a propriedade que o max() quebrava.
+
+    3 dias com nº de orders diferente (3, 5, 2). No order_additive, somar os KPIs
+    dia a dia tem que dar EXATAMENTE o KPI da janela [d1, d3]. Snapshots inflados
+    de propósito para provar que é o Order (aditivo) que manda, não o snapshot.
+    """
+    monkeypatch.setattr(settings, "metrics_source", "order_additive")
+    user, ml, listing = await _setup(db)
+    d1, d2, d3 = date(2026, 6, 10), date(2026, 6, 11), date(2026, 6, 12)
+
+    for d, n in ((d1, 3), (d2, 5), (d3, 2)):
+        db.add(_snap_inflado(listing, d))          # snapshot inflado (10) em cada dia
+        db.add_all(_orders_reais(listing, ml, d, n=n))  # orders reais do dia
+    await db.commit()
+
+    por_dia = [await aggregate_metrics(db, [listing.id], d, d) for d in (d1, d2, d3)]
+    janela = await aggregate_metrics(db, [listing.id], d1, d3)
+
+    for campo in ("vendas", "pedidos", "receita_total"):
+        assert sum(k[campo] for k in por_dia) == janela[campo], campo
+    # Concretamente: 3+5+2 = 10 orders reais, não 30 do snapshot inflado.
+    assert janela["pedidos"] == 10
+    assert janela["receita_total"] == 1000.0
