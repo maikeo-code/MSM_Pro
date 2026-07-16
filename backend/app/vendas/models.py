@@ -213,6 +213,12 @@ class Order(Base):
     delivery_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Data do EVENTO de pós-venda (cancelamento/reembolso) — de payments[].date_last_modified
+    # do ML quando o pedido virou cancelled/refunded. NULL p/ approved/pending. Usada p/
+    # contabilizar cancelados/devoluções pela DATA DO EVENTO (espelha o painel do ML).
+    status_event_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
