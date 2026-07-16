@@ -26,6 +26,27 @@ _ORDER_UPDATE_FIELDS = (
 )
 
 
+def _extract_status_event_date(payments: list, payment_status: str):
+    """Data do EVENTO de pos-venda (cancelamento/reembolso).
+
+    = `date_last_modified` do pagamento que carrega o status terminal
+    (cancelled/refunded) — validado no MCP oficial (payments[].date_last_modified
+    e a data em que o pagamento mudou p/ refunded). NULL p/ approved/pending.
+    """
+    if payment_status not in ("cancelled", "refunded"):
+        return None
+    evt = next((p for p in payments if p.get("status") == payment_status), None)
+    if evt is None and payments:
+        evt = payments[-1]
+    evt_str = evt.get("date_last_modified") if evt else None
+    if not evt_str:
+        return None
+    try:
+        return datetime.fromisoformat(evt_str.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+
+
 def _apply_order_update(order: "Order", values: dict) -> None:
     """Atualiza um pedido existente com a semantica seletiva original."""
     for f in _ORDER_UPDATE_FIELDS:
@@ -34,6 +55,10 @@ def _apply_order_update(order: "Order", values: dict) -> None:
         order.payment_date = values["payment_date"]
     if values.get("delivery_date"):
         order.delivery_date = values["delivery_date"]
+    # Data do evento de pos-venda: so seta quando presente (nunca limpa — o evento
+    # ocorreu; um re-sync posterior sem o dado nao deve apagar a data).
+    if values.get("status_event_date"):
+        order.status_event_date = values["status_event_date"]
     if not order.item_title and values.get("item_title"):
         order.item_title = values["item_title"]
 
@@ -213,6 +238,11 @@ async def _sync_orders_async():
                                         except (ValueError, AttributeError):
                                             payment_date = None
 
+                                # Data do evento de pos-venda (cancel/reembolso) por data-evento
+                                status_event_date = _extract_status_event_date(
+                                    payments, payment_status
+                                )
+
                                 # Status de envio e data de entrega
                                 shipping_data = order_raw.get("shipping", {}) or {}
                                 shipping_status = (
@@ -280,6 +310,7 @@ async def _sync_orders_async():
                                     "order_date": order_date,
                                     "payment_date": payment_date,
                                     "delivery_date": delivery_date,
+                                    "status_event_date": status_event_date,
                                 })
                                 if outcome == "created":
                                     total_created += 1
@@ -495,6 +526,11 @@ async def _backfill_orders_after_reconnect_async(
                                     except (ValueError, AttributeError):
                                         payment_date = None
 
+                            # Data do evento de pos-venda (cancel/reembolso) por data-evento
+                            status_event_date = _extract_status_event_date(
+                                payments, payment_status
+                            )
+
                             # Status de envio e data de entrega
                             shipping_data = order_raw.get("shipping", {}) or {}
                             shipping_status = (
@@ -560,6 +596,7 @@ async def _backfill_orders_after_reconnect_async(
                                 "order_date": order_date,
                                 "payment_date": payment_date,
                                 "delivery_date": delivery_date,
+                                "status_event_date": status_event_date,
                             })
                             if outcome == "created":
                                 total_created += 1
