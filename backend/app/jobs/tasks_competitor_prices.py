@@ -106,20 +106,29 @@ async def _collect_competitor_prices_async():
             # (caminho sancionado, doc "Busca de itens"). Verbose [{code, body}].
             item_ids = [t for t in COMPETITOR_TARGETS if not is_catalog_id(t)]
             items_map: dict[str, dict] = {}  # id_ml -> {code, body}
-            for start in range(0, len(item_ids), 20):  # multiget: máx 20 por chamada
-                batch = item_ids[start:start + 20]
-                try:
-                    verbose = await client.get_items_multiget(
-                        batch,
-                        attributes="id,price,available_quantity,sold_quantity,status",
-                    )
-                    for entry in verbose:
-                        body = entry.get("body") or {}
-                        bid = str(body.get("id") or "").upper().replace("-", "")
-                        if bid:
-                            items_map[bid] = entry
-                except Exception as exc:
-                    logger.warning(f"Multiget de itens falhou (batch {start}): {exc}")
+
+            async def _multiget_into(ids: list[str], attributes: str) -> None:
+                for start in range(0, len(ids), 20):  # multiget: máx 20 por chamada
+                    batch = ids[start:start + 20]
+                    try:
+                        verbose = await client.get_items_multiget(batch, attributes=attributes)
+                        for entry in verbose:
+                            body = entry.get("body") or {}
+                            bid = str(body.get("id") or "").upper().replace("-", "")
+                            if bid:
+                                items_map[bid] = entry
+                    except Exception as exc:
+                        logger.warning(f"Multiget itens falhou (batch {start}, attrs={attributes}): {exc}")
+
+            # 1ª tentativa: campos ricos. Se algum vier code!=200, pode ser atributo
+            # restrito p/ terceiro (ex.: sold_quantity) — 2ª tentativa só id,price.
+            await _multiget_into(item_ids, "id,price,available_quantity,sold_quantity,status")
+            retry_ids = [
+                iid for iid in item_ids
+                if (items_map.get(iid.upper().replace("-", "")) or {}).get("code") != 200
+            ]
+            if retry_ids:
+                await _multiget_into(retry_ids, "id,price")
 
             for id_ml in COMPETITOR_TARGETS:
                 kind = "catalog" if is_catalog_id(id_ml) else "item"
