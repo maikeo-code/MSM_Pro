@@ -47,6 +47,7 @@ from .tasks_listings import (
     _sync_listing_snapshot_async,
     _sync_recent_snapshots_async,
 )
+from .tasks_competitor_prices import _collect_competitor_prices_async
 from .tasks_orders import _sync_orders_async, _backfill_orders_after_reconnect_async
 from .tasks_health import _check_sync_health_async, _runtime_watcher_async
 from .tasks_questions import _sync_questions_async
@@ -196,6 +197,30 @@ def sync_all_listings(self):
         return run_async(_run())
     except Exception as exc:
         logger.error(f"Erro em sync_all_listings: {exc}")
+        raise
+
+
+# --- Task: Coletar preço de concorrentes (1x/dia) ---
+
+@celery_app.task(name="app.jobs.tasks.collect_competitor_prices")
+def collect_competitor_prices():
+    """Coleta preço/estoque dos concorrentes alvo -> tabela flat competitor_prices.
+
+    Reusa MLClient. Item -> /items/{id}; catálogo -> /products/{id} (buy_box_winner).
+    Roda 1x/dia. Redis lock evita sobreposição.
+    """
+    async def _run():
+        if not await acquire_task_lock("collect_competitor_prices", timeout=900):
+            return {"status": "skipped", "reason": "lock_held"}
+        try:
+            return await _collect_competitor_prices_async()
+        finally:
+            await release_task_lock("collect_competitor_prices")
+
+    try:
+        return run_async(_run())
+    except Exception as exc:
+        logger.error(f"Erro em collect_competitor_prices: {exc}")
         raise
 
 

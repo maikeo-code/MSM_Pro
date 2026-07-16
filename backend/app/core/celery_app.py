@@ -106,6 +106,15 @@ celery_app.conf.beat_schedule = {
             "expires": 3600,
         },
     },
+    # Coleta preço de concorrentes 1x/dia às 09:30 UTC (06:30 BRT), logo após o
+    # snapshot diário (09:00 UTC). Grava na tabela flat competitor_prices (OAA).
+    "collect-competitor-prices-daily": {
+        "task": "app.jobs.tasks.collect_competitor_prices",
+        "schedule": crontab(hour=9, minute=30),
+        "options": {
+            "expires": 3600,
+        },
+    },
     # Renova tokens ML que vão expirar nas próximas 3 horas
     # Roda a cada 30 minutos para garantir que nunca perca a janela de renovação
     # (antes rodava 1x/hora no minuto 30, agora rodará nos minutos 0 e 30)

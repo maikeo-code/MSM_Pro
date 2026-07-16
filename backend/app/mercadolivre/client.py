@@ -224,6 +224,17 @@ class MLClient:
             params={"include_attributes": "all"},
         )
 
+    async def get_product(self, product_id: str) -> dict:
+        """
+        Busca um produto de CATÁLOGO pelo ID (MLB 8díg ou MLBU…).
+        GET /products/{id}
+        Retorna, entre outros, `buy_box_winner` — o anúncio vencedor da buy box
+        (preço, seller_id, sold_quantity/available_quantity quando expostos).
+        Usado na coleta de preço de concorrentes de catálogo.
+        """
+        pid = product_id.upper().replace("-", "")
+        return await self._request("GET", f"/products/{pid}")
+
     async def update_item_price(self, mlb_id: str, price: float) -> dict:
         """
         Altera o preço de um anúncio.
