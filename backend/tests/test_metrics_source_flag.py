@@ -147,6 +147,9 @@ async def test_order_additive_deriva_cancelados_e_devolucoes_de_order(db, monkey
     assert kpi["cancelamentos_valor"] == 200.0   # 2 cancelled derivados de Order
     assert kpi["devolucoes_qtd"] == 1            # 1 refunded derivado de Order
     assert kpi["devolucoes_valor"] == 100.0
+    # E59: vendas_concluidas = receita_total − devoluções (NÃO subtrai cancelados,
+    # que já estão fora de receita_total). 600 − 100 = 500 (só os 5 approved).
+    assert kpi["vendas_concluidas"] == 500.0
 
 
 @pytest.mark.asyncio

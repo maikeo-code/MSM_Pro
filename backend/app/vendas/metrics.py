@@ -173,11 +173,11 @@ async def aggregate_metrics(
             cancelados_valor = float(cancel_row.cancel_valor)
             devolucoes_qtd = int(cancel_row.ret_qtd)
             devolucoes_valor = float(cancel_row.ret_valor)
-        # NOTA (E59, pendente de prova vs painel): a fórmula de vendas_concluidas
-        # abaixo (receita_total − cancelados_valor − devolucoes_valor) foi calibrada
-        # para o snapshot bruto (legacy). No order_additive, receita_total (Order) já
-        # EXCLUI cancelados, então subtraí-los de novo pode subcontar. A reconciliação
-        # final dessa fórmula é a etapa E59, validada contra o painel do ML na E56.
+        # E59 — no order_additive, cancelados JÁ estão fora de receita_total (filtro
+        # NON_SALE na query de Order), então vendas_concluidas NÃO os subtrai de novo;
+        # subtrai só as devoluções (refunded, que contam na receita). Ver a fórmula
+        # ramificada mais abaixo. (Na legacy, receita_total é o valor bruto do
+        # snapshot e a subtração dupla é o comportamento histórico travado.)
     else:
         # legacy_max (default) — reconciliação histórica não-aditiva: Orders vence
         # quando conta MAIS que o snapshot. Mantido byte-idêntico ao comportamento
@@ -203,7 +203,12 @@ async def aggregate_metrics(
     taxa_cancelamento = (
         round(cancelados / total_pedidos_com_cancelados * 100, 2) if total_pedidos_com_cancelados > 0 else 0.0
     )
-    vendas_concluidas = round(receita_total - cancelados_valor - devolucoes_valor, 2)
+    if settings.metrics_source == "order_additive":
+        # cancelados já excluídos de receita_total (query de Order c/ filtro NON_SALE);
+        # subtrair só devoluções (refunded contam na receita mas não são venda concluída).
+        vendas_concluidas = round(receita_total - devolucoes_valor, 2)
+    else:
+        vendas_concluidas = round(receita_total - cancelados_valor - devolucoes_valor, 2)
 
     # Valor de estoque: posição pontual no fim do intervalo (último snapshot de
     # cada listing até o fim de date_to, sem limite inferior — cobre sync
