@@ -102,6 +102,25 @@ async def _collect_competitor_prices_async():
         failed = 0
         details: list[dict] = []
         try:
+            # ── ITENS de terceiro: /items/{id} dá 403; usar MULTIGET com attributes
+            # (caminho sancionado, doc "Busca de itens"). Verbose [{code, body}].
+            item_ids = [t for t in COMPETITOR_TARGETS if not is_catalog_id(t)]
+            items_map: dict[str, dict] = {}  # id_ml -> {code, body}
+            for start in range(0, len(item_ids), 20):  # multiget: máx 20 por chamada
+                batch = item_ids[start:start + 20]
+                try:
+                    verbose = await client.get_items_multiget(
+                        batch,
+                        attributes="id,price,available_quantity,sold_quantity,status",
+                    )
+                    for entry in verbose:
+                        body = entry.get("body") or {}
+                        bid = str(body.get("id") or "").upper().replace("-", "")
+                        if bid:
+                            items_map[bid] = entry
+                except Exception as exc:
+                    logger.warning(f"Multiget de itens falhou (batch {start}): {exc}")
+
             for id_ml in COMPETITOR_TARGETS:
                 kind = "catalog" if is_catalog_id(id_ml) else "item"
                 try:
@@ -112,8 +131,8 @@ async def _collect_competitor_prices_async():
                         avail = bbw.get("available_quantity")
                         status = "active" if bbw else (data.get("status") or "unknown")
                         is_buy_box = True
-                        # sold_quantity NÃO vem no buy_box_winner e get_item de
-                        # terceiro dá 403 — logo fica NULL para concorrente.
+                        # sold_quantity de concorrente é inacessível (get_item terceiro
+                        # = 403) — fica NULL.
                         sold = None
                         # Fallback quando buy_box_winner vem vazio: /products/{id}/items
                         # lista as publicações concorrentes (results[0] ~ vencedor).
@@ -131,11 +150,18 @@ async def _collect_competitor_prices_async():
                                     f"/products/{id_ml}/items falhou: {exc}"
                                 )
                     else:
-                        data = await client.get_item(id_ml)
-                        price = data.get("price")
-                        sold = data.get("sold_quantity")
-                        avail = data.get("available_quantity")
-                        status = data.get("status")
+                        # Item de terceiro via multiget. code!=200 => falha explícita.
+                        entry = items_map.get(id_ml.upper().replace("-", ""))
+                        if not entry:
+                            raise RuntimeError("ausente no multiget")
+                        code = entry.get("code")
+                        body = entry.get("body") or {}
+                        if code != 200:
+                            raise RuntimeError(f"multiget code {code}")
+                        price = body.get("price")
+                        sold = body.get("sold_quantity")
+                        avail = body.get("available_quantity")  # bucketizado
+                        status = body.get("status")
                         is_buy_box = False
 
                     await _upsert_competitor_price(

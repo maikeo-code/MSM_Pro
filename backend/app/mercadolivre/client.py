@@ -235,6 +235,28 @@ class MLClient:
         pid = product_id.upper().replace("-", "")
         return await self._request("GET", f"/products/{pid}")
 
+    async def get_items_multiget(
+        self, ids: list[str], attributes: str | None = None
+    ) -> list[dict]:
+        """Multiget de itens (até 20 por chamada). GET /items?ids=...&attributes=...
+
+        Retorna lista verbose [{code, body}]. Diferente de GET /items/{id} (que dá
+        403 para item de TERCEIRO), o multiget com `attributes` devolve os campos
+        públicos de itens de terceiros — é o caminho sancionado (doc "Busca de itens").
+        `available_quantity` vem BUCKETIZADO em recurso público (RANGO_1_50→1 etc.).
+        """
+        norm: list[str] = []
+        for i in ids:
+            x = i.upper().replace("-", "")
+            if not x.startswith("MLB"):
+                x = f"MLB{x}"
+            norm.append(x)
+        params = {"ids": ",".join(norm)}
+        if attributes:
+            params["attributes"] = attributes
+        resp = await self._request("GET", "/items", params=params)
+        return resp if isinstance(resp, list) else []
+
     async def get_product_items(self, product_id: str, limit: int = 50) -> dict:
         """Lista as publicações que competem por um produto de catálogo.
         GET /products/{id}/items  → results[] com item_id, seller_id, price,

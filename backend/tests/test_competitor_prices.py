@@ -91,10 +91,18 @@ class TestCollectCompetitorPrices:
         mock_db = _make_db_upsert_miss()
 
         mock_client = AsyncMock()
-        # Itens diretos: /items/{id} (só funciona pra item próprio; competidor real dá 403).
-        mock_client.get_item = AsyncMock(return_value={
-            "price": 99.90, "sold_quantity": 12, "available_quantity": 5, "status": "active",
-        })
+
+        # Itens de terceiro: via MULTIGET (verbose [{code, body}]).
+        async def fake_multiget(ids, attributes=None):
+            return [
+                {"code": 200, "body": {
+                    "id": i, "price": 99.90, "sold_quantity": 12,
+                    "available_quantity": 5, "status": "active",
+                }}
+                for i in ids
+            ]
+        mock_client.get_items_multiget = AsyncMock(side_effect=fake_multiget)
+        mock_client.get_item = AsyncMock()  # NÃO deve ser chamado (item de terceiro = 403)
         # Catálogo: buy_box_winner com price/available_quantity (SEM sold_quantity).
         mock_client.get_product = AsyncMock(return_value={
             "buy_box_winner": {"item_id": "MLBWINNER1", "price": 55.50, "available_quantity": 8},
@@ -112,15 +120,16 @@ class TestCollectCompetitorPrices:
 
         assert result["success"] is True
         assert result["collected"] == 11
-        # 4 catálogo → 4 get_product; 7 itens diretos → 7 get_item (catálogo NÃO chama
-        # get_item: buy_box_winner tem preço, e sold de terceiro é inacessível/403).
+        # 4 catálogo → 4 get_product; 7 itens → 1 multiget (batch); get_item NUNCA.
         assert mock_client.get_product.call_count == 4
-        assert mock_client.get_item.call_count == 7
+        assert mock_client.get_items_multiget.call_count == 1
+        assert mock_client.get_item.call_count == 0
         catalog_rows = [r for r in added if r.is_buy_box]
         item_rows = [r for r in added if not r.is_buy_box]
         assert len(catalog_rows) == 4
         assert len(item_rows) == 7
         assert item_rows[0].price == Decimal("99.90")
+        assert item_rows[0].sold_quantity == 12
         assert catalog_rows[0].price == Decimal("55.50")
         assert catalog_rows[0].available_quantity == 8       # do buy_box_winner
         assert catalog_rows[0].sold_quantity is None          # inacessível p/ concorrente
@@ -133,7 +142,11 @@ class TestCollectCompetitorPrices:
         mock_db.add = MagicMock()
 
         mock_client = AsyncMock()
-        mock_client.get_item = AsyncMock(side_effect=Exception("boom"))  # todo item falha
+        # Multiget retorna code!=200 para todo item (ex.: 403) → 7 itens falham.
+        async def fake_multiget_403(ids, attributes=None):
+            return [{"code": 403, "body": {"id": i}} for i in ids]
+        mock_client.get_items_multiget = AsyncMock(side_effect=fake_multiget_403)
+        mock_client.get_item = AsyncMock()
         mock_client.get_product = AsyncMock(return_value={"buy_box_winner": {"price": 10}})
         mock_client.close = AsyncMock()
 
@@ -143,7 +156,7 @@ class TestCollectCompetitorPrices:
              patch("app.jobs.tasks_competitor_prices._finish_sync_log", new_callable=AsyncMock):
             result = await _collect_competitor_prices_async()
 
-        # 7 itens falharam, 4 catálogos ok
+        # 7 itens falharam (multiget 403), 4 catálogos ok
         assert result["collected"] == 4
         assert result["failed"] == 7
 
