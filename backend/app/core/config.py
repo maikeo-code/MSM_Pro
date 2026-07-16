@@ -62,6 +62,16 @@ class Settings(BaseSettings):
     # --- Rate Limiting ---
     rate_limit_enabled: bool = True  # Can disable for testing via RATE_LIMIT_ENABLED=false
 
+    # --- Fonte de agregação de vendas (Plano Definitivo, Bloco A / E119) ---
+    # Controla como metrics.py reconcilia vendas/pedidos/receita entre snapshot e Order.
+    #   "legacy_max"     -> comportamento histórico: max(snapshot, order) (NÃO-aditivo).
+    #   "order_additive" -> Order é a fonte ADITIVA única; snapshot só p/ visitas/estoque.
+    # Default = legacy_max (zero mudança). A virada p/ order_additive é a etapa E52 do
+    # plano — a mais sensível — e só ocorre após backup (E117), staging (E118) e modo
+    # sombra (E120) mostrarem diferenças zeradas/justificadas. Reverte SEM deploy: só
+    # trocar a env var METRICS_SOURCE no Railway.
+    metrics_source: str = "legacy_max"
+
     def model_post_init(self, __context):
         """Valida configurações críticas de segurança após inicialização."""
         if self.environment == "production":

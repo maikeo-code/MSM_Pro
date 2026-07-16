@@ -23,6 +23,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.vendas.constants import NON_SALE_PAYMENT_STATUSES
 from app.vendas.models import ListingSnapshot, Order
 
@@ -117,13 +118,31 @@ async def aggregate_metrics(
         )
     )
     ofb = orders_result.fetchone()
+    orders_vendas = int(ofb.vendas) if ofb else 0
+    orders_pedidos = int(ofb.pedidos) if ofb else 0
     receita_orders = float(ofb.receita_total) if ofb else 0.0
-    if ofb and (int(ofb.vendas) > vendas or int(ofb.pedidos) > pedidos):
-        vendas = max(vendas, int(ofb.vendas))
-        pedidos = max(pedidos, int(ofb.pedidos))
-        receita_total = max(receita_total, receita_orders)
 
-    receita_final = max(receita_snapshot, receita_orders)
+    if settings.metrics_source == "order_additive":
+        # E52 — Order é a fonte ADITIVA única de vendas/pedidos/receita. Snapshot
+        # permanece só p/ visitas/estoque/preço. Σ(dias) == janela por construção
+        # (Order é aditivo; max() não era). Fallback ao snapshot APENAS quando a
+        # janela não tem NENHUMA order mas tem snapshots (dado legado pré-backfill).
+        if orders_pedidos > 0 or orders_vendas > 0:
+            vendas = orders_vendas
+            pedidos = orders_pedidos
+            receita_total = receita_orders
+            receita_final = receita_orders
+        else:
+            receita_final = receita_snapshot
+    else:
+        # legacy_max (default) — reconciliação histórica não-aditiva: Orders vence
+        # quando conta MAIS que o snapshot. Mantido byte-idêntico ao comportamento
+        # anterior à E119 (golden master inalterado).
+        if ofb and (orders_vendas > vendas or orders_pedidos > pedidos):
+            vendas = max(vendas, orders_vendas)
+            pedidos = max(pedidos, orders_pedidos)
+            receita_total = max(receita_total, receita_orders)
+        receita_final = max(receita_snapshot, receita_orders)
 
     # Guarda anti-corrupção (ciclo 558): visitas < vendas é impossível —
     # snapshot parcial geraria conversão absurda (ex.: 4400%). Nesse caso
