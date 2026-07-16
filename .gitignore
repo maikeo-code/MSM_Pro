@@ -62,3 +62,6 @@ CLAUDE_backup_*.md
 .coverage
 backend/.coverage
 .claude/scheduled_tasks.lock
+
+# Backups de banco (dados de cliente — NUNCA versionar) — E117
+backups/
