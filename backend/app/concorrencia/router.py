@@ -2,6 +2,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
@@ -179,3 +180,42 @@ async def list_competitor_prices(
             for r in rows
         ],
     }
+
+
+class _ScrapedPrice(BaseModel):
+    id_ml: str
+    price: float | None = None
+    sold_quantity: int | None = None
+    available_quantity: int | None = None
+    status: str | None = "active"
+    is_buy_box: bool = False
+
+
+@router.post("/prices/ingest")
+async def ingest_competitor_prices(
+    payload: list[_ScrapedPrice],
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    day: str | None = Query(default=None, description="Dia YYYY-MM-DD (default: hoje BRT)"),
+):
+    """Ingestão de preços de concorrente raspados EXTERNAMENTE (scraper local).
+
+    A API pública do ML retorna 403 para item de terceiro; o preço vem do JSON-LD
+    da página pública, que só é acessível de um IP residencial (o Railway cai no
+    muro anti-bot). Por isso um scraper local extrai e faz POST aqui. Upsert por
+    (id_ml, day). Ver [[feature-competitor-prices]].
+    """
+    from datetime import date as _date, datetime as _dt, timedelta as _td, timezone as _tz
+
+    from app.jobs.tasks_competitor_prices import _upsert_competitor_price
+
+    brt = _tz(_td(hours=-3))
+    target = _date.fromisoformat(day) if day else _dt.now(brt).date()
+
+    for row in payload:
+        await _upsert_competitor_price(
+            db, row.id_ml, target, row.price, row.sold_quantity,
+            row.available_quantity, row.status, row.is_buy_box,
+        )
+    await db.commit()
+    return {"ingested": len(payload), "day": str(target)}
