@@ -56,6 +56,23 @@ async def sync_listings(
     return await service.sync_listings_from_ml(db, current_user.id)
 
 
+@router.post("/reconcile-status")
+async def reconcile_status(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Dispara a reconciliação LEVE de status active<->paused (assíncrona).
+
+    Gatilho manual da task `reconcile_listing_status` (também agendada a cada 2h).
+    Corrige anúncios reativados no ML que ficaram presos como 'paused' no banco.
+    Retorna na hora (a task roda no worker Celery) — não trava o gateway como o
+    /sync completo.
+    """
+    from app.jobs.tasks import reconcile_listing_status
+
+    reconcile_listing_status.delay()
+    return {"dispatched": True, "task": "reconcile_listing_status"}
+
+
 @router.post("/backfill-snapshots")
 async def backfill_snapshots(
     current_user: Annotated[User, Depends(get_current_user)],
