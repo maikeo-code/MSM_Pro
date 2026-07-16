@@ -122,3 +122,60 @@ async def get_competitor_history(
     Util para gerar grafico de preco ao longo do tempo.
     """
     return await service.get_competitor_history(db, current_user.id, competitor_id, days)
+
+
+@router.post("/prices/collect")
+async def collect_competitor_prices_now(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Dispara a coleta de preço de concorrentes AGORA (síncrono) e retorna o resultado.
+
+    Gatilho manual da task `collect_competitor_prices` (também agendada 09:30 UTC).
+    Roda inline (~15 chamadas ML, <30s) para popular `competitor_prices` na hora e
+    devolver {collected, failed, day}.
+    """
+    from app.jobs.tasks_competitor_prices import _collect_competitor_prices_async
+
+    return await _collect_competitor_prices_async()
+
+
+@router.get("/prices")
+async def list_competitor_prices(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    day: str | None = Query(default=None, description="Dia YYYY-MM-DD (default: hoje BRT)"),
+):
+    """Lista as linhas de `competitor_prices` de um dia (inspeção da coleta)."""
+    from datetime import date as _date, datetime as _dt, timedelta as _td, timezone as _tz
+
+    from sqlalchemy import select
+
+    from app.concorrencia.models import CompetitorPrice
+
+    brt = _tz(_td(hours=-3))
+    target = _date.fromisoformat(day) if day else _dt.now(brt).date()
+
+    rows = (
+        await db.execute(
+            select(CompetitorPrice)
+            .where(CompetitorPrice.day == target)
+            .order_by(CompetitorPrice.id_ml)
+        )
+    ).scalars().all()
+
+    return {
+        "day": str(target),
+        "count": len(rows),
+        "rows": [
+            {
+                "id_ml": r.id_ml,
+                "price": float(r.price) if r.price is not None else None,
+                "sold_quantity": r.sold_quantity,
+                "available_quantity": r.available_quantity,
+                "status": r.status,
+                "is_buy_box": r.is_buy_box,
+                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            }
+            for r in rows
+        ],
+    }
