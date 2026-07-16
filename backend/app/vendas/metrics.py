@@ -20,7 +20,7 @@ Regras canônicas:
 """
 from datetime import date, datetime, time, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -134,6 +134,50 @@ async def aggregate_metrics(
             receita_final = receita_orders
         else:
             receita_final = receita_snapshot
+
+        # E51 — cancelados e devoluções também derivam de Order (dono único),
+        # não mais do snapshot. Cancelados = orders NON_SALE (cancelled/rejected),
+        # fora da receita. Devoluções = orders refunded — CONTAM na venda (ficam
+        # em receita_total) mas são marcadas como devolução (descontadas em
+        # vendas_concluidas). Espelha a semântica do painel do ML.
+        cancel_row = (
+            await db.execute(
+                select(
+                    func.coalesce(
+                        func.sum(case((Order.payment_status.in_(NON_SALE_PAYMENT_STATUSES), 1), else_=0)), 0
+                    ).label("cancel_qtd"),
+                    func.coalesce(
+                        func.sum(
+                            case(
+                                (Order.payment_status.in_(NON_SALE_PAYMENT_STATUSES), Order.total_amount),
+                                else_=0,
+                            )
+                        ),
+                        0,
+                    ).label("cancel_valor"),
+                    func.coalesce(
+                        func.sum(case((Order.payment_status == "refunded", 1), else_=0)), 0
+                    ).label("ret_qtd"),
+                    func.coalesce(
+                        func.sum(case((Order.payment_status == "refunded", Order.total_amount), else_=0)), 0
+                    ).label("ret_valor"),
+                ).where(
+                    Order.listing_id.in_(listing_ids),
+                    Order.order_date >= range_utc_start,
+                    Order.order_date <= range_utc_end,
+                )
+            )
+        ).fetchone()
+        if cancel_row is not None:
+            cancelados = int(cancel_row.cancel_qtd)
+            cancelados_valor = float(cancel_row.cancel_valor)
+            devolucoes_qtd = int(cancel_row.ret_qtd)
+            devolucoes_valor = float(cancel_row.ret_valor)
+        # NOTA (E59, pendente de prova vs painel): a fórmula de vendas_concluidas
+        # abaixo (receita_total − cancelados_valor − devolucoes_valor) foi calibrada
+        # para o snapshot bruto (legacy). No order_additive, receita_total (Order) já
+        # EXCLUI cancelados, então subtraí-los de novo pode subcontar. A reconciliação
+        # final dessa fórmula é a etapa E59, validada contra o painel do ML na E56.
     else:
         # legacy_max (default) — reconciliação histórica não-aditiva: Orders vence
         # quando conta MAIS que o snapshot. Mantido byte-idêntico ao comportamento

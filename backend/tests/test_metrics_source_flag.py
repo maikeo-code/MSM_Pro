@@ -109,6 +109,47 @@ async def test_order_additive_corrige_sobrecontagem(db, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_order_additive_deriva_cancelados_e_devolucoes_de_order(db, monkeypatch):
+    """E51: no order_additive, cancelados e devoluções vêm de Order, não do snapshot.
+
+    Cenário: 5 approved + 2 cancelled + 1 refunded no MESMO dia. O snapshot mente
+    (zera cancelados/devoluções). Order manda:
+      - vendas/pedidos = 6 (approved + refunded; NON_SALE fora)
+      - cancelados = 2 (cancelled/rejected), R$200
+      - devoluções = 1 (refunded), R$100
+    """
+    monkeypatch.setattr(settings, "metrics_source", "order_additive")
+    user, ml, listing = await _setup(db)
+    dia = date(2026, 6, 10)
+
+    # snapshot que NÃO reflete cancelados/devoluções (só p/ garantir que vêm de Order)
+    db.add(ListingSnapshot(
+        id=uuid4(), listing_id=listing.id, price=Decimal("100"),
+        visits=200, sales_today=6, stock=5, orders_count=6,
+        revenue=Decimal("600"), cancelled_orders=0, cancelled_revenue=Decimal("0"),
+        returns_count=0, returns_revenue=Decimal("0"), captured_at=_brt_noon(dia),
+    ))
+    db.add_all(_orders_reais(listing, ml, dia, n=5))  # 5 approved
+    for st in ("cancelled", "cancelled", "refunded"):
+        db.add(Order(
+            id=uuid4(), ml_order_id=str(uuid4()), ml_account_id=ml.id,
+            listing_id=listing.id, mlb_id=listing.mlb_id, quantity=1,
+            unit_price=Decimal("100"), total_amount=Decimal("100"),
+            payment_status=st, order_date=_brt_noon(dia),
+        ))
+    await db.commit()
+
+    kpi = await aggregate_metrics(db, [listing.id], dia, dia)
+
+    assert kpi["vendas"] == 6          # 5 approved + 1 refunded
+    assert kpi["pedidos"] == 6
+    assert kpi["receita_total"] == 600.0
+    assert kpi["cancelamentos_valor"] == 200.0   # 2 cancelled derivados de Order
+    assert kpi["devolucoes_qtd"] == 1            # 1 refunded derivado de Order
+    assert kpi["devolucoes_valor"] == 100.0
+
+
+@pytest.mark.asyncio
 async def test_order_additive_fallback_sem_orders(db, monkeypatch):
     """order_additive: janela sem NENHUMA order mas com snapshot (dado legado) →
     cai no snapshot (não zera o histórico)."""
