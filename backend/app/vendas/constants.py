@@ -16,3 +16,9 @@ NON_SALE_PAYMENT_STATUSES = ["cancelled", "rejected"]
 # Status usados para filtrar CANCELAMENTOS/estornos na visão do ML (order.status).
 # Mantém "refunded"/"rejected" p/ compatibilidade de leitura de payloads do ML.
 CANCEL_STATUSES = ["cancelled", "refunded", "rejected"]
+
+# "Vendas brutas" do painel do ML (liq-4): TODAS as vendas que se concretizaram,
+# INCLUINDO as depois canceladas/devolvidas — o painel não desconta cancelam./devol.
+# do bruto. Exclui só "rejected" (pagamento recusado, nunca virou venda) e "pending"
+# (ainda não confirmado). Usado no modo order_additive p/ espelhar o painel.
+BRUTAS_STATUSES = ["approved", "refunded", "cancelled"]

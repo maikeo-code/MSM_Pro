@@ -24,7 +24,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.vendas.constants import NON_SALE_PAYMENT_STATUSES
+from app.vendas.constants import BRUTAS_STATUSES, NON_SALE_PAYMENT_STATUSES
 from app.vendas.models import ListingSnapshot, Order
 
 BRT = timezone(timedelta(hours=-3))
@@ -123,61 +123,58 @@ async def aggregate_metrics(
     receita_orders = float(ofb.receita_total) if ofb else 0.0
 
     if settings.metrics_source == "order_additive":
-        # E52 — Order é a fonte ADITIVA única de vendas/pedidos/receita. Snapshot
-        # permanece só p/ visitas/estoque/preço. Σ(dias) == janela por construção
-        # (Order é aditivo; max() não era). Fallback ao snapshot APENAS quando a
-        # janela não tem NENHUMA order mas tem snapshots (dado legado pré-backfill).
-        if orders_pedidos > 0 or orders_vendas > 0:
-            vendas = orders_vendas
-            pedidos = orders_pedidos
-            receita_total = receita_orders
-            receita_final = receita_orders
-        else:
-            receita_final = receita_snapshot
-
-        # E51 — cancelados e devoluções também derivam de Order (dono único),
-        # não mais do snapshot. Cancelados = orders NON_SALE (cancelled/rejected),
-        # fora da receita. Devoluções = orders refunded — CONTAM na venda (ficam
-        # em receita_total) mas são marcadas como devolução (descontadas em
-        # vendas_concluidas). Espelha a semântica do painel do ML.
-        cancel_row = (
+        # liq-4 — espelho fiel do painel do ML (decisão do Maikeo, 2026-07-16):
+        # VENDAS BRUTAS por order_date, INCLUINDO as depois canceladas/devolvidas
+        # (o painel: "sem descontar cancelamentos nem devoluções"). Exclui só rejected
+        # (nunca foi venda). Σ(dias) == janela por construção (Order é aditivo).
+        brutas_row = (
             await db.execute(
                 select(
-                    func.coalesce(
-                        func.sum(case((Order.payment_status.in_(NON_SALE_PAYMENT_STATUSES), 1), else_=0)), 0
-                    ).label("cancel_qtd"),
-                    func.coalesce(
-                        func.sum(
-                            case(
-                                (Order.payment_status.in_(NON_SALE_PAYMENT_STATUSES), Order.total_amount),
-                                else_=0,
-                            )
-                        ),
-                        0,
-                    ).label("cancel_valor"),
-                    func.coalesce(
-                        func.sum(case((Order.payment_status == "refunded", 1), else_=0)), 0
-                    ).label("ret_qtd"),
-                    func.coalesce(
-                        func.sum(case((Order.payment_status == "refunded", Order.total_amount), else_=0)), 0
-                    ).label("ret_valor"),
+                    func.coalesce(func.sum(Order.quantity), 0).label("vendas"),
+                    func.count(Order.id).label("pedidos"),
+                    func.coalesce(func.sum(Order.total_amount), 0).label("receita"),
                 ).where(
                     Order.listing_id.in_(listing_ids),
                     Order.order_date >= range_utc_start,
                     Order.order_date <= range_utc_end,
+                    Order.payment_status.in_(BRUTAS_STATUSES),
                 )
             )
         ).fetchone()
-        if cancel_row is not None:
-            cancelados = int(cancel_row.cancel_qtd)
-            cancelados_valor = float(cancel_row.cancel_valor)
-            devolucoes_qtd = int(cancel_row.ret_qtd)
-            devolucoes_valor = float(cancel_row.ret_valor)
-        # E59 — no order_additive, cancelados JÁ estão fora de receita_total (filtro
-        # NON_SALE na query de Order), então vendas_concluidas NÃO os subtrai de novo;
-        # subtrai só as devoluções (refunded, que contam na receita). Ver a fórmula
-        # ramificada mais abaixo. (Na legacy, receita_total é o valor bruto do
-        # snapshot e a subtração dupla é o comportamento histórico travado.)
+        brutas_vendas = int(brutas_row.vendas) if brutas_row else 0
+        brutas_pedidos = int(brutas_row.pedidos) if brutas_row else 0
+        brutas_receita = float(brutas_row.receita) if brutas_row else 0.0
+
+        # CANCELADAS e DEVOLVIDAS pela DATA DO EVENTO (status_event_date), não da venda
+        # (validado no MCP/assistente ML: cancelamento/reembolso contam no dia do EVENTO).
+        evt_row = (
+            await db.execute(
+                select(
+                    func.coalesce(func.sum(case((Order.payment_status == "cancelled", 1), else_=0)), 0).label("canc_qtd"),
+                    func.coalesce(func.sum(case((Order.payment_status == "cancelled", Order.total_amount), else_=0)), 0).label("canc_val"),
+                    func.coalesce(func.sum(case((Order.payment_status == "refunded", 1), else_=0)), 0).label("dev_qtd"),
+                    func.coalesce(func.sum(case((Order.payment_status == "refunded", Order.total_amount), else_=0)), 0).label("dev_val"),
+                ).where(
+                    Order.listing_id.in_(listing_ids),
+                    Order.status_event_date >= range_utc_start,
+                    Order.status_event_date <= range_utc_end,
+                )
+            )
+        ).fetchone()
+
+        if brutas_pedidos > 0 or brutas_vendas > 0:
+            vendas = brutas_vendas
+            pedidos = brutas_pedidos
+            receita_total = brutas_receita
+            receita_final = brutas_receita
+        else:
+            receita_final = receita_snapshot  # fallback legado (janela sem orders)
+
+        if evt_row is not None:
+            cancelados = int(evt_row.canc_qtd)
+            cancelados_valor = float(evt_row.canc_val)
+            devolucoes_qtd = int(evt_row.dev_qtd)
+            devolucoes_valor = float(evt_row.dev_val)
     else:
         # legacy_max (default) — reconciliação histórica não-aditiva: Orders vence
         # quando conta MAIS que o snapshot. Mantido byte-idêntico ao comportamento
@@ -199,21 +196,19 @@ async def aggregate_metrics(
 
     preco_medio = round(receita_total / vendas, 2) if vendas > 0 else 0.0
     preco_medio_por_venda = round(receita_total / pedidos, 2) if pedidos > 0 else 0.0
-    total_pedidos_com_cancelados = pedidos + cancelados
-    taxa_cancelamento = (
-        round(cancelados / total_pedidos_com_cancelados * 100, 2) if total_pedidos_com_cancelados > 0 else 0.0
-    )
     if settings.metrics_source == "order_additive":
-        # E59 (provado contra o painel do ML em 14/07/2026): o ML mantém a venda
-        # reembolsada no total do DIA DA VENDA e lança a devolução no dia em que o
-        # reembolso foi PROCESSADO (painel MSM_PRIME 14/07: 1 pedido refunded no total,
-        # "vendas devolvidas" = 0 no dia). Como a tabela Order só tem a data da venda
-        # (não a do reembolso), NÃO dá p/ atribuir a devolução ao dia certo — então
-        # não subtraímos aqui. cancelados já saem de receita_total (filtro NON_SALE).
-        # Logo, vendas_concluidas = receita_total (espelha "vendas brutas" do painel).
-        # Descontar devolução pelo dia do reembolso fica p/ quando tivermos essa data.
-        vendas_concluidas = receita_total
+        # pedidos (brutas) JÁ inclui os cancelados; a taxa é canceladas(evento)/brutas.
+        taxa_cancelamento = round(cancelados / pedidos * 100, 2) if pedidos > 0 else 0.0
+        # liq-4 — LÍQUIDO = brutas − canceladas(evento) − devolvidas(evento). receita_total
+        # é o bruto (inclui cancel/devol por data-venda); a dedução vem pela DATA DO EVENTO.
+        # Espelha o "líquido" do painel do ML. Pode ficar negativo num dia cujo evento
+        # (cancel/reembolso) supera as vendas brutas daquele mesmo dia — é o esperado.
+        vendas_concluidas = round(receita_total - cancelados_valor - devolucoes_valor, 2)
     else:
+        total_pedidos_com_cancelados = pedidos + cancelados
+        taxa_cancelamento = (
+            round(cancelados / total_pedidos_com_cancelados * 100, 2) if total_pedidos_com_cancelados > 0 else 0.0
+        )
         vendas_concluidas = round(receita_total - cancelados_valor - devolucoes_valor, 2)
 
     # Valor de estoque: posição pontual no fim do intervalo (último snapshot de

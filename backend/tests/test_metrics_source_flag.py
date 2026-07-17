@@ -109,49 +109,74 @@ async def test_order_additive_corrige_sobrecontagem(db, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_order_additive_deriva_cancelados_e_devolucoes_de_order(db, monkeypatch):
-    """E51: no order_additive, cancelados e devoluções vêm de Order, não do snapshot.
+async def test_order_additive_brutas_e_liquido_evento_mesmo_dia(db, monkeypatch):
+    """liq-4: brutas incluem cancel/devol; líquido desconta por data-EVENTO.
 
-    Cenário: 5 approved + 2 cancelled + 1 refunded no MESMO dia. O snapshot mente
-    (zera cancelados/devoluções). Order manda:
-      - vendas/pedidos = 6 (approved + refunded; NON_SALE fora)
-      - cancelados = 2 (cancelled/rejected), R$200
-      - devoluções = 1 (refunded), R$100
+    5 approved + 2 cancelled + 1 refunded no MESMO dia (venda E evento no dia):
+      - brutas: vendas/pedidos = 8, receita = 800 (o painel não desconta do bruto)
+      - canceladas = 2 (R$200), devolvidas = 1 (R$100) — evento no dia
+      - líquido = 800 − 200 − 100 = 500
     """
     monkeypatch.setattr(settings, "metrics_source", "order_additive")
     user, ml, listing = await _setup(db)
     dia = date(2026, 6, 10)
+    evt = _brt_noon(dia)  # evento no mesmo dia da venda
 
-    # snapshot que NÃO reflete cancelados/devoluções (só p/ garantir que vêm de Order)
-    db.add(ListingSnapshot(
-        id=uuid4(), listing_id=listing.id, price=Decimal("100"),
-        visits=200, sales_today=6, stock=5, orders_count=6,
-        revenue=Decimal("600"), cancelled_orders=0, cancelled_revenue=Decimal("0"),
-        returns_count=0, returns_revenue=Decimal("0"), captured_at=_brt_noon(dia),
-    ))
+    db.add(_snap_inflado(listing, dia))
     db.add_all(_orders_reais(listing, ml, dia, n=5))  # 5 approved
     for st in ("cancelled", "cancelled", "refunded"):
         db.add(Order(
             id=uuid4(), ml_order_id=str(uuid4()), ml_account_id=ml.id,
             listing_id=listing.id, mlb_id=listing.mlb_id, quantity=1,
             unit_price=Decimal("100"), total_amount=Decimal("100"),
-            payment_status=st, order_date=_brt_noon(dia),
+            payment_status=st, order_date=evt, status_event_date=evt,
         ))
     await db.commit()
 
     kpi = await aggregate_metrics(db, [listing.id], dia, dia)
 
-    assert kpi["vendas"] == 6          # 5 approved + 1 refunded
-    assert kpi["pedidos"] == 6
-    assert kpi["receita_total"] == 600.0
-    assert kpi["cancelamentos_valor"] == 200.0   # 2 cancelled derivados de Order
-    assert kpi["devolucoes_qtd"] == 1            # 1 refunded derivado de Order
+    assert kpi["vendas"] == 8            # brutas: inclui os 2 cancelados + 1 devolvido
+    assert kpi["pedidos"] == 8
+    assert kpi["receita_total"] == 800.0
+    assert kpi["cancelamentos_valor"] == 200.0
+    assert kpi["devolucoes_qtd"] == 1
     assert kpi["devolucoes_valor"] == 100.0
-    # E59 (provado vs painel ML 14/07): o ML mantém a venda reembolsada no total do
-    # dia da venda (a devolução é lançada no dia do reembolso, que Order não tem).
-    # Logo vendas_concluidas = receita_total = 600 (não subtrai o refunded por data
-    # de venda). cancelados já estão fora de receita_total.
-    assert kpi["vendas_concluidas"] == 600.0
+    assert kpi["vendas_concluidas"] == 500.0  # 800 − 200 − 100 (líquido)
+
+
+@pytest.mark.asyncio
+async def test_order_additive_evento_em_outro_dia_nao_desconta_na_venda(db, monkeypatch):
+    """liq-4 (o ponto central): reembolso lançado no DIA DO EVENTO, não da venda.
+
+    Venda dia 10, reembolso processado dia 12:
+      - dia 10: brutas inclui a venda; devolvidas=0 (evento é dia 12) → líquido = bruto
+      - dia 12: brutas=0 (nada vendido); devolvidas=1 → líquido negativo (−100)
+    Espelha exatamente o painel do ML.
+    """
+    monkeypatch.setattr(settings, "metrics_source", "order_additive")
+    user, ml, listing = await _setup(db)
+    d_venda, d_evento = date(2026, 6, 10), date(2026, 6, 12)
+
+    db.add(Order(
+        id=uuid4(), ml_order_id=str(uuid4()), ml_account_id=ml.id,
+        listing_id=listing.id, mlb_id=listing.mlb_id, quantity=1,
+        unit_price=Decimal("100"), total_amount=Decimal("100"),
+        payment_status="refunded",
+        order_date=_brt_noon(d_venda), status_event_date=_brt_noon(d_evento),
+    ))
+    await db.commit()
+
+    # dia da venda: conta no bruto, NÃO desconta (evento é depois)
+    dia10 = await aggregate_metrics(db, [listing.id], d_venda, d_venda)
+    assert dia10["receita_total"] == 100.0
+    assert dia10["devolucoes_valor"] == 0.0
+    assert dia10["vendas_concluidas"] == 100.0
+
+    # dia do evento: nada vendido, mas a devolução é lançada aqui → líquido negativo
+    dia12 = await aggregate_metrics(db, [listing.id], d_evento, d_evento)
+    assert dia12["receita_total"] == 0.0
+    assert dia12["devolucoes_valor"] == 100.0
+    assert dia12["vendas_concluidas"] == -100.0
 
 
 @pytest.mark.asyncio
