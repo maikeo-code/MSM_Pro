@@ -14,23 +14,27 @@ API="${MSM_API:-https://msmpro-production.up.railway.app}"
 EMAIL="${MSM_EMAIL:-maikeo@msmrp.com}"
 SENHA="${MSM_SENHA:-Msm@2026}"
 
-# id_ml | URL pública. Itens de terceiro: produto.mercadolivre.com.br/MLB-<dig>-_JM.
-# Catálogo/MLBU: www.mercadolivre.com.br/p/<id>.
+# id_ml | URL pública | is_buy_box(true=catálogo/false=item de terceiro).
+# Itens de terceiro: produto.mercadolivre.com.br/MLB-<dig>-_JM (preço do próprio item).
+# Catálogo/MLBU: www.mercadolivre.com.br/p/<id> (preço = vencedor da buy box).
 TARGETS=(
-  "MLB4185585590|https://produto.mercadolivre.com.br/MLB-4185585590-_JM"
-  "MLB4664920981|https://produto.mercadolivre.com.br/MLB-4664920981-_JM"
-  "MLB5496628754|https://produto.mercadolivre.com.br/MLB-5496628754-_JM"
-  "MLB6429093518|https://produto.mercadolivre.com.br/MLB-6429093518-_JM"
-  "MLB6460154858|https://produto.mercadolivre.com.br/MLB-6460154858-_JM"
-  "MLB3377496529|https://produto.mercadolivre.com.br/MLB-3377496529-_JM"
-  "MLB4130481127|https://produto.mercadolivre.com.br/MLB-4130481127-_JM"
-  "MLBU3453370601|https://www.mercadolivre.com.br/p/MLBU3453370601"
+  "MLB4185585590|https://produto.mercadolivre.com.br/MLB-4185585590-_JM|false"
+  "MLB4664920981|https://produto.mercadolivre.com.br/MLB-4664920981-_JM|false"
+  "MLB5496628754|https://produto.mercadolivre.com.br/MLB-5496628754-_JM|false"
+  "MLB6429093518|https://produto.mercadolivre.com.br/MLB-6429093518-_JM|false"
+  "MLB6460154858|https://produto.mercadolivre.com.br/MLB-6460154858-_JM|false"
+  "MLB3377496529|https://produto.mercadolivre.com.br/MLB-3377496529-_JM|false"
+  "MLB4130481127|https://produto.mercadolivre.com.br/MLB-4130481127-_JM|false"
+  "MLBU3453370601|https://www.mercadolivre.com.br/p/MLBU3453370601|true"
+  "MLB66736353|https://www.mercadolivre.com.br/p/MLB66736353|true"
+  "MLB66987007|https://www.mercadolivre.com.br/p/MLB66987007|true"
+  "MLB68602042|https://www.mercadolivre.com.br/p/MLB68602042|true"
 )
 
 echo "[1/3] Raspando ${#TARGETS[@]} páginas (uma por vez, browser persistente)..."
 ROWS=()
 for t in "${TARGETS[@]}"; do
-  ID="${t%%|*}"; URL="${t#*|}"
+  ID="${t%%|*}"; REST="${t#*|}"; URL="${REST%|*}"; BB="${REST##*|}"
   PRICE=$(dev-browser 2>/dev/null <<EOF | grep '::P::' | sed 's/.*::P:://'
 const page = await browser.getPage("ml-scraper");
 try {
@@ -49,11 +53,13 @@ try {
 } catch (e) { console.log("::P::"); }
 EOF
 )
-  if [ -n "$PRICE" ]; then
-    echo "  $ID: R\$ $PRICE"
-    ROWS+=("{\"id_ml\":\"$ID\",\"price\":$PRICE}")
+  # Ignora vazio e preço <= 0 (produto sem oferta ativa) — não grava lixo.
+  VALID=$(python -c "import sys; p='$PRICE'.strip(); print('1' if p and float(p)>0 else '0')" 2>/dev/null || echo 0)
+  if [ "$VALID" = "1" ]; then
+    echo "  $ID: R\$ $PRICE  (buy_box=$BB)"
+    ROWS+=("{\"id_ml\":\"$ID\",\"price\":$PRICE,\"is_buy_box\":$BB}")
   else
-    echo "  $ID: (sem preço)"
+    echo "  $ID: (sem preço válido)"
   fi
 done
 

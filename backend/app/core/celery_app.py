@@ -106,15 +106,17 @@ celery_app.conf.beat_schedule = {
             "expires": 3600,
         },
     },
-    # Coleta preço de concorrentes 1x/dia às 09:30 UTC (06:30 BRT), logo após o
-    # snapshot diário (09:00 UTC). Grava na tabela flat competitor_prices (OAA).
-    "collect-competitor-prices-daily": {
-        "task": "app.jobs.tasks.collect_competitor_prices",
-        "schedule": crontab(hour=9, minute=30),
-        "options": {
-            "expires": 3600,
-        },
-    },
+    # DESATIVADO (2026-07-17): a coleta de concorrentes foi unificada no SCRAPER
+    # LOCAL (msm_pro/scripts/competitor_scraper, Task Scheduler 06:35 BRT), porque a
+    # API do ML dá 403 p/ item de terceiro e o /products é flaky. O scraper cobre os
+    # 11 (itens + catálogo) via JSON-LD da página pública. A task/endpoint continuam
+    # existindo como fallback manual (POST /competitors/prices/collect). Para
+    # reativar o agendamento, descomentar o bloco abaixo.
+    # "collect-competitor-prices-daily": {
+    #     "task": "app.jobs.tasks.collect_competitor_prices",
+    #     "schedule": crontab(hour=9, minute=30),
+    #     "options": {"expires": 3600},
+    # },
     # Renova tokens ML que vão expirar nas próximas 3 horas
     # Roda a cada 30 minutos para garantir que nunca perca a janela de renovação
     # (antes rodava 1x/hora no minuto 30, agora rodará nos minutos 0 e 30)

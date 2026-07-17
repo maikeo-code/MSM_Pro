@@ -162,9 +162,16 @@ class TestCollectCompetitorPrices:
 
 
 class TestCompetitorPricesSchedule:
-    def test_task_no_beat_schedule(self):
+    def test_beat_desativado_coleta_unificada_no_scraper(self):
+        """Agendamento no Railway foi DESATIVADO (2026-07-17): coleta unificada no
+        scraper local. A task/endpoint seguem existindo como fallback manual."""
         from app.core.celery_app import celery_app
 
         bs = celery_app.conf.beat_schedule
-        assert "collect-competitor-prices-daily" in bs
-        assert bs["collect-competitor-prices-daily"]["task"] == "app.jobs.tasks.collect_competitor_prices"
+        assert "collect-competitor-prices-daily" not in bs
+
+    def test_task_ainda_registrada_como_fallback(self):
+        """A task Celery continua registrada (gatilho manual POST /collect)."""
+        from app.jobs import tasks
+
+        assert hasattr(tasks, "collect_competitor_prices")
