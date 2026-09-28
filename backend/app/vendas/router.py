@@ -973,6 +973,31 @@ async def update_price(
     )
 
 
+@router.post("/{mlb_id}/price/base")
+async def apply_base_price(
+    mlb_id: str,
+    payload: dict,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Altera o preco BASE no ML (PUT /items) -- Conselho de Precos do JARVIS.
+
+    Body: {"price": 51.18, "expected_current": 50.77, "justification": "..."}.
+    409 se o preco vivo nao for o esperado ou houver promocao ativa (nada e alterado);
+    502 se o ML falhar. Resposta diz se o preco foi confirmado na releitura.
+    """
+    from fastapi import HTTPException
+
+    from app.vendas.service_preco_base import aplicar_preco_base
+
+    try:
+        preco, esperado = payload["price"], payload["expected_current"]
+    except (KeyError, TypeError):
+        raise HTTPException(status_code=400, detail="price e expected_current sao obrigatorios")
+    return await aplicar_preco_base(db, mlb_id, current_user.id, preco, esperado,
+                                    str(payload.get("justification") or ""))
+
+
 @router.post("/{mlb_id}/promotions", response_model=PromotionOut)
 async def create_promotion(
     mlb_id: str,
