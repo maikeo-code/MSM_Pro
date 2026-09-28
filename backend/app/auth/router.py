@@ -664,6 +664,7 @@ async def trigger_celery_task(
         "sync_orders",
         "sync_questions",
         "sync_all_snapshots",
+        "sync_all_listings",
         "sync_competitor_snapshots",
         "sync_reputation",
         "sync_ads",

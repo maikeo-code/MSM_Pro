@@ -761,19 +761,39 @@ async def _sync_all_listings_async():
             )
             user_ids = [row[0] for row in user_rows.all()]
 
-            total = 0
+            created = updated = errors = 0
             for uid in user_ids:
                 try:
                     res = await sync_listings_from_ml(db, uid)
-                    total += res.get("total", 0)
+                    created += res.get("created", 0)
+                    updated += res.get("updated", 0)
                 except Exception as exc:
-                    logger.warning(f"sync_all_listings falhou p/ user {uid}: {exc}")
+                    # um usuário com problema não derruba os outros, mas CONTA como falha
+                    # (antes só logava warning e o sync_log saía "success" — incidente 25/09/2026)
+                    errors += 1
+                    logger.error(f"sync_all_listings falhou p/ user {uid}: {exc}")
+                    await db.rollback()
 
-            await _finish_sync_log(db, sync_log, status="success", items=total)
-            logger.info(
-                f"Sync completo de catálogo: {total} listing(s) em {len(user_ids)} usuário(s)"
+            total = created + updated
+            await _finish_sync_log(
+                db,
+                sync_log,
+                status="failed" if user_ids and errors == len(user_ids) else "success",
+                items=total,
+                failed=errors,
             )
-            return {"success": True, "total": total, "users": len(user_ids)}
+            logger.info(
+                f"Sync completo de catálogo: {total} listing(s) em {len(user_ids)} usuário(s), "
+                f"{created} novos, {updated} atualizados, {errors} falhas"
+            )
+            return {
+                "success": errors == 0,
+                "total": total,
+                "users": len(user_ids),
+                "created": created,
+                "updated": updated,
+                "errors": errors,
+            }
 
         except Exception as exc:
             logger.error(f"Erro em _sync_all_listings_async: {exc}")

@@ -104,11 +104,7 @@ async def backfill_snapshots(
             detail=f"date_iso invalido: {date_iso}. Use YYYY-MM-DD.",
         )
 
-    # Busca listings ativos do usuario agrupados por conta ML
-    from collections import defaultdict
-
     from app.auth.models import MLAccount
-    from app.mercadolivre.client import MLClient
     from app.vendas.models import Listing
     from sqlalchemy import and_
 
@@ -128,62 +124,18 @@ async def backfill_snapshots(
     if not rows:
         return {"dispatched": 0, "target_date": date_iso, "message": "Nenhum listing ativo"}
 
-    # Agrupa por ml_account_id e busca visitas em bulk (1 chamada por conta)
-    # — abordagem CONFIAVEL (1 item por vez retorna lifetime no ML).
-    by_account: dict = defaultdict(list)
-    for row in rows:
-        by_account[row.ml_account_id].append(row)
-
-    visits_map: dict[str, int] = {}
-    debug_info = []
-    for acc_id, listings in by_account.items():
-        acc = (await db.execute(
-            select(MLAccount).where(MLAccount.id == acc_id)
-        )).scalar_one_or_none()
-        if not acc or not acc.access_token:
-            debug_info.append(f"acc={acc_id} sem token")
-            continue
-        mlb_ids = [
-            (l.mlb_id.upper().replace("-", "") if l.mlb_id.upper().startswith("MLB") else f"MLB{l.mlb_id.upper().replace('-','')}")
-            for l in listings
-        ]
-        try:
-            async with MLClient(acc.access_token, ml_account_id=str(acc.id)) as client:
-                bulk = await client.get_items_visits_bulk(
-                    mlb_ids, date_from=date_iso, date_to=date_iso
-                )
-                visits_map.update(bulk)
-                debug_info.append(f"acc={acc.nickname} mlb_count={len(mlb_ids)} bulk_result={len(bulk)} sample={list(bulk.items())[:2]}")
-        except Exception as e:
-            debug_info.append(f"acc={acc.nickname} ERROR: {type(e).__name__}: {str(e)[:150]}")
-
-    # Despacha 1 task por listing com visits_override do bulk
+    # Sem visits_override: cada task busca as visitas DO DIA via time_window
+    # (get_item_visits_on_day). O bulk /visits/items ignora as datas e devolve
+    # o lifetime de 2 anos — gravava o acumulado como "visitas do dia".
     from app.jobs.tasks import sync_listing_snapshot
 
-    dispatched = 0
     for row in rows:
-        mlb_norm = row.mlb_id.upper().replace("-", "")
-        if not mlb_norm.startswith("MLB"):
-            mlb_norm = f"MLB{mlb_norm}"
-        v = visits_map.get(mlb_norm)
-        sync_listing_snapshot.delay(
-            str(row.id),
-            visits_override=v,
-            snapshot_date_iso=date_iso,
-        )
-        dispatched += 1
+        sync_listing_snapshot.delay(str(row.id), snapshot_date_iso=date_iso)
 
     return {
-        "dispatched": dispatched,
+        "dispatched": len(rows),
         "target_date": date_iso,
-        "bulk_visits_obtained": len(visits_map),
-        "warning": (
-            "Visitas via API ML para dias > 1 dia atras NAO sao confiaveis "
-            "(/visits/items pode retornar lifetime). Receita/pedidos sao "
-            "confiaveis pois vem da tabela orders local."
-        ) if len(visits_map) == 0 else None,
-        "debug": debug_info,
-        "message": f"Backfill enfileirado para {dispatched} listings — acompanhe em /health/sync",
+        "message": f"Backfill enfileirado para {len(rows)} listings — acompanhe em /health/sync",
     }
 
 

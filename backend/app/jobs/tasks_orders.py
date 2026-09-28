@@ -101,6 +101,24 @@ from .tasks_helpers import (
 
 logger = logging.getLogger(__name__)
 
+_BRT = timezone(timedelta(hours=-3))
+JANELA_MIN_DIAS = 3
+JANELA_MAX_DIAS = 60
+
+
+def inicio_janela_pedidos(ultimo_pedido: datetime | None, agora: datetime) -> datetime:
+    """Início da busca de pedidos de UMA conta, à meia-noite BRT.
+
+    Normal: 3 dias atrás. Depois de pane: 1 dia antes do último pedido gravado da conta,
+    até 60 dias. Incidente de 25/09/2026: com a janela fixa de 3 dias, 12 dias de Postgres
+    lotado viraram buraco permanente (SC sem pedidos de 14/09 a 24/09).
+    """
+    inicio = agora.astimezone(_BRT) - timedelta(days=JANELA_MIN_DIAS)
+    if ultimo_pedido is not None:
+        inicio = min(inicio, ultimo_pedido.astimezone(_BRT) - timedelta(days=1))
+    inicio = max(inicio, agora.astimezone(_BRT) - timedelta(days=JANELA_MAX_DIAS))
+    return inicio.replace(hour=0, minute=0, second=0, microsecond=0)
+
 
 async def _sync_orders_async():
     """
@@ -111,15 +129,10 @@ async def _sync_orders_async():
     """
     from app.vendas.models import Order
 
-    # Janela ancorada no INÍCIO DO DIA BRT, 3 dias atrás — garante que os dias
-    # recentes fiquem COMPLETOS. O código antigo usava now(utc) formatado como
-    # "-03:00" (fuso incorreto) e 2 dias exatos: quando rodava à noite, perdia
-    # pedidos das primeiras horas do dia mais antigo (divergência -2 vs painel ML).
-    _BRT = timezone(timedelta(hours=-3))
-    _start_brt = (datetime.now(_BRT) - timedelta(days=3)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    date_from = _start_brt.strftime("%Y-%m-%dT%H:%M:%S.000-03:00")
+    # Janela ancorada no INÍCIO DO DIA BRT (fuso real, não now(utc) com "-03:00"),
+    # calculada POR CONTA em inicio_janela_pedidos(): 3 dias no normal, e volta até o
+    # último pedido gravado depois de uma pane.
+    from sqlalchemy import func
 
     async with AsyncSessionLocal() as db:
         sync_log = await _create_sync_log(db, "sync_orders")
@@ -146,6 +159,18 @@ async def _sync_orders_async():
                     logger.warning(f"Sem token ML para conta {acc_nickname} — pulando")
                     continue
 
+                ultimo = (
+                    await db.execute(
+                        select(func.max(Order.order_date)).where(
+                            Order.ml_account_id == acc_id
+                        )
+                    )
+                ).scalar()
+                date_from = inicio_janela_pedidos(
+                    ultimo, datetime.now(_BRT)
+                ).strftime("%Y-%m-%dT%H:%M:%S.000-03:00")
+                logger.info(f"Pedidos {acc_nickname}: janela desde {date_from}")
+
                 client = MLClient(acc_token, ml_account_id=str(acc_id))
                 try:
                     offset = 0
@@ -159,9 +184,12 @@ async def _sync_orders_async():
                                 limit=limit,
                             )
                         except MLClientError as e:
-                            logger.warning(
+                            # antes so logava e o sync_log saia "success" com a conta
+                            # inteira sem pedido (SC em 24/09/2026) -- agora conta erro
+                            logger.error(
                                 f"Erro ML ao buscar pedidos para {acc_nickname}: {e}"
                             )
+                            total_errors += 1
                             break
 
                         results = response.get("results", [])
