@@ -418,6 +418,39 @@ async def get_parity_audit(
     )
 
 
+@router.get("/visits/by-day")
+async def get_visits_by_day(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    mlb: str = Query(description="Anuncio (qualquer status) de uma conta do usuario"),
+    date_from: str = Query(description="YYYY-MM-DD"),
+    date_to: str = Query(description="YYYY-MM-DD (dia ja fechado)"),
+):
+    """Visitas REAIS por dia de um anuncio no periodo (ML time_window). Read-only: nao grava nada.
+
+    Erro do ML vira 502 (nunca 0); dia sem dado do ML vem em `dias_faltando`.
+    """
+    from datetime import date as _date, datetime as _dt, timedelta as _td, timezone as _tz
+
+    from fastapi import HTTPException
+
+    from app.mercadolivre.client import MLClientError
+    from app.vendas.service_visits_range import validar_periodo, visitas_por_dia
+
+    try:
+        d0, d1 = _date.fromisoformat(date_from), _date.fromisoformat(date_to)
+        validar_periodo(d0, d1, hoje=_dt.now(_tz(_td(hours=-3))).date())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    try:
+        r = await visitas_por_dia(db, current_user.id, mlb, d0, d1)
+    except MLClientError as e:
+        raise HTTPException(status_code=502, detail=f"ML falhou: {e}")
+    if r is None:
+        raise HTTPException(status_code=404, detail="anuncio nao encontrado nas suas contas")
+    return r
+
+
 
 
 

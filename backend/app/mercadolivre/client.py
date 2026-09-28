@@ -331,6 +331,30 @@ class MLClient:
             return int(results[0].get("total", 0) or 0)
         return 0
 
+    async def get_item_visits_range(self, mlb_id: str, date_from: date, date_to: date) -> dict[str, int]:
+        """
+        Visitas por dia de um anúncio no período [date_from, date_to] — 1 chamada.
+        GET /items/{id}/visits/time_window?last=N&unit=day&ending={date_to+1}
+
+        Diferente de get_item_visits_on_day: erro do ML SOBE (não vira 0) e dia que
+        o ML não devolveu fica ausente — "sem dado" nunca é confundido com "zero visitas".
+        """
+        item_id = mlb_id.upper().replace("-", "")
+        if not item_id.startswith("MLB"):
+            item_id = f"MLB{item_id}"
+        dias = (date_to - date_from).days + 1
+        resp = await self._request(
+            "GET",
+            f"/items/{item_id}/visits/time_window",
+            params={"last": dias, "unit": "day", "ending": (date_to + timedelta(days=1)).isoformat()},
+        )
+        out: dict[str, int] = {}
+        for bucket in (resp.get("results") if isinstance(resp, dict) else None) or []:
+            dia = str(bucket.get("date", ""))[:10]
+            if date_from.isoformat() <= dia <= date_to.isoformat():
+                out[dia] = int(bucket.get("total", 0) or 0)
+        return out
+
     async def get_item_orders_by_status(
         self,
         mlb_id: str,
