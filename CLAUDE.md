@@ -58,7 +58,7 @@ Backend FastAPI + PostgreSQL + Redis + Celery | Frontend React 18 + TS + Vite | 
 URLs:
 - Backend: https://msmpro-production.up.railway.app
 - Frontend: https://msmprofrontend-production.up.railway.app
-- Login teste: maikeo@msmrp.com / Msm@2026
+- Login teste: maikeo@msmrp.com — a senha fica SÓ na variável de ambiente `MSM_SENHA` (nunca em arquivo nem no git)
 
 ---
 
