@@ -75,3 +75,13 @@ def test_preco_invalido():
         with pytest.raises(ValueError):
             validar_preco(p)
     assert validar_preco(51.184) == 51.18
+
+
+async def test_conflito_traz_o_preco_vivo_para_reconciliar():
+    # v2 passo 3.2: o conselho precisa saber se o preco vivo JA e o pedido (PUT anterior deu certo e a resposta
+    # se perdeu) para marcar aplicada sem mandar um 2o PUT
+    c = _client([{"amount": 51.18}])
+    with pytest.raises(Conflito) as e:
+        await aplicar_no_ml(c, "MLB1", 51.18, esperado=50.77, espera_s=0)
+    assert e.value.preco_vivo == 51.18
+    c.update_item_price.assert_not_awaited()

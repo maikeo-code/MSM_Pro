@@ -21,7 +21,11 @@ LEITURAS_DEPOIS = 2
 
 
 class Conflito(Exception):
-    """O ML não está no estado esperado: nada foi alterado."""
+    """O ML não está no estado esperado: nada foi alterado. preco_vivo = o que o ML mostra agora (se lido)."""
+
+    def __init__(self, msg: str, preco_vivo: float | None = None):
+        super().__init__(msg)
+        self.preco_vivo = preco_vivo
 
 
 def validar_preco(preco: float) -> float:
@@ -42,7 +46,7 @@ async def aplicar_no_ml(client, mlb: str, preco: float, esperado: float, espera_
     preco, esperado = validar_preco(preco), validar_preco(esperado)
     antes = _vivo(await client.get_item_sale_price(mlb))
     if abs(antes - esperado) >= 0.005:
-        raise Conflito(f"preço vivo {antes} diferente do esperado {esperado}")
+        raise Conflito(f"preço vivo {antes} diferente do esperado {esperado}", preco_vivo=antes)
     resposta = await client.update_item_price(mlb, preco)
     lido, n = None, 0
     for n in range(1, LEITURAS_DEPOIS + 1):
@@ -85,7 +89,8 @@ async def aplicar_preco_base(db: AsyncSession, mlb_id: str, user_id: UUID, preco
     except Conflito as e:
         _log(False, f"recusado: {e}")
         await db.commit()                          # o get_db faria rollback no raise
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail={"motivo": str(e), "preco_vivo": e.preco_vivo})
     except MLClientError as e:
         _log(False, f"ML falhou: {e}")
         await db.commit()
