@@ -26,7 +26,7 @@ Raspa o preço da **página pública** do Mercado Livre para os concorrentes que
 
 ## Rodar
 ```bash
-MSM_SENHA='suaSenha' bash run.sh
+bash run.sh   # senha: env MSM_SENHA ou MSM_PRO_API_SENHA do .env do IA_geral
 # opcionais: MSM_EMAIL, MSM_API
 ```
 
@@ -34,13 +34,15 @@ MSM_SENHA='suaSenha' bash run.sh
 Task Scheduler → nova tarefa → Ação:
 ```
 Programa:  C:\Program Files\Git\bin\bash.exe
-Argumentos: -lc "cd '/c/Users/Maikeo/MSM_Imports_Mercado_Livre/msm_pro/scripts/competitor_scraper' && MSM_SENHA='***' bash run.sh >> scraper.log 2>&1"
+Argumentos: -lc "cd '/d/Inteligencia_Artificial/MSM_Pro/scripts/competitor_scraper' && bash run.sh >> scraper.log 2>&1"
 ```
 Sugestão: 06:35 BRT (após o job de catálogo do Railway às 06:30 BRT / 09:30 UTC).
 
 ## Alvos
 Editar o array `TARGETS` em `run.sh`. Hoje: 7 itens 10díg + `MLBU3453370601`.
 Mapeamento e histórico no vault: `05 - Projetos Tech/MSM_Pro/12 - Ideias/Coleta de preço de concorrentes (competitor_prices).md`.
+
+> **28/09/2026:** neste PC o navegador gerenciado do dev-browser cai no captcha do ML ("Segurança"). Precisa de perfil persistente onde o Maikeo resolveu o captcha uma vez; a tarefa agendada ainda não foi criada aqui.
 
 ## Limitações conhecidas
 - `MLBU3453370601`: JSON-LD sem `offers.price` (estrutura de página diferente) →

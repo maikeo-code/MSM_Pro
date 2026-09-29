@@ -7,12 +7,17 @@
 # do JSON-LD da página pública, que bloqueia IP de datacenter (Railway cai no muro
 # account-verification). Ver o vault "12 - Ideias / Coleta de preço de concorrentes".
 #
-# Uso:  MSM_SENHA='***' bash run.sh
+# Uso:  bash run.sh   (senha do ambiente MSM_SENHA ou do .env do IA_geral)
 set -uo pipefail
 
 API="${MSM_API:-https://msmpro-production.up.railway.app}"
-EMAIL="${MSM_EMAIL:-maikeo@msmrp.com}"
-SENHA="${MSM_SENHA:-Msm@2026}"
+# Senha NUNCA no arquivo (regra do projeto: credencial so em env/vault). Ordem: MSM_SENHA do ambiente ->
+# MSM_PRO_API_SENHA do .env do IA_geral (o mesmo login que o Conselho de Precos usa).
+ENV_IA="${MSM_ENV_FILE:-/d/Inteligencia_Artificial/IA_geral_processos_dados/.env}"
+_env() { [ -f "$ENV_IA" ] && sed -n "s/^$1=//p" "$ENV_IA" | head -1 | tr -d '\r"'; }
+EMAIL="${MSM_EMAIL:-$(_env MSM_PRO_API_EMAIL)}"
+SENHA="${MSM_SENHA:-$(_env MSM_PRO_API_SENHA)}"
+[ -n "$EMAIL" ] && [ -n "$SENHA" ] || { echo "ERRO: defina MSM_SENHA/MSM_EMAIL ou $ENV_IA"; exit 1; }
 
 # id_ml | URL pública | is_buy_box(true=catálogo/false=item de terceiro).
 # Itens de terceiro: produto.mercadolivre.com.br/MLB-<dig>-_JM (preço do próprio item).
