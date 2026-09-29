@@ -219,3 +219,37 @@ async def ingest_competitor_prices(
         )
     await db.commit()
     return {"ingested": len(payload), "day": str(target)}
+
+
+@router.get("/prices/probe")
+async def probe_competitor_prices(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    ids: str | None = Query(default=None, description="ids separados por vírgula (default: os 11 alvos)"),
+):
+    """SONDAGEM somente leitura dos endpoints oficiais de preço (sale_price, prices, products, user-products).
+
+    Não grava nada. Serve para decidir qual endpoint a coleta deve usar (item MLB e MLBU).
+    """
+    from sqlalchemy import select
+
+    from app.auth.models import MLAccount
+    from app.concorrencia.competitor_targets import COMPETITOR_TARGETS
+    from app.concorrencia.probe import sondar
+    from app.mercadolivre.client import MLClient
+
+    account = (
+        await db.execute(
+            select(MLAccount).where(
+                MLAccount.user_id == current_user.id,
+                MLAccount.is_active == True,  # noqa: E712
+                MLAccount.access_token.isnot(None),
+            )
+        )
+    ).scalars().first()
+    if not account:
+        return {"error": "Nenhuma conta ML ativa com token"}
+    alvos = [i for i in (ids.split(",") if ids else COMPETITOR_TARGETS) if i.strip()][:30]
+    async with MLClient(account.access_token, ml_account_id=str(account.id)) as client:
+        return {"conta": account.nickname if hasattr(account, "nickname") else str(account.id),
+                "resultados": await sondar(client, alvos)}
