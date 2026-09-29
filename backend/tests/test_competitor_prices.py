@@ -162,13 +162,14 @@ class TestCollectCompetitorPrices:
 
 
 class TestCompetitorPricesSchedule:
-    def test_beat_desativado_coleta_unificada_no_scraper(self):
-        """Agendamento no Railway foi DESATIVADO (2026-07-17): coleta unificada no
-        scraper local. A task/endpoint seguem existindo como fallback manual."""
+    def test_beat_religado_para_o_catalogo(self):
+        """29/09/2026: religado. O scraper local caiu no captcha do ML no PC novo; a sondagem oficial
+        (GET /competitors/prices/probe) mostrou que /products/{id}/items da preco de catalogo (3/3), e
+        item de terceiro/MLBU dao 403 em qualquer endpoint (sale_price, prices, multiget, user-products)."""
         from app.core.celery_app import celery_app
 
         bs = celery_app.conf.beat_schedule
-        assert "collect-competitor-prices-daily" not in bs
+        assert bs["collect-competitor-prices-daily"]["task"] == "app.jobs.tasks.collect_competitor_prices"
 
     def test_task_ainda_registrada_como_fallback(self):
         """A task Celery continua registrada (gatilho manual POST /collect)."""

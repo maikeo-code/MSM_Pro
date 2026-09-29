@@ -112,11 +112,14 @@ celery_app.conf.beat_schedule = {
     # 11 (itens + catálogo) via JSON-LD da página pública. A task/endpoint continuam
     # existindo como fallback manual (POST /competitors/prices/collect). Para
     # reativar o agendamento, descomentar o bloco abaixo.
-    # "collect-competitor-prices-daily": {
-    #     "task": "app.jobs.tasks.collect_competitor_prices",
-    #     "schedule": crontab(hour=9, minute=30),
-    #     "options": {"expires": 3600},
-    # },
+    # RELIGADO (2026-09-29): o scraper local caiu no captcha do ML no PC novo. A sondagem oficial
+    # (GET /competitors/prices/probe) mostrou: catalogo via /products/{id}/items funciona; item de
+    # terceiro e MLBU dao 403 em qualquer endpoint -> esses seguem so no scraper (quando voltar).
+    "collect-competitor-prices-daily": {
+        "task": "app.jobs.tasks.collect_competitor_prices",
+        "schedule": crontab(hour=9, minute=30),
+        "options": {"expires": 3600},
+    },
     # Renova tokens ML que vão expirar nas próximas 3 horas
     # Roda a cada 30 minutos para garantir que nunca perca a janela de renovação
     # (antes rodava 1x/hora no minuto 30, agora rodará nos minutos 0 e 30)
