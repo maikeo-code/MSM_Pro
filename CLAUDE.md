@@ -2,7 +2,7 @@
 
 > Este arquivo é PORTAL, não documentação.
 > Toda informação detalhada está no vault Obsidian unificado:
-> `C:/Users/Maikeo/MSM_Imports_Mercado_Livre/Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/`
+> `D:/inteligencia_artificial/Cérebro obsidian/05 - Projetos Tech/MSM_Pro/`
 
 ---
 

@@ -65,3 +65,7 @@ backend/.coverage
 
 # Backups de banco (dados de cliente — NUNCA versionar) — E117
 backups/
+
+# SWARM v8 (backups do aplicar e log dos hooks)
+.claude/_swarm_backups/
+logs/hooks_saude.log

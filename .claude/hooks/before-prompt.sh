@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-echo "[MSM_PRO BRAIN] Antes de responder, consulte: Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/"
+echo "[MSM_PRO BRAIN] Antes de responder, consulte: D:/inteligencia_artificial/Cérebro obsidian/05 - Projetos Tech/MSM_Pro/"
 echo "[MSM_PRO BRAIN] Checklist:"
 echo "  - Li a nota relevante ao dominio da pergunta?"
 echo "  - Verifiquei 08 - Bugs e Fixes para nao repetir bug antigo?"

@@ -9,6 +9,16 @@
             "command": "bash -c 'echo \"$CLAUDE_TOOL_INPUT\" | grep -q \"mercadolivre/client.py\" && echo \"AVISO: Voce esta editando client.py (API ML). Certifique-se de que o agente ml-api validou o endpoint em docs/ml_api_reference.md ANTES de prosseguir.\" || true'"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py -3 -X utf8 \"$CLAUDE_PROJECT_DIR/.claude/hooks/scripts/protect_sensitive.py\"",
+            "timeout": 10
+          }
+        ]
       }
     ]
   },

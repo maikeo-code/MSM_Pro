@@ -68,7 +68,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash /c/Users/Maikeo/MSM_Imports_Mercado_Livre/MSM_Pro/.claude/hooks/session-start.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh\""
           }
         ]
       }
@@ -78,7 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash /c/Users/Maikeo/MSM_Imports_Mercado_Livre/MSM_Pro/.claude/hooks/before-prompt.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/before-prompt.sh\""
           }
         ]
       }
@@ -89,7 +89,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'git commit'; then cd /c/Users/Maikeo/MSM_Imports_Mercado_Livre/MSM_Pro && python obsidian_brain.py --update-metrics 2>/dev/null || true; fi"
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'git commit'; then cd \"$CLAUDE_PROJECT_DIR\" && py -3 -X utf8 obsidian_brain.py --update-metrics 2>/dev/null || true; fi"
           }
         ]
       }
