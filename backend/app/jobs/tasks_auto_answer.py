@@ -4,12 +4,14 @@ Lógica assíncrona para pré-geração de sugestões IA e auto-resposta.
 Funções exportadas:
   - _pre_generate_suggestions_async: gera sugestões para perguntas sem sugestão
   - _auto_answer_high_confidence_async: envia respostas automáticas quando confidence=high
+    (só com AUTO_ANSWER_MODE=auto — ver settings.auto_answer_mode)
 """
 import logging
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.auth.models import MLAccount
 from app.perguntas.models import Question
@@ -17,6 +19,14 @@ from app.perguntas.service import answer_question_and_track
 from app.perguntas.service_suggestion import generate_suggestion
 
 logger = logging.getLogger(__name__)
+
+_MODOS = ("off", "rascunho", "auto")
+
+
+def _modo() -> str:
+    """Modo efetivo; valor desconhecido vira 'rascunho' (nunca liga o envio por engano)."""
+    modo = (settings.auto_answer_mode or "").strip().lower()
+    return modo if modo in _MODOS else "rascunho"
 
 
 async def _pre_generate_suggestions_async() -> dict:
@@ -29,6 +39,9 @@ async def _pre_generate_suggestions_async() -> dict:
     """
     total_generated = 0
     errors = 0
+
+    if _modo() == "off":
+        return {"generated": 0, "errors": 0, "mode": "off"}
 
     try:
         async with AsyncSessionLocal() as db:
@@ -83,9 +96,13 @@ async def _auto_answer_high_confidence_async() -> dict:
       - answer_text IS NULL (ainda não respondida)
 
     Processa no máximo 10 perguntas por execução.
+
+    Fora do modo "auto" nada é enviado: só conta quantas estariam elegíveis
+    (pending_high), para o aviso diário mostrar a fila esperando aprovação.
     """
     total_sent = 0
     errors = 0
+    modo = _modo()
 
     try:
         async with AsyncSessionLocal() as db:
@@ -103,6 +120,14 @@ async def _auto_answer_high_confidence_async() -> dict:
                 .limit(10)
             )
             rows = result.all()
+
+            if modo != "auto":
+                if rows:
+                    logger.info(
+                        "Auto-answer em modo %s: %d pergunta(s) high aguardando aprovação; nada enviado",
+                        modo, len(rows),
+                    )
+                return {"sent": 0, "errors": 0, "mode": modo, "pending_high": len(rows)}
 
             for question, account in rows:
                 try:
@@ -137,4 +162,5 @@ async def _auto_answer_high_confidence_async() -> dict:
     return {
         "sent": total_sent,
         "errors": errors,
+        "mode": modo,
     }
