@@ -56,6 +56,14 @@ class Settings(BaseSettings):
     # --- Anthropic (Consultor IA) ---
     anthropic_api_key: str = ""
 
+    # --- Resposta automática de perguntas do ML ---
+    # Decisão do Maikeo (25/09 e 29/09/2026): nada é enviado ao comprador sem aprovação.
+    #   "rascunho" -> IA pré-gera a sugestão; NADA é enviado; aprovação em /perguntas
+    #   "off"      -> nem envia nem pré-gera sugestão
+    #   "auto"     -> envia sozinho as sugestões confidence=high (comportamento antigo)
+    # Qualquer outro valor é tratado como "rascunho". Troca SEM deploy: env AUTO_ANSWER_MODE.
+    auto_answer_mode: str = "rascunho"
+
     # --- Registration Control ---
     registration_open: bool = True  # Allow registration by default (backward compat)
 
