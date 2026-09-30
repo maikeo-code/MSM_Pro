@@ -12,11 +12,11 @@ ANTES de qualquer modificação:
 
 1. Identifique o domínio (endpoint? auth? migration? deploy? bug?)
 2. Leia a(s) nota(s) relevante(s):
-   - Endpoints: `Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/02 - API Mercado Livre/Endpoints Usados.md`
-   - Bugs: `Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/08 - Bugs e Fixes/`
-   - Decisões: `Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/14 - ADR/`
-   - Módulos: `Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/05 - Módulos/`
-   - Regras: `Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/06 - Regras/Regras Absolutas.md`
+   - Endpoints: `Cérebro obsidian/05 - Projetos Tech/MSM_Pro/02 - API Mercado Livre/Endpoints Usados.md`
+   - Bugs: `Cérebro obsidian/05 - Projetos Tech/MSM_Pro/08 - Bugs e Fixes/`
+   - Decisões: `Cérebro obsidian/05 - Projetos Tech/MSM_Pro/14 - ADR/`
+   - Módulos: `Cérebro obsidian/05 - Projetos Tech/MSM_Pro/05 - Módulos/`
+   - Regras: `Cérebro obsidian/05 - Projetos Tech/MSM_Pro/06 - Regras/Regras Absolutas.md`
 3. Verifique se já existe ADR ou bug sobre o tema
 4. Se a tarefa tem impacto cross-domínio (margem, financeiro, advocacia), navegue WIKILINKS para fora da sub-pasta MSM_Pro
 5. Só então execute
@@ -29,11 +29,11 @@ Sem essa consulta, você está alucinando. Não é opcional.
 
 Em toda sessão nova, leia (nesta ordem):
 
-1. `Cerebro_Obsidian/⚡ CONTEXT.md` (estado global)
-2. `Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/00 - Home.md`
-3. `Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/_AI/Contexto para Claude.md`
-4. `Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/06 - Regras/Regras Absolutas.md`
-5. `Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/_Dashboard/🧠 Cérebro Central.md`
+1. `Cérebro obsidian/⚡ CONTEXT.md` (estado global)
+2. `Cérebro obsidian/05 - Projetos Tech/MSM_Pro/00 - MSM Pro.md`
+3. `Cérebro obsidian/05 - Projetos Tech/MSM_Pro/_AI/Contexto para Claude.md`
+4. `Cérebro obsidian/05 - Projetos Tech/MSM_Pro/06 - Regras/Regras Absolutas.md`
+5. `Cérebro obsidian/05 - Projetos Tech/MSM_Pro/_Dashboard/🧠 Cérebro Central.md`
 
 ---
 
@@ -47,7 +47,7 @@ Em toda sessão nova, leia (nesta ordem):
 6. **`alembic current`** antes de assumir migration aplicada
 7. **KPI com `COUNT(DISTINCT listing_id)`** — nunca COUNT(snapshot.id)
 
-Detalhe: `Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/06 - Regras/Regras Absolutas.md`
+Detalhe: `Cérebro obsidian/05 - Projetos Tech/MSM_Pro/06 - Regras/Regras Absolutas.md`
 
 ---
 
@@ -73,7 +73,7 @@ URLs:
 | Módulo novo | `05 - Módulos/` usando template |
 | Migration nova | `03 - Arquitetura/Migrations.md` |
 
-Paths relativos a `Cerebro_Obsidian/05 - Projetos Tech/MSM_Pro/`.
+Paths relativos a `Cérebro obsidian/05 - Projetos Tech/MSM_Pro/`.
 
 ---
 
